@@ -56,7 +56,7 @@ export function AppSidebar() {
   };
 
   const visibleItems = navItems.filter(
-    (item) => !role || item.roles.includes(role)
+    (item) => !role || item.roles.includes(role as AppRole)
   );
 
   return (

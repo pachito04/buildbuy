@@ -1,45 +1,47 @@
 import { useState, useEffect } from "react";
-import logoBuildBuy from "@/assets/logo-buildbuy.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Building2, ArrowRight, Package, Users, BarChart3 } from "lucide-react";
 
-const ROLE_OPTIONS = [
-  { value: "arquitecto", label: "Arquitecto", desc: "Carga requerimientos de obra" },
-  { value: "compras", label: "Compras", desc: "Procesa pedidos y genera OC" },
-  { value: "proveedor", label: "Proveedor", desc: "Cotiza órdenes de compra" },
-] as const;
+function GoogleIcon() {
+  return (
+    <svg className="h-4 w-4 mr-2 shrink-0" viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
+  );
+}
+
+const features = [
+  { icon: Package, label: "Gestión de pedidos y materiales" },
+  { icon: Users, label: "Multi-empresa con roles definidos" },
+  { icon: BarChart3, label: "Trazabilidad completa de compras" },
+];
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/dashboard", { replace: true });
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate("/dashboard", { replace: true });
     });
-
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/dashboard", { replace: true });
-      }
+      if (session) navigate("/dashboard", { replace: true });
     });
-
     return () => subscription.unsubscribe();
   }, [navigate]);
 
@@ -57,24 +59,23 @@ export default function Login() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role) {
-      toast({ title: "Selecciona un rol", description: "Debes elegir tu rol para continuar.", variant: "destructive" });
-      return;
-    }
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { full_name: fullName, role },
+        data: { full_name: fullName },
       },
     });
     setLoading(false);
     if (error) {
       toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Registro exitoso", description: "Revisa tu email para confirmar tu cuenta." });
+      toast({
+        title: "Registro exitoso",
+        description: "Revisá tu email para confirmar tu cuenta. Un administrador te asignará tu rol.",
+      });
     }
   };
 
@@ -91,94 +92,205 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex items-center justify-center">
-          <img src={logoBuildBuy} alt="BuildBuy" className="h-14 w-auto" />
+    <div className="flex min-h-[100dvh]">
+      {/* Left panel — branding */}
+      <div className="hidden lg:flex lg:w-[45%] bg-zinc-950 flex-col justify-between p-12 relative overflow-hidden">
+        {/* Subtle grid */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+          }}
+        />
+        {/* Warm glow */}
+        <div
+          className="absolute -top-24 -right-24 w-96 h-96 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(24 95% 53% / 0.15), transparent 65%)" }}
+        />
+        <div
+          className="absolute -bottom-32 -left-16 w-80 h-80 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, hsl(24 95% 53% / 0.08), transparent 65%)" }}
+        />
+
+        {/* Logo */}
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shrink-0">
+            <Building2 className="h-4.5 w-4.5 text-white" />
+          </div>
+          <span className="text-white font-bold text-xl tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            BuildBuy
+          </span>
         </div>
 
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="font-display text-xl">Bienvenido</CardTitle>
-            <CardDescription>Portal de compras para constructoras</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="login">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-                <TabsTrigger value="signup">Registrarse</TabsTrigger>
-              </TabsList>
+        {/* Main copy */}
+        <div className="relative z-10 space-y-10">
+          <div className="space-y-5">
+            <h1
+              className="text-[2.75rem] font-bold text-white leading-[1.1] tracking-tight"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Compras<br />
+              <span className="text-primary">inteligentes</span><br />
+              para la obra
+            </h1>
+            <p className="text-zinc-400 text-[0.9375rem] leading-relaxed max-w-[280px]">
+              Gestioná requerimientos, pools de compra y órdenes en un solo lugar.
+            </p>
+          </div>
 
-              <TabsContent value="login">
-                <form onSubmit={handleLogin} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" type="email" placeholder="tu@empresa.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Contraseña</Label>
-                    <Input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Ingresando..." : "Iniciar Sesión"}
-                  </Button>
-                </form>
-                <div className="relative my-4">
-                  <Separator />
-                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">o</span>
+          <div className="space-y-3">
+            {features.map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-3.5">
+                <div className="h-7 w-7 rounded-lg bg-zinc-800/80 border border-zinc-700/50 flex items-center justify-center shrink-0">
+                  <Icon className="h-3.5 w-3.5 text-primary" />
                 </div>
-                <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={googleLoading}>
-                  <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                  {googleLoading ? "Conectando..." : "Continuar con Google"}
-                </Button>
-              </TabsContent>
+                <span className="text-zinc-300 text-sm">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
-              <TabsContent value="signup">
-                <form onSubmit={handleSignup} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Nombre completo</Label>
-                    <Input id="signup-name" placeholder="Tu nombre" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" placeholder="tu@empresa.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Contraseña</Label>
-                    <Input id="signup-password" type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Rol</Label>
-                    <Select value={role} onValueChange={setRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona tu rol" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLE_OPTIONS.map((r) => (
-                          <SelectItem key={r.value} value={r.value}>
-                            <span className="font-medium">{r.label}</span>
-                            <span className="ml-2 text-muted-foreground text-xs">— {r.desc}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading || !role}>
-                    {loading ? "Registrando..." : "Crear Cuenta"}
-                  </Button>
-                </form>
-                <div className="relative my-4">
-                  <Separator />
-                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">o</span>
+        <p className="relative z-10 text-zinc-600 text-xs">
+          © {new Date().getFullYear()} BuildBuy — Plataforma de compras para constructoras
+        </p>
+      </div>
+
+      {/* Right panel — auth */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 bg-background">
+        <div className="w-full max-w-[380px] space-y-8">
+          {/* Mobile-only logo */}
+          <div className="flex items-center gap-3 lg:hidden">
+            <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
+              <Building2 className="h-4 w-4 text-white" />
+            </div>
+            <span className="font-bold text-lg tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              BuildBuy
+            </span>
+          </div>
+
+          <div>
+            <h2
+              className="text-2xl font-bold tracking-tight"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Bienvenido
+            </h2>
+            <p className="text-muted-foreground text-sm mt-1">Portal de gestión de compras para constructoras</p>
+          </div>
+
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login">Ingresar</TabsTrigger>
+              <TabsTrigger value="signup">Registrarse</TabsTrigger>
+            </TabsList>
+
+            {/* Login tab */}
+            <TabsContent value="login">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">Email</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="tu@empresa.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
                 </div>
-                <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={googleLoading}>
-                  <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                  {googleLoading ? "Conectando..." : "Continuar con Google"}
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Contraseña</Label>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+                <Button type="submit" className="w-full gap-2" disabled={loading}>
+                  {loading ? "Ingresando..." : <><span>Iniciar sesión</span><ArrowRight className="h-4 w-4" /></>}
                 </Button>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+              </form>
+
+              <div className="relative my-5">
+                <Separator />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
+                  o
+                </span>
+              </div>
+              <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={googleLoading}>
+                <GoogleIcon />
+                {googleLoading ? "Conectando..." : "Continuar con Google"}
+              </Button>
+            </TabsContent>
+
+            {/* Signup tab */}
+            <TabsContent value="signup">
+              <form onSubmit={handleSignup} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-name">Nombre completo</Label>
+                  <Input
+                    id="signup-name"
+                    placeholder="Juan García"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="tu@empresa.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Contraseña</Label>
+                  <Input
+                    id="signup-email-password"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <Button type="submit" className="w-full gap-2" disabled={loading}>
+                  {loading ? "Creando cuenta..." : <><span>Crear cuenta</span><ArrowRight className="h-4 w-4" /></>}
+                </Button>
+              </form>
+
+              <p className="text-xs text-muted-foreground mt-4 text-center leading-relaxed">
+                Un administrador te asignará tu rol tras la verificación de la cuenta.
+              </p>
+
+              <div className="relative my-5">
+                <Separator />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
+                  o
+                </span>
+              </div>
+              <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={googleLoading}>
+                <GoogleIcon />
+                {googleLoading ? "Conectando..." : "Continuar con Google"}
+              </Button>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );
