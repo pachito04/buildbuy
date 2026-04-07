@@ -2,27 +2,23 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useViewRole } from "@/hooks/useViewRole";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, ShieldAlert } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Users, ShieldAlert, Link2, Copy, Check, Plus } from "lucide-react";
 
 type AppRole = "arquitecto" | "compras" | "proveedor" | "admin";
 
@@ -34,6 +30,15 @@ interface UserRow {
   created_at: string;
   role: AppRole | null;
   role_row_id: string | null;
+}
+
+interface InviteCode {
+  id: string;
+  code: string;
+  role: AppRole;
+  expires_at: string;
+  active: boolean;
+  used_by: string | null;
 }
 
 const ROLE_LABELS: Record<AppRole, string> = {
@@ -50,55 +55,8 @@ const ROLE_COLORS: Record<AppRole, string> = {
   admin: "bg-orange-100 text-orange-800 border-orange-200",
 };
 
-// Demo rows shown when DB has no real users (for testing)
-const DEMO_USERS: UserRow[] = [
-  {
-    id: "demo-1",
-    full_name: "Juan García",
-    email: "juan@constructora.com",
-    avatar_url: null,
-    created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
-    role: "admin",
-    role_row_id: null,
-  },
-  {
-    id: "demo-2",
-    full_name: "María López",
-    email: "maria@constructora.com",
-    avatar_url: null,
-    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-    role: "arquitecto",
-    role_row_id: null,
-  },
-  {
-    id: "demo-3",
-    full_name: "Carlos Ruiz",
-    email: "carlos@constructora.com",
-    avatar_url: null,
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-    role: "compras",
-    role_row_id: null,
-  },
-  {
-    id: "demo-4",
-    full_name: "Sofía Martínez",
-    email: "sofia@proveedor.com",
-    avatar_url: null,
-    created_at: new Date().toISOString(),
-    role: null,
-    role_row_id: null,
-  },
-];
-
-function getInitials(name: string | null, email: string | null): string {
-  if (name) {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-  }
+function getInitials(name: string | null, email: string | null) {
+  if (name) return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
   return (email?.[0] ?? "?").toUpperCase();
 }
 
@@ -112,9 +70,7 @@ function RoleBadge({ role }: { role: AppRole | null }) {
     );
   }
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full border ${ROLE_COLORS[role]}`}
-    >
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full border ${ROLE_COLORS[role]}`}>
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
       {ROLE_LABELS[role]}
     </span>
@@ -123,10 +79,18 @@ function RoleBadge({ role }: { role: AppRole | null }) {
 
 export default function Usuarios() {
   const { actualRole } = useViewRole();
+  const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteRole, setInviteRole] = useState<AppRole>("arquitecto");
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
+
+  // ── Fetch users ──────────────────────────────────────────────────
   const { data: users, isLoading } = useQuery({
     queryKey: ["usuarios"],
     queryFn: async () => {
@@ -153,29 +117,36 @@ export default function Usuarios() {
     },
   });
 
+  // ── Fetch active invite codes ────────────────────────────────────
+  const { data: inviteCodes } = useQuery({
+    queryKey: ["invite-codes"],
+    enabled: actualRole === "admin",
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("invite_codes")
+        .select("id, code, role, expires_at, active, used_by")
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      return (data ?? []) as InviteCode[];
+    },
+  });
+
+  // ── Assign role mutation ─────────────────────────────────────────
   const assignRole = useMutation({
     mutationFn: async ({ userId, role, existingRoleId }: { userId: string; role: AppRole | "none"; existingRoleId: string | null }) => {
       if (role === "none") {
-        // Remove role
         if (existingRoleId) {
           const { error } = await supabase.from("user_roles").delete().eq("id", existingRoleId);
           if (error) throw error;
         }
         return;
       }
-
       if (existingRoleId) {
-        // Update existing role
-        const { error } = await supabase
-          .from("user_roles")
-          .update({ role })
-          .eq("id", existingRoleId);
+        const { error } = await supabase.from("user_roles").update({ role }).eq("id", existingRoleId);
         if (error) throw error;
       } else {
-        // Insert new role
-        const { error } = await supabase
-          .from("user_roles")
-          .insert({ user_id: userId, role });
+        const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
         if (error) throw error;
       }
     },
@@ -183,7 +154,7 @@ export default function Usuarios() {
       qc.invalidateQueries({ queryKey: ["usuarios"] });
       toast({
         title: "Rol actualizado",
-        description: vars.role === "none" ? "Rol eliminado correctamente." : `Rol asignado: ${ROLE_LABELS[vars.role as AppRole]}`,
+        description: vars.role === "none" ? "Rol eliminado." : `Rol asignado: ${ROLE_LABELS[vars.role as AppRole]}`,
       });
     },
     onError: (err: Error) => {
@@ -192,16 +163,53 @@ export default function Usuarios() {
     onSettled: () => setUpdatingId(null),
   });
 
-  const handleRoleChange = (user: UserRow, newRole: string) => {
-    if (user.id.startsWith("demo-")) {
-      toast({ title: "Datos de prueba", description: "Esta acción no afecta datos de demostración." });
-      return;
-    }
-    setUpdatingId(user.id);
-    assignRole.mutate({ userId: user.id, role: newRole as AppRole | "none", existingRoleId: user.role_row_id });
+  const handleRoleChange = (u: UserRow, newRole: string) => {
+    setUpdatingId(u.id);
+    assignRole.mutate({ userId: u.id, role: newRole as AppRole | "none", existingRoleId: u.role_row_id });
   };
 
-  // Only admins can access this page
+  // ── Generate invite code ─────────────────────────────────────────
+  const handleGenerateCode = async () => {
+    if (!user) return;
+    setGeneratingCode(true);
+
+    // Get company from profile
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("company_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!profile?.company_id) {
+      toast({ title: "Sin empresa", description: "No tenés empresa asignada.", variant: "destructive" });
+      setGeneratingCode(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("invite_codes")
+      .insert({ company_id: profile.company_id, role: inviteRole, created_by: user.id })
+      .select("code")
+      .single();
+
+    if (error || !data) {
+      toast({ title: "Error", description: error?.message, variant: "destructive" });
+      setGeneratingCode(false);
+      return;
+    }
+
+    setGeneratedCode(data.code);
+    qc.invalidateQueries({ queryKey: ["invite-codes"] });
+    setGeneratingCode(false);
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // ── Access guard ─────────────────────────────────────────────────
   if (actualRole !== "admin") {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
@@ -212,8 +220,7 @@ export default function Usuarios() {
     );
   }
 
-  const displayUsers = (!isLoading && (!users || users.length === 0)) ? DEMO_USERS : (users ?? []);
-  const isDemo = !isLoading && (!users || users.length === 0);
+  const displayUsers = users ?? [];
 
   return (
     <div className="p-6 space-y-6">
@@ -223,51 +230,69 @@ export default function Usuarios() {
           <h1 className="font-bold text-2xl tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             Usuarios
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Gestioná los miembros de tu organización y sus roles de acceso
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">Gestioná los miembros de tu organización y sus roles</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Users className="h-4.5 w-4.5 text-primary" />
-          </div>
-        </div>
+        <Button onClick={() => { setInviteOpen(true); setGeneratedCode(null); }} size="sm" className="gap-2">
+          <Plus className="h-4 w-4" />
+          Invitar usuario
+        </Button>
       </div>
-
-      {/* Demo notice */}
-      {isDemo && (
-        <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-3">
-          <span className="text-amber-600 text-sm font-medium">Datos de prueba</span>
-          <span className="text-amber-600 text-sm">— Registrá usuarios reales desde la pantalla de inicio de sesión.</span>
-        </div>
-      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total usuarios", value: displayUsers.length },
-          { label: "Con rol asignado", value: displayUsers.filter((u) => u.role).length },
+          { label: "Total", value: displayUsers.length },
+          { label: "Con rol", value: displayUsers.filter((u) => u.role).length },
           { label: "Sin rol", value: displayUsers.filter((u) => !u.role).length },
-          { label: "Administradores", value: displayUsers.filter((u) => u.role === "admin").length },
+          { label: "Admins", value: displayUsers.filter((u) => u.role === "admin").length },
         ].map(({ label, value }) => (
           <Card key={label} className="border-0 shadow-sm bg-muted/40">
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="text-2xl font-bold mt-0.5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                {value}
-              </p>
+              <p className="text-2xl font-bold mt-0.5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Table */}
+      {/* Active invite codes */}
+      {inviteCodes && inviteCodes.length > 0 && (
+        <Card className="shadow-sm border-dashed">
+          <CardHeader className="px-6 py-4 border-b bg-muted/10">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Link2 className="h-4 w-4 text-primary" />
+              Códigos de invitación activos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {inviteCodes.map((inv) => (
+                <div key={inv.id} className="flex items-center justify-between px-6 py-3">
+                  <div className="flex items-center gap-3">
+                    <code className="font-mono text-sm font-bold tracking-widest bg-muted px-2 py-0.5 rounded">
+                      {inv.code}
+                    </code>
+                    <RoleBadge role={inv.role} />
+                    <span className="text-xs text-muted-foreground">
+                      Expira {new Date(inv.expires_at).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                    </span>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => copyCode(inv.code)} className="gap-1.5 text-xs">
+                    <Copy className="h-3.5 w-3.5" />
+                    Copiar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Users table */}
       <Card className="shadow-sm overflow-hidden">
         <CardHeader className="px-6 py-4 border-b bg-muted/20">
           <CardTitle className="text-base font-semibold">Miembros de la organización</CardTitle>
-          <CardDescription className="text-xs">
-            Asigná roles para controlar el acceso de cada usuario
-          </CardDescription>
+          <CardDescription className="text-xs">Asigná roles para controlar el acceso de cada usuario</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -283,6 +308,12 @@ export default function Usuarios() {
                 </div>
               ))}
             </div>
+          ) : displayUsers.length === 0 ? (
+            <div className="p-12 text-center">
+              <Users className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+              <p className="text-sm font-medium">Sin usuarios aún</p>
+              <p className="text-xs text-muted-foreground mt-1">Invitá usuarios con el botón de arriba.</p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -290,45 +321,41 @@ export default function Usuarios() {
                   <TableHead className="pl-6 text-xs font-medium text-muted-foreground">Usuario</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground">Email</TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground">Rol actual</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground pr-6">Asignar rol</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground">Miembro desde</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground">Asignar rol</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground pr-6">Desde</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayUsers.map((user) => (
-                  <TableRow key={user.id} className="group">
+                {displayUsers.map((u) => (
+                  <TableRow key={u.id}>
                     <TableCell className="pl-6">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar_url ?? undefined} />
+                          <AvatarImage src={u.avatar_url ?? undefined} />
                           <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">
-                            {getInitials(user.full_name, user.email)}
+                            {getInitials(u.full_name, u.email)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm font-medium">
-                          {user.full_name ?? "Sin nombre"}
-                        </span>
+                        <span className="text-sm font-medium">{u.full_name ?? "Sin nombre"}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">{user.email ?? "—"}</span>
+                      <span className="text-sm text-muted-foreground">{u.email ?? "—"}</span>
                     </TableCell>
                     <TableCell>
-                      <RoleBadge role={user.role} />
+                      <RoleBadge role={u.role} />
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={user.role ?? "none"}
-                        onValueChange={(v) => handleRoleChange(user, v)}
-                        disabled={updatingId === user.id}
+                        value={u.role ?? "none"}
+                        onValueChange={(v) => handleRoleChange(u, v)}
+                        disabled={updatingId === u.id}
                       >
                         <SelectTrigger className="w-[160px] h-8 text-xs">
                           <SelectValue placeholder="Asignar rol..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">
-                            <span className="text-muted-foreground">Sin rol</span>
-                          </SelectItem>
+                          <SelectItem value="none"><span className="text-muted-foreground">Sin rol</span></SelectItem>
                           <SelectItem value="arquitecto">Arquitecto</SelectItem>
                           <SelectItem value="compras">Compras</SelectItem>
                           <SelectItem value="proveedor">Proveedor</SelectItem>
@@ -338,11 +365,7 @@ export default function Usuarios() {
                     </TableCell>
                     <TableCell className="pr-6">
                       <span className="text-xs text-muted-foreground">
-                        {new Date(user.created_at).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        {new Date(u.created_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
                       </span>
                     </TableCell>
                   </TableRow>
@@ -352,6 +375,64 @@ export default function Usuarios() {
           )}
         </CardContent>
       </Card>
+
+      {/* Invite dialog */}
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Invitar usuario</DialogTitle>
+            <DialogDescription>
+              Generá un código de invitación. El usuario lo ingresa al registrarse y queda vinculado a tu empresa con el rol que elijas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Rol del invitado</label>
+              <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as AppRole)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="arquitecto">Arquitecto — carga requerimientos</SelectItem>
+                  <SelectItem value="compras">Compras — gestiona pedidos y OCs</SelectItem>
+                  <SelectItem value="proveedor">Proveedor — cotiza órdenes</SelectItem>
+                  <SelectItem value="admin">Administrador — acceso completo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!generatedCode ? (
+              <Button onClick={handleGenerateCode} disabled={generatingCode} className="w-full gap-2">
+                {generatingCode ? "Generando..." : <><Link2 className="h-4 w-4" />Generar código</>}
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-xl border bg-muted/40 p-3">
+                  <code className="flex-1 font-mono text-2xl font-bold tracking-[0.3em] text-center">
+                    {generatedCode}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyCode(generatedCode)}
+                    className="gap-1.5 shrink-0"
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copiado" : "Copiar"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Este código expira en 7 días y es de un solo uso. El usuario lo ingresa en la pantalla de onboarding.
+                </p>
+                <Button variant="outline" onClick={handleGenerateCode} className="w-full text-sm">
+                  Generar otro código
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

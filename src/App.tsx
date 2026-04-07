@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, RequireAuth } from "@/hooks/useAuth";
+import { AuthProvider, RequireAuth } from "./hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -19,6 +19,7 @@ import Materiales from "./pages/Materiales";
 import Arquitectos from "./pages/Arquitectos";
 import Proveedores from "./pages/Proveedores";
 import Usuarios from "./pages/Usuarios";
+import Onboarding from "./pages/Onboarding";
 import RegistroProveedor from "./pages/RegistroProveedor";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +36,14 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/registro-proveedor" element={<RegistroProveedor />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="/onboarding"
+              element={
+                <RequireAuth>
+                  <Onboarding />
+                </RequireAuth>
+              }
+            />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pedidos" element={<Pedidos />} />

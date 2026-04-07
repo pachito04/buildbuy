@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface AuthContextType {
   session: Session | null;
@@ -43,12 +43,31 @@ export function useAuth() {
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    if (!loading && !session) {
+    if (loading) return;
+
+    if (!session) {
       navigate("/login", { replace: true });
+      return;
     }
-  }, [loading, session, navigate]);
+
+    // Already on onboarding — don't redirect again
+    if (location.pathname === "/onboarding") return;
+
+    // Check if the user has a company assigned
+    supabase
+      .from("profiles")
+      .select("company_id")
+      .eq("id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data?.company_id) {
+          navigate("/onboarding", { replace: true });
+        }
+      });
+  }, [loading, session, navigate, location.pathname]);
 
   if (loading) {
     return (
