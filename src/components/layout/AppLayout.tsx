@@ -1,4 +1,5 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { ViewRoleProvider, useViewRole } from "@/hooks/useViewRole";
 import { AppRole } from "@/hooks/useUserRole";
@@ -69,7 +70,14 @@ function NoRoleScreen() {
 }
 
 function AppLayoutInner() {
-  const { viewRole, loading } = useViewRole();
+  const { viewRole, companyId, loading } = useViewRole();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && companyId === null) {
+      navigate("/onboarding", { replace: true });
+    }
+  }, [loading, companyId, navigate]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -77,7 +85,7 @@ function AppLayoutInner() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto">
-          {loading ? null : !viewRole ? <NoRoleScreen /> : <Outlet />}
+          {loading ? null : !companyId ? null : !viewRole ? <NoRoleScreen /> : <Outlet />}
         </main>
       </div>
     </div>
