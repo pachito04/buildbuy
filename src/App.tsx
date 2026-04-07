@@ -44,7 +44,7 @@ const App = () => (
                 </RequireAuth>
               }
             />
-            <Route element={<AppLayout />}>
+            <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pedidos" element={<Pedidos />} />
               <Route path="/inventario" element={<Inventario />} />
