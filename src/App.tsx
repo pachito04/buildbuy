@@ -18,6 +18,7 @@ import Trazabilidad from "./pages/Trazabilidad";
 import Materiales from "./pages/Materiales";
 import Arquitectos from "./pages/Arquitectos";
 import Proveedores from "./pages/Proveedores";
+import Usuarios from "./pages/Usuarios";
 import RegistroProveedor from "./pages/RegistroProveedor";
 import NotFound from "./pages/NotFound";
 
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/materiales" element={<Materiales />} />
               <Route path="/arquitectos" element={<Arquitectos />} />
               <Route path="/proveedores" element={<Proveedores />} />
+              <Route path="/usuarios" element={<Usuarios />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
