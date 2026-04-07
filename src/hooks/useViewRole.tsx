@@ -25,30 +25,38 @@ export function ViewRoleProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user) {
-        setLoading(false);
-        return;
-      }
-
-      // Fetch profile (company_id) and role in parallel
+    async function fetchUserData(userId: string) {
       const [profileRes, roleRes] = await Promise.all([
-        supabase.from("profiles").select("company_id").eq("id", session.user.id).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", session.user.id).maybeSingle(),
+        supabase.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
       ]);
 
-      if (profileRes.data?.company_id) {
-        setCompanyId(profileRes.data.company_id);
-      }
+      setCompanyId(profileRes.data?.company_id ?? null);
 
       if (roleRes.data?.role) {
         const role = roleRes.data.role as AppRole;
         setActualRole(role);
         setViewRole(role);
+      } else {
+        setActualRole(null);
+        setViewRole(null);
       }
 
       setLoading(false);
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchUserData(session.user.id);
+      } else {
+        setCompanyId(null);
+        setActualRole(null);
+        setViewRole(null);
+        setLoading(false);
+      }
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   return (
