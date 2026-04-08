@@ -24,26 +24,37 @@ export function ViewRoleProvider({ children }: { children: ReactNode }) {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchUserData(userId: string) {
-      const [profileRes, roleRes] = await Promise.all([
-        supabase.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
-      ]);
+  async function fetchUserData(userId: string) {
+    const [profileRes, roleRes] = await Promise.all([
+      supabase.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+    ]);
 
-      setCompanyId(profileRes.data?.company_id ?? null);
+    setCompanyId(profileRes.data?.company_id ?? null);
 
-      if (roleRes.data?.role) {
-        const role = roleRes.data.role as AppRole;
-        setActualRole(role);
-        setViewRole(role);
-      } else {
-        setActualRole(null);
-        setViewRole(null);
-      }
-
-      setLoading(false);
+    if (roleRes.data?.role) {
+      const role = roleRes.data.role as AppRole;
+      setActualRole(role);
+      setViewRole(role);
+    } else {
+      setActualRole(null);
+      setViewRole(null);
     }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    // ViewRoleProvider mounts AFTER RequireAuth passes, so INITIAL_SESSION has
+    // already fired. Use getSession() to bootstrap, then onAuthStateChange for
+    // future sign-in/sign-out events.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchUserData(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
@@ -57,6 +68,7 @@ export function ViewRoleProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
