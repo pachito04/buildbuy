@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,35 +15,43 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, CheckCircle, XCircle, FileText, Warehouse } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-interface ItemRow { description: string; quantity: string; unit: string; }
+interface ItemRow {
+  material_id: string;   // inventory.material_id
+  description: string;   // display name
+  quantity: string;
+  unit: string;
+}
 
 const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft: { label: "Borrador", variant: "secondary" },
-  approved: { label: "Aprobado", variant: "default" },
-  in_pool: { label: "En Pool", variant: "outline" },
-  rfq_direct: { label: "RFQ Directo", variant: "outline" },
-  inventario: { label: "Inventario", variant: "outline" },
-  rejected: { label: "Rechazado", variant: "destructive" },
+  draft:     { label: "Borrador",    variant: "secondary" },
+  approved:  { label: "Aprobado",    variant: "default"   },
+  in_pool:   { label: "En Pool",     variant: "outline"   },
+  rfq_direct:{ label: "RFQ Directo", variant: "outline"   },
+  inventario:{ label: "Inventario",  variant: "outline"   },
+  rejected:  { label: "Rechazado",   variant: "destructive"},
 };
+
+const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "" };
 
 export default function Pedidos() {
   const [open, setOpen] = useState(false);
   const [rawMessage, setRawMessage] = useState("");
   const [urgency, setUrgency] = useState("normal");
   const [projectId, setProjectId] = useState("");
-  const [architectId, setArchitectId] = useState("");
   const [desiredDate, setDesiredDate] = useState("");
-  const [items, setItems] = useState<ItemRow[]>([{ description: "", quantity: "1", unit: "pza" }]);
+  const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [filter, setFilter] = useState<string>("all");
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { viewRole: role } = useViewRole();
+  const { viewRole: role, companyId } = useViewRole();
   const qc = useQueryClient();
 
-  const canCreate = role === "arquitecto" || role === "compras" || role === "admin";
+  const canCreate  = role === "arquitecto" || role === "compras" || role === "admin";
   const canProcess = role === "compras" || role === "admin";
 
+  // ── Profile (company_id) ─────────────────────────────────────────────────
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user?.id,
@@ -57,8 +65,69 @@ export default function Pedidos() {
       return data;
     },
   });
-  const companyId = profile?.company_id;
+  const profileCompanyId = profile?.company_id ?? companyId;
 
+  // ── Auto-detect architect for the logged-in user ─────────────────────────
+  const { data: myArchitect } = useQuery({
+    queryKey: ["my-architect", user?.id],
+    enabled: !!user?.id && role === "arquitecto",
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("architects")
+        .select("id, full_name")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  // Auto-set architectId when the architect record is found
+  const [architectId, setArchitectId] = useState("");
+  useEffect(() => {
+    if (myArchitect?.id) setArchitectId(myArchitect.id);
+  }, [myArchitect?.id]);
+
+  // ── Inventory materials (private catalog) ────────────────────────────────
+  const { data: inventoryMaterials } = useQuery({
+    queryKey: ["inventory-materials", profileCompanyId],
+    enabled: !!profileCompanyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("material_id, quantity, materials(name, unit)")
+        .gt("quantity", 0)   // only show materials with stock
+        .order("materials(name)");
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        material_id: row.material_id,
+        name: row.materials?.name ?? "—",
+        unit: row.materials?.unit ?? "",
+        stock: Number(row.quantity),
+      }));
+    },
+  });
+
+  // ── Projects & architects (for compras/admin selectors) ──────────────────
+  const { data: projects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("projects").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: architects } = useQuery({
+    queryKey: ["architects-list"],
+    enabled: role !== "arquitecto",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("architects").select("id, full_name").order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // ── Requests list ────────────────────────────────────────────────────────
   const { data: requests, isLoading } = useQuery({
     queryKey: ["requests"],
     queryFn: async () => {
@@ -71,57 +140,43 @@ export default function Pedidos() {
     },
   });
 
-  const { data: projects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("id, name").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: architects } = useQuery({
-    queryKey: ["architects-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("architects").select("id, full_name").order("full_name");
-      if (error) throw error;
-      return data;
-    },
-  });
-
+  // ── Create request ───────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Usuario sin empresa asignada");
+      if (!profileCompanyId) throw new Error("Usuario sin empresa asignada");
+      const validItems = items.filter((i) => i.material_id);
+      if (!validItems.length) throw new Error("Agregá al menos un material");
+
       const { data: req, error } = await supabase
         .from("requests")
         .insert({
-          company_id: companyId,
-          raw_message: rawMessage || null,
+          company_id:   profileCompanyId,
+          raw_message:  rawMessage || null,
           urgency,
-          created_by: user?.id,
-          project_id: projectId || null,
+          created_by:   user?.id,
+          project_id:   projectId || null,
           architect_id: architectId || null,
           desired_date: desiredDate || null,
         })
         .select()
         .single();
       if (error) throw error;
-      const validItems = items.filter((i) => i.description.trim());
-      if (validItems.length > 0) {
-        const { error: ie } = await supabase.from("request_items").insert(
-          validItems.map((i) => ({ request_id: req.id, description: i.description, quantity: parseFloat(i.quantity) || 1, unit: i.unit }))
-        );
-        if (ie) throw ie;
-      }
+
+      const { error: ie } = await supabase.from("request_items").insert(
+        validItems.map((i) => ({
+          request_id:  req.id,
+          material_id: i.material_id,
+          description: i.description,
+          quantity:    parseFloat(i.quantity) || 1,
+          unit:        i.unit,
+        }))
+      );
+      if (ie) throw ie;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["requests"] });
       setOpen(false);
-      setRawMessage("");
-      setProjectId("");
-      setArchitectId("");
-      setDesiredDate("");
-      setItems([{ description: "", quantity: "1", unit: "pza" }]);
+      resetForm();
       toast({ title: "Pedido creado" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -138,11 +193,33 @@ export default function Pedidos() {
     },
   });
 
-  const addItem = () => setItems([...items, { description: "", quantity: "1", unit: "pza" }]);
+  function resetForm() {
+    setRawMessage("");
+    setProjectId("");
+    if (!myArchitect) setArchitectId("");
+    setDesiredDate("");
+    setItems([{ ...EMPTY_ITEM }]);
+  }
+
+  // ── Item helpers ─────────────────────────────────────────────────────────
+  const addItem = () => setItems([...items, { ...EMPTY_ITEM }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: keyof ItemRow, value: string) => {
+
+  const selectMaterial = (i: number, material_id: string) => {
+    const mat = inventoryMaterials?.find((m) => m.material_id === material_id);
     const copy = [...items];
-    copy[i] = { ...copy[i], [field]: value };
+    copy[i] = {
+      material_id,
+      description: mat?.name ?? "",
+      unit:        mat?.unit ?? "",
+      quantity:    copy[i].quantity || "1",
+    };
+    setItems(copy);
+  };
+
+  const updateQty = (i: number, quantity: string) => {
+    const copy = [...items];
+    copy[i] = { ...copy[i], quantity };
     setItems(copy);
   };
 
@@ -155,97 +232,165 @@ export default function Pedidos() {
           <h1 className="font-display text-2xl font-bold">Gestión de Pedidos</h1>
           <p className="text-muted-foreground text-sm mt-1">Pedidos recibidos desde obra</p>
         </div>
+
         {canCreate && (
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Nuevo Pedido</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Nuevo Pedido</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Mensaje / Descripción general</Label>
-                <Textarea placeholder="Ej: Necesitamos cemento y varilla para la obra norte..." value={rawMessage} onChange={(e) => setRawMessage(e.target.value)} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Proyecto / Obra</Label>
-                  <Select value={projectId} onValueChange={setProjectId}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                    <SelectContent>
-                      {projects?.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Arquitecto</Label>
-                  <Select value={architectId} onValueChange={setArchitectId}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                    <SelectContent>
-                      {architects?.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Urgencia</Label>
-                  <Select value={urgency} onValueChange={setUrgency}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="baja">Baja</SelectItem>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Fecha deseada</Label>
-                  <Input type="date" value={desiredDate} onChange={(e) => setDesiredDate(e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Ítems del pedido</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Agregar</Button>
-                </div>
-                {items.map((item, i) => (
-                  <div key={i} className="flex gap-2 items-start">
-                    <Input className="flex-1" placeholder="Descripción" value={item.description} onChange={(e) => updateItem(i, "description", e.target.value)} />
-                    <Input className="w-20" type="number" placeholder="Cant." value={item.quantity} onChange={(e) => updateItem(i, "quantity", e.target.value)} />
-                    <Select value={item.unit} onValueChange={(v) => updateItem(i, "unit", v)}>
-                      <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pza">pza</SelectItem>
-                        <SelectItem value="kg">kg</SelectItem>
-                        <SelectItem value="ton">ton</SelectItem>
-                        <SelectItem value="m">m</SelectItem>
-                        <SelectItem value="m2">m²</SelectItem>
-                        <SelectItem value="m3">m³</SelectItem>
-                        <SelectItem value="lt">lt</SelectItem>
-                        <SelectItem value="bulto">bulto</SelectItem>
-                        <SelectItem value="saco">saco</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {items.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" />Nuevo Pedido</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Nuevo Pedido</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4">
+
+                {/* Architect row */}
+                {role === "arquitecto" ? (
+                  <div className="p-3 rounded-lg bg-muted/60 text-sm">
+                    <span className="text-muted-foreground">Arquitecto: </span>
+                    <span className="font-medium">{myArchitect?.full_name ?? "—"}</span>
+                    {!myArchitect && (
+                      <p className="text-xs text-destructive mt-1">
+                        Tu usuario no tiene un perfil de arquitecto asociado. Pedile al admin que lo vincule.
+                      </p>
                     )}
                   </div>
-                ))}
-              </div>
-              <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creando..." : "Crear Pedido"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Arquitecto</Label>
+                      <Select value={architectId} onValueChange={setArchitectId}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                        <SelectContent>
+                          {architects?.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Proyecto / Obra</Label>
+                      <Select value={projectId} onValueChange={setProjectId}>
+                        <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                        <SelectContent>
+                          {projects?.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Project (for arquitecto) */}
+                {role === "arquitecto" && (
+                  <div className="space-y-2">
+                    <Label>Proyecto / Obra</Label>
+                    <Select value={projectId} onValueChange={setProjectId}>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                      <SelectContent>
+                        {projects?.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Urgencia</Label>
+                    <Select value={urgency} onValueChange={setUrgency}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baja">Baja</SelectItem>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="urgente">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha deseada</Label>
+                    <Input type="date" value={desiredDate} onChange={(e) => setDesiredDate(e.target.value)} />
+                  </div>
+                </div>
+
+                {/* Materials from inventory */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Materiales *</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                      <Plus className="h-3 w-3 mr-1" />Agregar
+                    </Button>
+                  </div>
+
+                  {!inventoryMaterials?.length && (
+                    <p className="text-xs text-muted-foreground">
+                      No hay materiales con stock en el inventario. Cargá materiales primero.
+                    </p>
+                  )}
+
+                  {items.map((item, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      {/* Material selector */}
+                      <div className="flex-1">
+                        <Select value={item.material_id} onValueChange={(v) => selectMaterial(i, v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar material..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inventoryMaterials?.map((m) => (
+                              <SelectItem key={m.material_id} value={m.material_id}>
+                                {m.name}
+                                <span className="text-muted-foreground ml-1 text-xs">
+                                  (stock: {m.stock} {m.unit})
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Quantity */}
+                      <Input
+                        className="w-24"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="Cant."
+                        value={item.quantity}
+                        onChange={(e) => updateQty(i, e.target.value)}
+                      />
+
+                      {/* Unit (read-only, auto-filled) */}
+                      <span className="text-sm text-muted-foreground w-10 shrink-0">{item.unit}</span>
+
+                      {items.length > 1 && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Observaciones</Label>
+                  <Textarea
+                    placeholder="Observaciones adicionales..."
+                    value={rawMessage}
+                    onChange={(e) => setRawMessage(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full" disabled={createMutation.isPending || !profileCompanyId}>
+                  {createMutation.isPending ? "Creando..." : "Crear Pedido"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
@@ -259,7 +404,9 @@ export default function Pedidos() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
       ) : !filtered.length ? (
         <Card>
           <CardContent className="text-center py-12 text-muted-foreground">
@@ -279,13 +426,15 @@ export default function Pedidos() {
                   {r.urgency === "urgente" && <Badge variant="destructive">Urgente</Badge>}
                   {r.urgency === "alta" && <Badge className="bg-warning text-warning-foreground">Alta</Badge>}
                 </div>
-                <span className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString("es-MX")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(r.created_at).toLocaleDateString("es-AR")}
+                </span>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex gap-4 text-xs text-muted-foreground">
-                  {(r as any).projects?.name && <span>🏗️ {(r as any).projects.name}</span>}
+                  {(r as any).projects?.name    && <span>🏗️ {(r as any).projects.name}</span>}
                   {(r as any).architects?.full_name && <span>👷 {(r as any).architects.full_name}</span>}
-                  {r.desired_date && <span>📅 {new Date(r.desired_date).toLocaleDateString("es-MX")}</span>}
+                  {r.desired_date               && <span>📅 {new Date(r.desired_date).toLocaleDateString("es-AR")}</span>}
                 </div>
                 {r.raw_message && <p className="text-sm text-muted-foreground">{r.raw_message}</p>}
                 {r.request_items && r.request_items.length > 0 && (
@@ -293,7 +442,7 @@ export default function Pedidos() {
                     <table className="w-full text-sm">
                       <thead className="bg-muted">
                         <tr>
-                          <th className="text-left px-3 py-2">Ítem</th>
+                          <th className="text-left px-3 py-2">Material</th>
                           <th className="text-right px-3 py-2">Cantidad</th>
                           <th className="text-left px-3 py-2">Unidad</th>
                         </tr>
@@ -315,7 +464,8 @@ export default function Pedidos() {
                     <Button size="sm" onClick={() => updateStatus.mutate({ id: r.id, status: "approved" })}>
                       <CheckCircle className="h-3 w-3 mr-1" />Aprobar
                     </Button>
-                    <Button size="sm" variant="outline" className="text-destructive" onClick={() => updateStatus.mutate({ id: r.id, status: "rejected" })}>
+                    <Button size="sm" variant="outline" className="text-destructive"
+                      onClick={() => updateStatus.mutate({ id: r.id, status: "rejected" })}>
                       <XCircle className="h-3 w-3 mr-1" />Rechazar
                     </Button>
                   </div>
