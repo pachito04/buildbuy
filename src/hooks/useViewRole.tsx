@@ -25,6 +25,7 @@ export function ViewRoleProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function fetchUserData(userId: string) {
+    setLoading(true); // ensure loading=true while fetching to block premature redirects
     const [profileRes, roleRes] = await Promise.all([
       supabase.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
