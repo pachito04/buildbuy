@@ -49,6 +49,21 @@ export default function RFQs() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
+  const { data: profile } = useQuery({
+    queryKey: ["profile", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("company_id")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const companyId = profile?.company_id;
+
   const { data: rfqs, isLoading } = useQuery({
     queryKey: ["rfqs"],
     queryFn: async () => {
@@ -126,17 +141,19 @@ export default function RFQs() {
 
       if (items.length === 0) throw new Error("No hay ítems para el RFQ");
       if (selectedProviders.length === 0) throw new Error("Selecciona al menos un proveedor");
+      if (!companyId) throw new Error("Usuario sin empresa asignada");
 
       // Create RFQ
       const { data: rfq, error } = await supabase
         .from("rfqs")
         .insert({
+          company_id: companyId,
           pool_id: source === "pool" ? selectedPoolId : null,
           request_id: source === "request" ? selectedRequestId : null,
           deadline: deadline || null,
           closing_datetime: closingDatetime || null,
           delivery_location: deliveryLocation || null,
-          notes: notes || null,
+          observations: notes || null,
           created_by: user?.id,
           status: "draft",
         } as any)
@@ -385,8 +402,8 @@ export default function RFQs() {
               {(detailRfq as any).closing_datetime && (
                 <p className="text-sm"><span className="text-muted-foreground">Cierre:</span> {new Date((detailRfq as any).closing_datetime).toLocaleString("es-MX")}</p>
               )}
-              {detailRfq.notes && (
-                <p className="text-sm"><span className="text-muted-foreground">Notas:</span> {detailRfq.notes}</p>
+              {(detailRfq as any).observations && (
+                <p className="text-sm"><span className="text-muted-foreground">Notas:</span> {(detailRfq as any).observations}</p>
               )}
 
               {/* Items */}

@@ -59,13 +59,17 @@ export default function Cotizaciones() {
   const [quoteConditions, setQuoteConditions] = useState("");
   const [quoteItems, setQuoteItems] = useState<{ rfq_item_id: string; unit_price: string }[]>([]);
 
-  // Get provider record for proveedor role
+  // Get provider record for proveedor role (via provider_users join table)
   const { data: myProvider } = useQuery({
     queryKey: ["my-provider", user?.id],
     enabled: role === "proveedor" && !!user,
     queryFn: async () => {
-      const { data } = await supabase.from("providers").select("id").eq("user_id", user!.id).maybeSingle();
-      return data;
+      const { data } = await supabase
+        .from("provider_users")
+        .select("provider_id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return data ? { id: data.provider_id } : null;
     },
   });
 

@@ -44,6 +44,21 @@ export default function Pedidos() {
   const canCreate = role === "arquitecto" || role === "compras" || role === "admin";
   const canProcess = role === "compras" || role === "admin";
 
+  const { data: profile } = useQuery({
+    queryKey: ["profile", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("company_id")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const companyId = profile?.company_id;
+
   const { data: requests, isLoading } = useQuery({
     queryKey: ["requests"],
     queryFn: async () => {
@@ -76,9 +91,11 @@ export default function Pedidos() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Usuario sin empresa asignada");
       const { data: req, error } = await supabase
         .from("requests")
         .insert({
+          company_id: companyId,
           raw_message: rawMessage || null,
           urgency,
           created_by: user?.id,
