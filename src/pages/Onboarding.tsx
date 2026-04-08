@@ -32,50 +32,26 @@ export default function Onboarding() {
     if (!user) return;
     setLoading(true);
 
-    // 1. Insert company
     const slug = companyName
       .toLowerCase()
       .replace(/\s+/g, "-")
       .replace(/[^a-z0-9-]/g, "")
-      .slice(0, 40);
+      .slice(0, 40) + "-" + Date.now();
 
-    const { data: company, error: companyErr } = await supabase
-      .from("companies")
-      .insert({ name: companyName, slug: slug + "-" + Date.now(), phone: companyPhone || null })
-      .select("id")
-      .single();
+    // Single atomic RPC: creates company, updates profile, assigns admin role
+    const { error } = await supabase.rpc("onboard_create_company", {
+      p_name:  companyName,
+      p_slug:  slug,
+      p_phone: companyPhone || null,
+    });
 
-    if (companyErr || !company) {
-      toast({ title: "Error", description: companyErr?.message ?? "No se pudo crear la empresa.", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    // 2. Update own profile with company_id
-    const { error: profileErr } = await supabase
-      .from("profiles")
-      .update({ company_id: company.id })
-      .eq("id", user.id);
-
-    if (profileErr) {
-      toast({ title: "Error al vincular perfil", description: profileErr.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    // 3. Assign self as admin
-    const { error: roleErr } = await supabase
-      .from("user_roles")
-      .insert({ user_id: user.id, role: "admin", company_id: company.id });
-
-    if (roleErr) {
-      toast({ title: "Error al asignar rol", description: roleErr.message, variant: "destructive" });
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
       setLoading(false);
       return;
     }
 
     toast({ title: "Empresa creada", description: `Bienvenido a ${companyName}. Ya sos el administrador.` });
-    // Hard reload so useViewRole re-fetches from DB
     window.location.href = "/dashboard";
   };
 
@@ -87,59 +63,16 @@ export default function Onboarding() {
 
     const cleanCode = code.trim().toUpperCase();
 
-    // 1. Validate code
-    const { data: invite, error: inviteErr } = await supabase
-      .from("invite_codes")
-      .select("id, company_id, role, expires_at, active, used_by")
-      .eq("code", cleanCode)
-      .maybeSingle();
+    // Single atomic RPC: validates code, updates profile, assigns role, marks code used
+    const { error } = await supabase.rpc("onboard_join_with_code", {
+      p_code: cleanCode,
+    });
 
-    if (inviteErr || !invite) {
-      toast({ title: "Código inválido", description: "No encontramos ese código de invitación.", variant: "destructive" });
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
       setLoading(false);
       return;
     }
-
-    if (!invite.active || invite.used_by) {
-      toast({ title: "Código ya utilizado", description: "Este código ya fue usado o fue desactivado.", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    if (new Date(invite.expires_at) < new Date()) {
-      toast({ title: "Código expirado", description: "Pedí al administrador que genere un nuevo código.", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    // 2. Update profile with company_id
-    const { error: profileErr } = await supabase
-      .from("profiles")
-      .update({ company_id: invite.company_id })
-      .eq("id", user.id);
-
-    if (profileErr) {
-      toast({ title: "Error", description: profileErr.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    // 3. Assign role
-    const { error: roleErr } = await supabase
-      .from("user_roles")
-      .insert({ user_id: user.id, role: invite.role, company_id: invite.company_id });
-
-    if (roleErr) {
-      toast({ title: "Error al asignar rol", description: roleErr.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    // 4. Mark code as used
-    await supabase
-      .from("invite_codes")
-      .update({ used_by: user.id, used_at: new Date().toISOString(), active: false })
-      .eq("id", invite.id);
 
     toast({ title: "Te uniste correctamente", description: "Ya tenés acceso a tu organización." });
     window.location.href = "/dashboard";
