@@ -2,8 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, RequireAuth } from "./hooks/useAuth";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { AuthProvider, RequireAuth, useAuth } from "./hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -25,6 +26,26 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Root handler — waits for auth state (including OAuth code exchange) before redirecting.
+// Critically, this does NOT navigate immediately, preserving ?code= in the URL long enough
+// for supabase-js to exchange it via PKCE before we know where to send the user.
+function RootRedirect() {
+  const { session, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading) {
+      navigate(session ? "/dashboard" : "/login", { replace: true });
+    }
+  }, [loading, session, navigate]);
+
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+    </div>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -33,9 +54,9 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<Login />} />
             <Route path="/registro-proveedor" element={<RegistroProveedor />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route
               path="/onboarding"
               element={
