@@ -9,26 +9,63 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, CheckCircle, XCircle, FileText, Warehouse } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  FileText,
+  Warehouse,
+  AlertCircle,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface ItemRow {
-  material_id: string;   // inventory.material_id
-  description: string;   // display name
+  material_id: string;
+  description: string;
   quantity: string;
   unit: string;
 }
 
-const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft:     { label: "Borrador",    variant: "secondary" },
-  approved:  { label: "Aprobado",    variant: "default"   },
-  in_pool:   { label: "En Pool",     variant: "outline"   },
-  rfq_direct:{ label: "RFQ Directo", variant: "outline"   },
-  inventario:{ label: "Inventario",  variant: "outline"   },
-  rejected:  { label: "Rechazado",   variant: "destructive"},
+// Status labels for admin/compras (show internal states)
+const adminStatusLabels: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  draft:      { label: "Borrador",    variant: "secondary"   },
+  approved:   { label: "Aprobado",    variant: "default"     },
+  in_pool:    { label: "En Pool",     variant: "outline"     },
+  rfq_direct: { label: "RFQ Directo", variant: "outline"     },
+  inventario: { label: "Inventario",  variant: "outline"     },
+  rejected:   { label: "Rechazado",   variant: "destructive" },
+};
+
+// Status labels for arquitecto — hides internal states like "inventario"
+const arqStatusLabels: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  draft:      { label: "Borrador",    variant: "secondary"   },
+  approved:   { label: "Aprobado",    variant: "default"     },
+  in_pool:    { label: "En proceso",  variant: "outline"     },
+  rfq_direct: { label: "En proceso",  variant: "outline"     },
+  inventario: { label: "Aprobado",    variant: "default"     },
+  rejected:   { label: "Rechazado",   variant: "destructive" },
 };
 
 const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "" };
@@ -51,21 +88,7 @@ export default function Pedidos() {
   const canCreate  = role === "arquitecto" || role === "compras" || role === "admin";
   const canProcess = role === "compras" || role === "admin";
 
-  // ── Profile (company_id) ─────────────────────────────────────────────────
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
-    enabled: !!user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user!.id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-  });
-  const profileCompanyId = profile?.company_id ?? companyId;
+  const statusLabels = role === "arquitecto" ? arqStatusLabels : adminStatusLabels;
 
   // ── Auto-detect architect for the logged-in user ─────────────────────────
   const { data: myArchitect } = useQuery({
@@ -81,47 +104,64 @@ export default function Pedidos() {
     },
   });
 
-  // Auto-set architectId when the architect record is found
   const [architectId, setArchitectId] = useState("");
   useEffect(() => {
     if (myArchitect?.id) setArchitectId(myArchitect.id);
   }, [myArchitect?.id]);
 
-  // ── Inventory materials (private catalog) ────────────────────────────────
-  const { data: inventoryMaterials } = useQuery({
-    queryKey: ["inventory-materials", profileCompanyId],
-    enabled: !!profileCompanyId,
+  // ── ALL materials (not filtered by stock) ────────────────────────────────
+  const { data: allMaterials } = useQuery({
+    queryKey: ["all-materials", companyId],
+    enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select("material_id, quantity, materials(name, unit)")
-        .gt("quantity", 0)   // only show materials with stock
-        .order("materials(name)");
+      const { data: mats, error } = await supabase
+        .from("materials")
+        .select("id, name, unit")
+        .eq("active", true)
+        .order("name");
       if (error) throw error;
-      return (data ?? []).map((row: any) => ({
-        material_id: row.material_id,
-        name: row.materials?.name ?? "—",
-        unit: row.materials?.unit ?? "",
-        stock: Number(row.quantity),
+
+      // Get stock from inventory for display context only
+      const { data: inv } = await supabase
+        .from("inventory")
+        .select("material_id, quantity");
+      const stockMap: Record<string, number> = {};
+      inv?.forEach((row: any) => {
+        stockMap[row.material_id] = Number(row.quantity);
+      });
+
+      return (mats ?? []).map((m: any) => ({
+        material_id: m.id,
+        name: m.name,
+        unit: m.unit ?? "",
+        stock: stockMap[m.id] ?? 0,
       }));
     },
   });
 
-  // ── Projects & architects (for compras/admin selectors) ──────────────────
+  // ── Projects ─────────────────────────────────────────────────────────────
   const { data: projects } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("id, name").order("name");
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, name")
+        .eq("active", true)
+        .order("name");
       if (error) throw error;
       return data;
     },
   });
 
+  // ── Architects list (admin/compras only) ─────────────────────────────────
   const { data: architects } = useQuery({
     queryKey: ["architects-list"],
     enabled: role !== "arquitecto",
     queryFn: async () => {
-      const { data, error } = await supabase.from("architects").select("id, full_name").order("full_name");
+      const { data, error } = await supabase
+        .from("architects")
+        .select("id, full_name")
+        .order("full_name");
       if (error) throw error;
       return data;
     },
@@ -133,7 +173,9 @@ export default function Pedidos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("requests")
-        .select("*, request_items(*), architects:architect_id(full_name), projects:project_id(name)")
+        .select(
+          "*, request_items(*), architects:architect_id(full_name), projects:project_id(name)"
+        )
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -143,14 +185,16 @@ export default function Pedidos() {
   // ── Create request ───────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!profileCompanyId) throw new Error("Usuario sin empresa asignada");
+      if (!companyId) throw new Error("Usuario sin empresa asignada");
+      if (role === "arquitecto" && !myArchitect)
+        throw new Error("Tu usuario no tiene perfil de arquitecto asociado");
       const validItems = items.filter((i) => i.material_id);
       if (!validItems.length) throw new Error("Agregá al menos un material");
 
       const { data: req, error } = await supabase
         .from("requests")
         .insert({
-          company_id:   profileCompanyId,
+          company_id:   companyId,
           raw_message:  rawMessage || null,
           urgency,
           created_by:   user?.id,
@@ -175,20 +219,29 @@ export default function Pedidos() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["requests"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-requests"] });
       setOpen(false);
       resetForm();
-      toast({ title: "Pedido creado" });
+      toast({
+        title: "Pedido creado",
+        description: "El pedido fue enviado para revisión.",
+      });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("requests").update({ status: status as any }).eq("id", id);
+      const { error } = await supabase
+        .from("requests")
+        .update({ status: status as any })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["requests"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-requests"] });
       toast({ title: "Estado actualizado" });
     },
   });
@@ -206,7 +259,25 @@ export default function Pedidos() {
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
 
   const selectMaterial = (i: number, material_id: string) => {
-    const mat = inventoryMaterials?.find((m) => m.material_id === material_id);
+    // If the same material already exists in another row → merge quantities
+    const dupeIdx = items.findIndex(
+      (item, idx) => idx !== i && item.material_id === material_id
+    );
+    if (dupeIdx !== -1) {
+      const copy = [...items];
+      const totalQty =
+        (parseFloat(copy[dupeIdx].quantity) || 0) + (parseFloat(copy[i].quantity) || 1);
+      copy[dupeIdx] = { ...copy[dupeIdx], quantity: String(totalQty) };
+      copy.splice(i, 1);
+      setItems(copy.length ? copy : [{ ...EMPTY_ITEM }]);
+      toast({
+        title: "Material combinado",
+        description: "Se sumaron las cantidades del material repetido.",
+      });
+      return;
+    }
+
+    const mat = allMaterials?.find((m) => m.material_id === material_id);
     const copy = [...items];
     copy[i] = {
       material_id,
@@ -223,36 +294,86 @@ export default function Pedidos() {
     setItems(copy);
   };
 
-  const filtered = requests?.filter((r) => filter === "all" || r.status === filter) || [];
+  // ── Filter logic ─────────────────────────────────────────────────────────
+  // For arquitecto: "Aprobado" tab catches inventario / in_pool / rfq_direct too
+  const filtered =
+    requests?.filter((r) => {
+      if (filter === "all") return true;
+      if (role === "arquitecto" && filter === "approved") {
+        return ["approved", "in_pool", "rfq_direct", "inventario"].includes(r.status);
+      }
+      return r.status === filter;
+    }) || [];
+
+  // Arquitecto sees simplified filters (no in_pool — it's internal)
+  const filterOptions = canProcess
+    ? ["all", "draft", "approved", "in_pool", "rejected"]
+    : ["all", "draft", "approved", "rejected"];
+
+  const filterLabels: Record<string, string> = {
+    all:      "Todos",
+    draft:    "Borrador",
+    approved: "Aprobado",
+    in_pool:  "En Pool",
+    rejected: "Rechazado",
+  };
+
+  const isArqWithoutProfile = role === "arquitecto" && myArchitect === null;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold">Gestión de Pedidos</h1>
-          <p className="text-muted-foreground text-sm mt-1">Pedidos recibidos desde obra</p>
+          <h1 className="font-display text-2xl font-bold">
+            {role === "arquitecto" ? "Mis Pedidos" : "Gestión de Pedidos"}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {role === "arquitecto"
+              ? "Requerimientos de materiales para obra"
+              : "Pedidos recibidos desde obra"}
+          </p>
         </div>
 
         {canCreate && (
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) resetForm();
+            }}
+          >
             <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" />Nuevo Pedido</Button>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Pedido
+              </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Nuevo Pedido</DialogTitle>
               </DialogHeader>
-              <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }} className="space-y-4">
-
-                {/* Architect row */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  createMutation.mutate();
+                }}
+                className="space-y-4"
+              >
+                {/* Architect display / selector */}
                 {role === "arquitecto" ? (
                   <div className="p-3 rounded-lg bg-muted/60 text-sm">
                     <span className="text-muted-foreground">Arquitecto: </span>
-                    <span className="font-medium">{myArchitect?.full_name ?? "—"}</span>
-                    {!myArchitect && (
-                      <p className="text-xs text-destructive mt-1">
-                        Tu usuario no tiene un perfil de arquitecto asociado. Pedile al admin que lo vincule.
-                      </p>
+                    <span className="font-medium">
+                      {myArchitect?.full_name ?? "—"}
+                    </span>
+                    {isArqWithoutProfile && (
+                      <div className="flex items-start gap-2 mt-2 text-xs text-destructive">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>
+                          Tu usuario no tiene un perfil de arquitecto asociado. Pedile
+                          al administrador que te vincule desde el módulo Arquitectos.
+                        </span>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -260,10 +381,14 @@ export default function Pedidos() {
                     <div className="space-y-2">
                       <Label>Arquitecto</Label>
                       <Select value={architectId} onValueChange={setArchitectId}>
-                        <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
                         <SelectContent>
                           {architects?.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.full_name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -271,10 +396,14 @@ export default function Pedidos() {
                     <div className="space-y-2">
                       <Label>Proyecto / Obra</Label>
                       <Select value={projectId} onValueChange={setProjectId}>
-                        <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
                         <SelectContent>
                           {projects?.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -282,26 +411,39 @@ export default function Pedidos() {
                   </div>
                 )}
 
-                {/* Project (for arquitecto) */}
+                {/* Project selector for arquitecto */}
                 {role === "arquitecto" && (
                   <div className="space-y-2">
-                    <Label>Proyecto / Obra</Label>
+                    <Label>Obra *</Label>
                     <Select value={projectId} onValueChange={setProjectId}>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar obra..." />
+                      </SelectTrigger>
                       <SelectContent>
                         {projects?.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {!projects?.length && (
+                      <p className="text-xs text-muted-foreground">
+                        No hay obras cargadas aún. Pedile al administrador que las
+                        cree desde el módulo Obras.
+                      </p>
+                    )}
                   </div>
                 )}
 
+                {/* Urgency + desired date */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Urgencia</Label>
                     <Select value={urgency} onValueChange={setUrgency}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="baja">Baja</SelectItem>
                         <SelectItem value="normal">Normal</SelectItem>
@@ -311,40 +453,55 @@ export default function Pedidos() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Fecha deseada</Label>
-                    <Input type="date" value={desiredDate} onChange={(e) => setDesiredDate(e.target.value)} />
+                    <Label>Entrega deseada</Label>
+                    <Input
+                      type="date"
+                      value={desiredDate}
+                      onChange={(e) => setDesiredDate(e.target.value)}
+                    />
                   </div>
                 </div>
 
-                {/* Materials from inventory */}
+                {/* Materials */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label>Materiales *</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                      <Plus className="h-3 w-3 mr-1" />Agregar
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addItem}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Agregar fila
                     </Button>
                   </div>
 
-                  {!inventoryMaterials?.length && (
+                  {allMaterials !== undefined && !allMaterials.length && (
                     <p className="text-xs text-muted-foreground">
-                      No hay materiales con stock en el inventario. Cargá materiales primero.
+                      No hay materiales cargados. El administrador debe agregarlos
+                      desde el módulo Materiales.
                     </p>
                   )}
 
                   {items.map((item, i) => (
                     <div key={i} className="flex gap-2 items-center">
-                      {/* Material selector */}
                       <div className="flex-1">
-                        <Select value={item.material_id} onValueChange={(v) => selectMaterial(i, v)}>
+                        <Select
+                          value={item.material_id}
+                          onValueChange={(v) => selectMaterial(i, v)}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar material..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {inventoryMaterials?.map((m) => (
+                            {allMaterials?.map((m) => (
                               <SelectItem key={m.material_id} value={m.material_id}>
                                 {m.name}
                                 <span className="text-muted-foreground ml-1 text-xs">
-                                  (stock: {m.stock} {m.unit})
+                                  {m.stock > 0
+                                    ? `(stock: ${m.stock} ${m.unit})`
+                                    : "(sin stock)"}
                                 </span>
                               </SelectItem>
                             ))}
@@ -352,9 +509,8 @@ export default function Pedidos() {
                         </Select>
                       </div>
 
-                      {/* Quantity */}
                       <Input
-                        className="w-24"
+                        className="w-20"
                         type="number"
                         step="0.01"
                         min="0.01"
@@ -363,11 +519,18 @@ export default function Pedidos() {
                         onChange={(e) => updateQty(i, e.target.value)}
                       />
 
-                      {/* Unit (read-only, auto-filled) */}
-                      <span className="text-sm text-muted-foreground w-10 shrink-0">{item.unit}</span>
+                      {/* Unit — always visible, shows "—" until material selected */}
+                      <span className="text-sm text-muted-foreground w-10 shrink-0 text-center">
+                        {item.unit || "—"}
+                      </span>
 
                       {items.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeItem(i)}
+                        >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       )}
@@ -385,8 +548,20 @@ export default function Pedidos() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full" disabled={createMutation.isPending || !profileCompanyId}>
-                  {createMutation.isPending ? "Creando..." : "Crear Pedido"}
+                <p className="text-xs text-muted-foreground">* Campo obligatorio</p>
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={
+                    createMutation.isPending || !companyId || isArqWithoutProfile
+                  }
+                >
+                  {createMutation.isPending
+                    ? "Creando..."
+                    : isArqWithoutProfile
+                    ? "Sin perfil de arquitecto asociado"
+                    : "Crear Pedido"}
                 </Button>
               </form>
             </DialogContent>
@@ -394,11 +569,16 @@ export default function Pedidos() {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
-        {["all", "draft", "approved", "in_pool", "rejected"].map((s) => (
-          <Button key={s} variant={filter === s ? "default" : "outline"} size="sm" onClick={() => setFilter(s)}>
-            {s === "all" ? "Todos" : statusLabels[s]?.label || s}
+        {filterOptions.map((s) => (
+          <Button
+            key={s}
+            variant={filter === s ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter(s)}
+          >
+            {filterLabels[s] ?? s}
           </Button>
         ))}
       </div>
@@ -410,82 +590,139 @@ export default function Pedidos() {
       ) : !filtered.length ? (
         <Card>
           <CardContent className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">No hay pedidos.</p>
+            <p className="text-sm">
+              No hay pedidos{filter !== "all" ? " con ese estado" : ""}.
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map((r) => (
-            <Card key={r.id}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-sm font-display">#{r.id.slice(0, 8)}</CardTitle>
-                  <Badge variant={statusLabels[r.status]?.variant || "secondary"}>
-                    {statusLabels[r.status]?.label || r.status}
-                  </Badge>
-                  {r.urgency === "urgente" && <Badge variant="destructive">Urgente</Badge>}
-                  {r.urgency === "alta" && <Badge className="bg-warning text-warning-foreground">Alta</Badge>}
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(r.created_at).toLocaleDateString("es-AR")}
-                </span>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex gap-4 text-xs text-muted-foreground">
-                  {(r as any).projects?.name    && <span>🏗️ {(r as any).projects.name}</span>}
-                  {(r as any).architects?.full_name && <span>👷 {(r as any).architects.full_name}</span>}
-                  {r.desired_date               && <span>📅 {new Date(r.desired_date).toLocaleDateString("es-AR")}</span>}
-                </div>
-                {r.raw_message && <p className="text-sm text-muted-foreground">{r.raw_message}</p>}
-                {r.request_items && r.request_items.length > 0 && (
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="text-left px-3 py-2">Material</th>
-                          <th className="text-right px-3 py-2">Cantidad</th>
-                          <th className="text-left px-3 py-2">Unidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {r.request_items.map((it: any) => (
-                          <tr key={it.id} className="border-t">
-                            <td className="px-3 py-2">{it.description}</td>
-                            <td className="text-right px-3 py-2">{it.quantity}</td>
-                            <td className="px-3 py-2">{it.unit}</td>
+          {filtered.map((r) => {
+            const reqNum  = (r as any).request_number;
+            const projName = (r as any).projects?.name;
+            const archName = (r as any).architects?.full_name;
+            const sl = statusLabels[r.status] ?? {
+              label: r.status,
+              variant: "secondary" as const,
+            };
+
+            return (
+              <Card key={r.id}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <CardTitle className="text-sm font-display">
+                      {projName
+                        ? projName
+                        : reqNum
+                        ? `Pedido #${reqNum}`
+                        : `Pedido #${r.id.slice(0, 6).toUpperCase()}`}
+                    </CardTitle>
+                    <Badge variant={sl.variant}>{sl.label}</Badge>
+                    {r.urgency === "urgente" && (
+                      <Badge variant="destructive">Urgente</Badge>
+                    )}
+                    {r.urgency === "alta" && (
+                      <Badge className="bg-orange-100 text-orange-800 border-orange-200">
+                        Alta
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    Creado: {new Date(r.created_at).toLocaleDateString("es-AR")}
+                  </span>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
+                    <span>🏗️ {projName ?? "Sin obra asignada"}</span>
+                    {archName && <span>👷 {archName}</span>}
+                    {r.desired_date && (
+                      <span>
+                        📅 Entrega deseada:{" "}
+                        {new Date(r.desired_date).toLocaleDateString("es-AR")}
+                      </span>
+                    )}
+                    {reqNum && (
+                      <span className="font-mono text-muted-foreground/50">
+                        #{reqNum}
+                      </span>
+                    )}
+                  </div>
+                  {r.raw_message && (
+                    <p className="text-sm text-muted-foreground">{r.raw_message}</p>
+                  )}
+                  {r.request_items && r.request_items.length > 0 && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted">
+                          <tr>
+                            <th className="text-left px-3 py-2">Material</th>
+                            <th className="text-right px-3 py-2">Cantidad</th>
+                            <th className="text-left px-3 py-2">Unidad</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                {r.status === "draft" && canProcess && (
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => updateStatus.mutate({ id: r.id, status: "approved" })}>
-                      <CheckCircle className="h-3 w-3 mr-1" />Aprobar
-                    </Button>
-                    <Button size="sm" variant="outline" className="text-destructive"
-                      onClick={() => updateStatus.mutate({ id: r.id, status: "rejected" })}>
-                      <XCircle className="h-3 w-3 mr-1" />Rechazar
-                    </Button>
-                  </div>
-                )}
-                {r.status === "approved" && canProcess && (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => navigate("/rfqs")}>
-                      <FileText className="h-3 w-3 mr-1" />RFQ Directo
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      updateStatus.mutate({ id: r.id, status: "inventario" });
-                      navigate("/inventario");
-                    }}>
-                      <Warehouse className="h-3 w-3 mr-1" />Surtir de Inventario
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                        </thead>
+                        <tbody>
+                          {r.request_items.map((it: any) => (
+                            <tr key={it.id} className="border-t">
+                              <td className="px-3 py-2">{it.description}</td>
+                              <td className="text-right px-3 py-2">{it.quantity}</td>
+                              <td className="px-3 py-2">{it.unit || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {r.status === "draft" && canProcess && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          updateStatus.mutate({ id: r.id, status: "approved" })
+                        }
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Aprobar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive"
+                        onClick={() =>
+                          updateStatus.mutate({ id: r.id, status: "rejected" })
+                        }
+                      >
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Rechazar
+                      </Button>
+                    </div>
+                  )}
+                  {r.status === "approved" && canProcess && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate("/rfqs")}
+                      >
+                        <FileText className="h-3 w-3 mr-1" />
+                        RFQ Directo
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          updateStatus.mutate({ id: r.id, status: "inventario" });
+                          navigate("/inventario");
+                        }}
+                      >
+                        <Warehouse className="h-3 w-3 mr-1" />
+                        Surtir de Inventario
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

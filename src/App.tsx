@@ -18,6 +18,7 @@ import Historial from "./pages/Historial";
 import Trazabilidad from "./pages/Trazabilidad";
 import Materiales from "./pages/Materiales";
 import Arquitectos from "./pages/Arquitectos";
+import Obras from "./pages/Obras";
 import Proveedores from "./pages/Proveedores";
 import Usuarios from "./pages/Usuarios";
 import Onboarding from "./pages/Onboarding";
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="/trazabilidad" element={<Trazabilidad />} />
               <Route path="/materiales" element={<Materiales />} />
               <Route path="/arquitectos" element={<Arquitectos />} />
+              <Route path="/obras" element={<Obras />} />
               <Route path="/proveedores" element={<Proveedores />} />
               <Route path="/usuarios" element={<Usuarios />} />
             </Route>

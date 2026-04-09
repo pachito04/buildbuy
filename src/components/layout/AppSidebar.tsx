@@ -32,34 +32,36 @@ type NavItem = {
 const allRoles: AppRole[] = ["arquitecto", "compras", "proveedor", "admin"];
 
 const navItems: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: allRoles },
-  { to: "/pedidos", label: "Pedidos", icon: Inbox, roles: ["arquitecto", "compras", "admin"] },
-  { to: "/inventario", label: "Inventario", icon: Warehouse, roles: ["compras", "admin"] },
-  { to: "/pools", label: "Pools de Compra", icon: Layers, roles: ["compras", "admin"] },
-  { to: "/rfqs", label: "RFQs", icon: FileText, roles: ["compras", "admin"] },
-  { to: "/cotizaciones", label: "Cotizaciones", icon: BarChart3, roles: ["compras", "proveedor", "admin"] },
-  { to: "/ordenes", label: "Órdenes de Compra", icon: ShoppingCart, roles: ["compras", "proveedor", "admin"] },
-  { to: "/historial", label: "Reportes", icon: History, roles: ["compras", "admin"] },
-  { to: "/trazabilidad", label: "Trazabilidad", icon: GitBranch, roles: ["compras", "admin"] },
-  { to: "/materiales", label: "Materiales", icon: Package, roles: ["compras", "admin"] },
-  { to: "/arquitectos", label: "Arquitectos", icon: HardHat, roles: ["compras", "admin"] },
-  { to: "/proveedores", label: "Proveedores", icon: Building2, roles: ["compras", "admin"] },
-  { to: "/usuarios", label: "Usuarios", icon: Users, roles: ["admin"] },
+  { to: "/dashboard",   label: "Dashboard",        icon: LayoutDashboard, roles: allRoles },
+  { to: "/pedidos",     label: "Pedidos",           icon: Inbox,           roles: ["arquitecto", "compras", "admin"] },
+  { to: "/obras",       label: "Obras",             icon: Building2,       roles: ["compras", "admin"] },
+  { to: "/inventario",  label: "Inventario",        icon: Warehouse,       roles: ["compras", "admin"] },
+  { to: "/pools",       label: "Pools de Compra",   icon: Layers,          roles: ["compras", "admin"] },
+  { to: "/rfqs",        label: "RFQs",              icon: FileText,        roles: ["compras", "admin"] },
+  { to: "/cotizaciones",label: "Cotizaciones",      icon: BarChart3,       roles: ["compras", "proveedor", "admin"] },
+  { to: "/ordenes",     label: "Órdenes de Compra", icon: ShoppingCart,    roles: ["compras", "proveedor", "admin"] },
+  { to: "/historial",   label: "Reportes",          icon: History,         roles: ["compras", "admin"] },
+  { to: "/trazabilidad",label: "Trazabilidad",      icon: GitBranch,       roles: ["compras", "admin"] },
+  { to: "/materiales",  label: "Materiales",        icon: Package,         roles: ["compras", "admin"] },
+  { to: "/arquitectos", label: "Arquitectos",       icon: HardHat,         roles: ["compras", "admin"] },
+  { to: "/proveedores", label: "Proveedores",       icon: Building2,       roles: ["compras", "admin"] },
+  { to: "/usuarios",    label: "Usuarios",          icon: Users,           roles: ["admin"] },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { viewRole: role } = useViewRole();
+  const { viewRole: role, loading } = useViewRole();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/login");
   };
 
-  const visibleItems = navItems.filter(
-    (item) => !role || item.roles.includes(role as AppRole)
-  );
+  // Don't show any nav items while loading — prevents flash of all items before role resolves
+  const visibleItems = loading
+    ? []
+    : navItems.filter((item) => !role || item.roles.includes(role as AppRole));
 
   return (
     <aside className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
