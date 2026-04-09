@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { AppSidebar } from "./AppSidebar";
+import { NotificationBell } from "./NotificationBell";
 import { ViewRoleProvider, useViewRole } from "@/hooks/useViewRole";
 import { AppRole } from "@/hooks/useUserRole";
 import {
@@ -48,6 +49,7 @@ function AdminRoleSwitcher() {
 function Header() {
   return (
     <header className="h-12 flex items-center justify-end gap-3 border-b border-border px-6 bg-background shrink-0">
+      <NotificationBell />
       <AdminRoleSwitcher />
     </header>
   );
