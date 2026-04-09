@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useViewRole } from "@/hooks/useViewRole";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ type Material = {
   unit: string;
   category: string;
   description: string | null;
+  sku: string | null;
   created_at: string;
 };
 
@@ -68,41 +70,25 @@ export default function Materiales() {
   const [unit, setUnit] = useState("pza");
   const [category, setCategory] = useState("General");
   const [description, setDescription] = useState("");
+  const [sku, setSku] = useState("");
 
   const { toast } = useToast();
   const qc = useQueryClient();
-
-  // Get user's company
-  const { data: profile } = useQuery({
-    queryKey: ["profile-company"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user.id)
-        .single();
-      return data;
-    },
-  });
-
-  const companyId = profile?.company_id;
+  const { companyId, loading: roleLoading } = useViewRole();
 
   const { data: materials, isLoading } = useQuery({
     queryKey: ["materials", companyId],
     queryFn: async () => {
-      if (!companyId) return [];
       const { data, error } = await supabase
         .from("materials")
         .select("*")
-        .eq("company_id", companyId)
+        .eq("active", true)
         .order("category")
         .order("name");
       if (error) throw error;
       return data as Material[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && !roleLoading,
   });
 
   const saveMaterial = useMutation({
@@ -111,7 +97,7 @@ export default function Materiales() {
       if (editingMaterial) {
         const { error } = await supabase
           .from("materials")
-          .update({ name, unit, category, description: description || null })
+          .update({ name, unit, category, description: description || null, sku: sku || null })
           .eq("id", editingMaterial.id);
         if (error) throw error;
       } else {
@@ -121,6 +107,7 @@ export default function Materiales() {
           unit,
           category,
           description: description || null,
+          sku: sku || null,
         });
         if (error) throw error;
       }
@@ -158,6 +145,7 @@ export default function Materiales() {
     setUnit("pza");
     setCategory("General");
     setDescription("");
+    setSku("");
   };
 
   const openEdit = (m: Material) => {
@@ -166,6 +154,7 @@ export default function Materiales() {
     setUnit(m.unit);
     setCategory(m.category);
     setDescription(m.description || "");
+    setSku(m.sku || "");
     setDialogOpen(true);
   };
 
@@ -258,6 +247,14 @@ export default function Materiales() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>SKU / Código interno</Label>
+                <Input
+                  placeholder="Ej: CEM-42.5-50KG"
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                />
+              </div>
               <Button type="submit" className="w-full" disabled={saveMaterial.isPending}>
                 {saveMaterial.isPending
                   ? "Guardando..."
@@ -297,7 +294,7 @@ export default function Materiales() {
       </div>
 
       {/* No company warning */}
-      {!companyId && !isLoading && (
+      {!companyId && !roleLoading && (
         <Card>
           <CardContent className="text-center py-12 text-muted-foreground">
             <p className="text-sm">No tienes una empresa asociada.</p>
@@ -337,6 +334,7 @@ export default function Materiales() {
                     <TableHead>Material</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Unidad</TableHead>
+                    <TableHead>SKU</TableHead>
                     <TableHead>Descripción</TableHead>
                     <TableHead className="w-24 text-right">Acciones</TableHead>
                   </TableRow>
@@ -349,6 +347,9 @@ export default function Materiales() {
                         <Badge variant="secondary">{m.category}</Badge>
                       </TableCell>
                       <TableCell>{m.unit}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {m.sku || "—"}
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {m.description || "—"}
                       </TableCell>
