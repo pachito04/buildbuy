@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useViewRole } from "@/hooks/useViewRole";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,31 +43,19 @@ export default function Arquitectos() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: profile } = useQuery({
-    queryKey: ["profile-company"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase.from("profiles").select("company_id").eq("id", user.id).single();
-      return data;
-    },
-  });
-
-  const companyId = profile?.company_id;
+  const { companyId, loading: roleLoading } = useViewRole();
 
   const { data: architects, isLoading } = useQuery({
     queryKey: ["architects", companyId],
     queryFn: async () => {
-      if (!companyId) return [];
       const { data, error } = await supabase
         .from("architects")
         .select("*")
-        .eq("company_id", companyId)
         .order("full_name");
       if (error) throw error;
       return data as Architect[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && !roleLoading,
   });
 
   const save = useMutation({
@@ -174,7 +163,7 @@ export default function Arquitectos() {
         <Input placeholder="Buscar arquitecto..." className="pl-9" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
       </div>
 
-      {!companyId && !isLoading && (
+      {!companyId && !roleLoading && (
         <Card><CardContent className="text-center py-12 text-muted-foreground">
           <p className="text-sm">No tienes una empresa asociada.</p>
         </CardContent></Card>
@@ -182,7 +171,7 @@ export default function Arquitectos() {
 
       {companyId && (
         <>
-          {isLoading ? (
+          {(isLoading || roleLoading) ? (
             <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
           ) : !filtered?.length ? (
             <Card><CardContent className="text-center py-12 text-muted-foreground">
