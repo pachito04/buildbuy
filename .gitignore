@@ -43,3 +43,4 @@ venv/
 .claude/cache/
 .claude/sessions/
 .claude/shell-snapshots/
+.vercel

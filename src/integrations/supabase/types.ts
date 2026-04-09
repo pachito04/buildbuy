@@ -203,6 +203,53 @@ export type Database = {
           },
         ]
       }
+      invite_codes: {
+        Row: {
+          active: boolean
+          code: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_codes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       materials: {
         Row: {
           active: boolean
@@ -422,6 +469,7 @@ export type Database = {
           avatar_url: string | null
           company_id: string | null
           created_at: string
+          email: string | null
           full_name: string | null
           id: string
           phone: string | null
@@ -431,6 +479,7 @@ export type Database = {
           avatar_url?: string | null
           company_id?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id: string
           phone?: string | null
@@ -440,6 +489,7 @@ export type Database = {
           avatar_url?: string | null
           company_id?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
           phone?: string | null
@@ -1575,6 +1625,11 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      onboard_create_company: {
+        Args: { p_name: string; p_phone?: string; p_slug: string }
+        Returns: string
+      }
+      onboard_join_with_code: { Args: { p_code: string }; Returns: string }
     }
     Enums: {
       app_role:
