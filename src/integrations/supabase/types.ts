@@ -545,31 +545,43 @@ export type Database = {
         Row: {
           active: boolean
           address: string | null
+          city: string | null
+          code: string | null
           company_id: string
+          contact_name: string | null
           created_at: string
           description: string | null
           id: string
           name: string
+          province: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
           address?: string | null
+          city?: string | null
+          code?: string | null
           company_id: string
+          contact_name?: string | null
           created_at?: string
           description?: string | null
           id?: string
           name: string
+          province?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
           address?: string | null
+          city?: string | null
+          code?: string | null
           company_id?: string
+          contact_name?: string | null
           created_at?: string
           description?: string | null
           id?: string
           name?: string
+          province?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1225,6 +1237,7 @@ export type Database = {
           observations: string | null
           project_id: string | null
           raw_message: string | null
+          request_number: number
           requires_review: boolean
           status: Database["public"]["Enums"]["request_status"]
           updated_at: string
@@ -1241,6 +1254,7 @@ export type Database = {
           observations?: string | null
           project_id?: string | null
           raw_message?: string | null
+          request_number?: number
           requires_review?: boolean
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
@@ -1257,6 +1271,7 @@ export type Database = {
           observations?: string | null
           project_id?: string | null
           raw_message?: string | null
+          request_number?: number
           requires_review?: boolean
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
@@ -1655,6 +1670,7 @@ export type Database = {
         | "remito_dispatched"
         | "remito_delivered"
         | "material_purchased"
+        | "request_rejected"
       po_status: "sent" | "accepted" | "rejected"
       pool_status: "open" | "closed" | "quoting" | "awarded" | "cancelled"
       quote_status: "pending" | "submitted" | "awarded" | "rejected"
@@ -1823,6 +1839,7 @@ export const Constants = {
         "remito_dispatched",
         "remito_delivered",
         "material_purchased",
+        "request_rejected",
       ],
       po_status: ["sent", "accepted", "rejected"],
       pool_status: ["open", "closed", "quoting", "awarded", "cancelled"],
@@ -1846,4 +1863,3 @@ export const Constants = {
     },
   },
 } as const
-

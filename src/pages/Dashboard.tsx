@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Inbox, Layers, FileText, ShoppingCart } from "lucide-react";
+import { Inbox, Layers, FileText, ShoppingCart, Clock } from "lucide-react";
 
 const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   draft:      { label: "Borrador",   variant: "secondary"   },
@@ -38,6 +38,33 @@ export default function Dashboard() {
         .from("requests")
         .select("*", { count: "exact", head: true })
         .eq("status", "draft");
+      return count || 0;
+    },
+  });
+
+  // En Proceso — arquitecto only: approved/in_pool/rfq_direct/inventario
+  const { data: inProgressCount } = useQuery({
+    queryKey: ["dashboard-inprogress", role, user?.id],
+    enabled: role === "arquitecto" && !!user?.id,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("requests")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["approved", "in_pool", "rfq_direct", "inventario"])
+        .eq("created_by", user!.id);
+      return count || 0;
+    },
+  });
+
+  // En Proceso — admin/compras: all non-draft, non-rejected pending PO
+  const { data: inProgressAdminCount } = useQuery({
+    queryKey: ["dashboard-inprogress-admin", role],
+    enabled: role === "compras" || role === "admin",
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("requests")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["approved", "in_pool", "rfq_direct", "inventario"]);
       return count || 0;
     },
   });
@@ -103,7 +130,7 @@ export default function Dashboard() {
     },
   });
 
-  // Recent activity — with project + architect name for context
+  // Recent activity — sorted by updated_at so state changes surface first
   const { data: recentRequests } = useQuery({
     queryKey: ["dashboard-recent", role, user?.id],
     enabled: role !== "proveedor" && !!role,
@@ -111,9 +138,9 @@ export default function Dashboard() {
       let query = supabase
         .from("requests")
         .select(
-          "id, status, urgency, raw_message, created_at, request_number, projects:project_id(name), architects:architect_id(full_name)"
+          "id, status, urgency, raw_message, created_at, updated_at, request_number, projects:project_id(name), architects:architect_id(full_name)"
         )
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(5);
 
       if (role === "arquitecto") {
@@ -132,16 +159,32 @@ export default function Dashboard() {
     admin:      "Panel de Administrador",
   };
 
-  const pendingLabel =
-    role === "arquitecto" ? "Mis Pedidos Pendientes" : "Pedidos Pendientes";
-
   const stats = [];
-  if (role !== "proveedor") {
+  if (role === "arquitecto") {
     stats.push({
-      label: pendingLabel,
+      label: "Borradores",
+      value: reqCount ?? "—",
+      icon: Inbox,
+      color: "text-muted-foreground",
+    });
+    stats.push({
+      label: "En Proceso",
+      value: inProgressCount ?? "—",
+      icon: Clock,
+      color: "text-primary",
+    });
+  } else if (role !== "proveedor") {
+    stats.push({
+      label: "Pedidos Pendientes",
       value: reqCount ?? "—",
       icon: Inbox,
       color: "text-primary",
+    });
+    stats.push({
+      label: "En Proceso",
+      value: inProgressAdminCount ?? "—",
+      icon: Clock,
+      color: "text-warning",
     });
   }
   if (role === "compras" || role === "admin") {
@@ -254,7 +297,12 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <span className="text-xs text-muted-foreground shrink-0">
-                        {new Date(r.created_at).toLocaleDateString("es-AR")}
+                        {new Date(r.updated_at ?? r.created_at).toLocaleDateString("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                   );

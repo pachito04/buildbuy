@@ -82,7 +82,7 @@ export default function Pedidos() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { viewRole: role, companyId } = useViewRole();
+  const { viewRole: role, actualRole, companyId } = useViewRole();
   const qc = useQueryClient();
 
   const canCreate  = role === "arquitecto" || role === "compras" || role === "admin";
@@ -318,7 +318,9 @@ export default function Pedidos() {
     rejected: "Rechazado",
   };
 
-  const isArqWithoutProfile = role === "arquitecto" && myArchitect === null;
+  // Only block actual arquitecto users (not admins previewing as arquitecto)
+  const isActualArqWithoutProfile = actualRole === "arquitecto" && myArchitect === null;
+  const isArqWithoutProfile = isActualArqWithoutProfile;
 
   return (
     <div className="p-6 space-y-6">
@@ -360,7 +362,8 @@ export default function Pedidos() {
                 className="space-y-4"
               >
                 {/* Architect display / selector */}
-                {role === "arquitecto" ? (
+                {role === "arquitecto" && actualRole === "arquitecto" ? (
+                  // Actual arquitecto user: show their linked profile
                   <div className="p-3 rounded-lg bg-muted/60 text-sm">
                     <span className="text-muted-foreground">Arquitecto: </span>
                     <span className="font-medium">
@@ -377,6 +380,7 @@ export default function Pedidos() {
                     )}
                   </div>
                 ) : (
+                  // Admin/compras (or admin previewing as arquitecto): full selector
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Arquitecto</Label>
@@ -411,8 +415,8 @@ export default function Pedidos() {
                   </div>
                 )}
 
-                {/* Project selector for arquitecto */}
-                {role === "arquitecto" && (
+                {/* Project selector — only for actual arquitecto users */}
+                {role === "arquitecto" && actualRole === "arquitecto" && (
                   <div className="space-y-2">
                     <Label>Obra *</Label>
                     <Select value={projectId} onValueChange={setProjectId}>
