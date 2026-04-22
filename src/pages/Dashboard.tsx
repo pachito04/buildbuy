@@ -4,40 +4,56 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Inbox, Layers, FileText, ShoppingCart, Clock } from "lucide-react";
+import { Inbox, Layers, FileText, ShoppingCart, Clock, Send } from "lucide-react";
 
 const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft:      { label: "Borrador",   variant: "secondary"   },
-  approved:   { label: "Aprobado",   variant: "default"     },
-  in_pool:    { label: "En proceso", variant: "outline"     },
-  rfq_direct: { label: "En proceso", variant: "outline"     },
-  inventario: { label: "Aprobado",   variant: "default"     },
-  rejected:   { label: "Rechazado",  variant: "destructive" },
+  draft:             { label: "Borrador",              variant: "secondary"   },
+  pending_approval:  { label: "Pendiente Aprobación",  variant: "outline"     },
+  approved:          { label: "Aprobado",              variant: "default"     },
+  in_pool:           { label: "En proceso",            variant: "outline"     },
+  rfq_direct:        { label: "En proceso",            variant: "outline"     },
+  inventario:        { label: "Aprobado",              variant: "default"     },
+  rejected:          { label: "Rechazado",             variant: "destructive" },
 };
 
 export default function Dashboard() {
   const { viewRole: role } = useViewRole();
   const { user } = useAuth();
 
-  // Pedidos pendientes — count logic differs by role
-  const { data: reqCount } = useQuery({
-    queryKey: ["dashboard-requests", role, user?.id],
-    enabled: role !== "proveedor" && !!role,
+  const { data: draftCount } = useQuery({
+    queryKey: ["dashboard-drafts", user?.id],
+    enabled: role === "arquitecto" && !!user?.id,
     queryFn: async () => {
-      if (role === "arquitecto") {
-        // Arquitecto: only their own draft requests (pending admin approval)
-        const { count } = await supabase
-          .from("requests")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "draft")
-          .eq("created_by", user!.id);
-        return count || 0;
-      }
-      // Admin/compras: all draft requests waiting to be processed
       const { count } = await supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .eq("status", "draft");
+        .eq("status", "draft")
+        .eq("created_by", user!.id);
+      return count || 0;
+    },
+  });
+
+  const { data: arqPendingCount } = useQuery({
+    queryKey: ["dashboard-arq-pending", user?.id],
+    enabled: role === "arquitecto" && !!user?.id,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending_approval")
+        .eq("created_by", user!.id);
+      return count || 0;
+    },
+  });
+
+  const { data: pendingApprovalCount } = useQuery({
+    queryKey: ["dashboard-pending-approval", role],
+    enabled: (role === "compras" || role === "admin") && !!role,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending_approval");
       return count || 0;
     },
   });
@@ -162,10 +178,16 @@ export default function Dashboard() {
   const stats = [];
   if (role === "arquitecto") {
     stats.push({
-      label: "Borradores",
-      value: reqCount ?? "—",
+      label: "Mis Borradores",
+      value: draftCount ?? "—",
       icon: Inbox,
       color: "text-muted-foreground",
+    });
+    stats.push({
+      label: "Pendientes de Aprobación",
+      value: arqPendingCount ?? "—",
+      icon: Send,
+      color: "text-warning",
     });
     stats.push({
       label: "En Proceso",
@@ -176,7 +198,7 @@ export default function Dashboard() {
   } else if (role !== "proveedor") {
     stats.push({
       label: "Pedidos Pendientes",
-      value: reqCount ?? "—",
+      value: pendingApprovalCount ?? "—",
       icon: Inbox,
       color: "text-primary",
     });

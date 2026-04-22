@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider, RequireAuth, useAuth } from "./hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { BasketProvider } from "@/contexts/BasketContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Pedidos from "./pages/Pedidos";
@@ -54,6 +55,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <BasketProvider>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<Login />} />
@@ -84,6 +86,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </BasketProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

@@ -24,7 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Send, Eye } from "lucide-react";
+import { Plus, FileText, Send, Eye, ShoppingCart } from "lucide-react";
+import { useBasket } from "@/contexts/BasketContext";
 
 const rfqStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   draft: { label: "Borrador", variant: "secondary" },
@@ -36,7 +37,8 @@ const rfqStatusLabels: Record<string, { label: string; variant: "default" | "sec
 export default function RFQs() {
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [source, setSource] = useState<"pool" | "request">("request");
+  const [source, setSource] = useState<"pool" | "request" | "basket">("request");
+  const [basketWarningOpen, setBasketWarningOpen] = useState(false);
   const [selectedPoolId, setSelectedPoolId] = useState("");
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -48,6 +50,7 @@ export default function RFQs() {
   const { toast } = useToast();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const basket = useBasket();
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -116,10 +119,17 @@ export default function RFQs() {
 
   const createRfq = useMutation({
     mutationFn: async () => {
-      // Determine items based on source
-      let items: { description: string; quantity: number; unit: string }[] = [];
+      let items: { description: string; quantity: number; unit: string; material_id?: string }[] = [];
 
-      if (source === "pool" && selectedPoolId) {
+      if (source === "basket") {
+        if (basket.items.length === 0) throw new Error("La cesta está vacía");
+        items = basket.items.map((bi) => ({
+          description: bi.name,
+          quantity: bi.quantity,
+          unit: bi.unit,
+          material_id: bi.material_id,
+        }));
+      } else if (source === "pool" && selectedPoolId) {
         const pool = closedPools?.find((p) => p.id === selectedPoolId);
         const poolReqs = (pool?.pool_requests as any[]) || [];
         const allItems = poolReqs.flatMap((pr: any) => pr.requests?.request_items || []);
@@ -161,12 +171,12 @@ export default function RFQs() {
         .single();
       if (error) throw error;
 
-      // Insert RFQ items
       const rfqItems = items.map((it) => ({
         rfq_id: (rfq as any).id,
         description: it.description,
         quantity: it.quantity,
         unit: it.unit,
+        ...(it.material_id ? { material_id: it.material_id } : {}),
       }));
       const { error: itemsErr } = await supabase.from("rfq_items").insert(rfqItems);
       if (itemsErr) throw itemsErr;
@@ -192,6 +202,7 @@ export default function RFQs() {
       qc.invalidateQueries({ queryKey: ["approved-requests-rfq"] });
       qc.invalidateQueries({ queryKey: ["requests"] });
       qc.invalidateQueries({ queryKey: ["pools"] });
+      if (source === "basket") basket.clear();
       resetForm();
       toast({ title: "RFQ creado exitosamente" });
     },
@@ -220,6 +231,7 @@ export default function RFQs() {
 
   const resetForm = () => {
     setCreateOpen(false);
+    setBasketWarningOpen(false);
     setSource("request");
     setSelectedPoolId("");
     setSelectedRequestId("");
@@ -247,7 +259,16 @@ export default function RFQs() {
         </div>
         <Dialog open={createOpen} onOpenChange={(o) => (o ? setCreateOpen(true) : resetForm())}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Generar RFQ</Button>
+            <Button
+              onClick={(e) => {
+                if (basket.totalItems > 0 && !createOpen) {
+                  e.preventDefault();
+                  setBasketWarningOpen(true);
+                }
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />Generar RFQ
+            </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
@@ -273,6 +294,16 @@ export default function RFQs() {
                     onClick={() => { setSource("pool"); setSelectedRequestId(""); }}
                   >
                     Desde Pool
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={source === "basket" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => { setSource("basket"); setSelectedPoolId(""); setSelectedRequestId(""); }}
+                    disabled={basket.totalItems === 0}
+                  >
+                    <ShoppingCart className="h-3 w-3 mr-1" />
+                    Desde Cesta ({basket.totalItems})
                   </Button>
                 </div>
               </div>
@@ -312,6 +343,20 @@ export default function RFQs() {
                   {!approvedRequests?.length && (
                     <p className="text-xs text-muted-foreground">No hay pedidos aprobados disponibles.</p>
                   )}
+                </div>
+              )}
+
+              {source === "basket" && basket.totalItems > 0 && (
+                <div className="space-y-2">
+                  <Label>Materiales en la cesta</Label>
+                  <div className="border rounded-lg p-2 space-y-1 max-h-32 overflow-y-auto">
+                    {basket.items.map((bi) => (
+                      <div key={bi.material_id} className="flex justify-between text-sm">
+                        <span>{bi.name}</span>
+                        <span className="text-muted-foreground">{bi.quantity} {bi.unit}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -374,6 +419,41 @@ export default function RFQs() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Basket warning dialog */}
+      <Dialog open={basketWarningOpen} onOpenChange={setBasketWarningOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Tenés materiales en la cesta</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Hay {basket.totalItems} material(es) en tu cesta de cotización. ¿Querés generar el RFQ desde la cesta?
+          </p>
+          <div className="flex gap-2">
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setBasketWarningOpen(false);
+                setSource("basket");
+                setCreateOpen(true);
+              }}
+            >
+              <ShoppingCart className="h-4 w-4 mr-2" />Usar cesta
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setBasketWarningOpen(false);
+                setSource("request");
+                setCreateOpen(true);
+              }}
+            >
+              Crear sin cesta
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail dialog */}
       <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>
@@ -482,6 +562,11 @@ export default function RFQs() {
                   )}
                   {rfq.request_id && !rfq.pool_id && (
                     <Badge variant="outline" className="text-xs">Directo</Badge>
+                  )}
+                  {!rfq.request_id && !rfq.pool_id && (
+                    <Badge variant="outline" className="text-xs">
+                      <ShoppingCart className="h-3 w-3 mr-1" />Desde Cesta
+                    </Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">

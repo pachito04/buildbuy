@@ -32,6 +32,7 @@ import {
   FileText,
   Warehouse,
   AlertCircle,
+  Send,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -47,25 +48,26 @@ const adminStatusLabels: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
-  draft:      { label: "Borrador",    variant: "secondary"   },
-  approved:   { label: "Aprobado",    variant: "default"     },
-  in_pool:    { label: "En Pool",     variant: "outline"     },
-  rfq_direct: { label: "RFQ Directo", variant: "outline"     },
-  inventario: { label: "Inventario",  variant: "outline"     },
-  rejected:   { label: "Rechazado",   variant: "destructive" },
+  draft:             { label: "Borrador",              variant: "secondary"   },
+  pending_approval:  { label: "Pendiente Aprobación",  variant: "outline"     },
+  approved:          { label: "Aprobado",              variant: "default"     },
+  in_pool:           { label: "En Pool",               variant: "outline"     },
+  rfq_direct:        { label: "RFQ Directo",           variant: "outline"     },
+  inventario:        { label: "Inventario",            variant: "outline"     },
+  rejected:          { label: "Rechazado",             variant: "destructive" },
 };
 
-// Status labels for arquitecto — hides internal states like "inventario"
 const arqStatusLabels: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
-  draft:      { label: "Borrador",    variant: "secondary"   },
-  approved:   { label: "Aprobado",    variant: "default"     },
-  in_pool:    { label: "En proceso",  variant: "outline"     },
-  rfq_direct: { label: "En proceso",  variant: "outline"     },
-  inventario: { label: "Aprobado",    variant: "default"     },
-  rejected:   { label: "Rechazado",   variant: "destructive" },
+  draft:             { label: "Borrador",              variant: "secondary"   },
+  pending_approval:  { label: "Enviado",               variant: "outline"     },
+  approved:          { label: "Aprobado",              variant: "default"     },
+  in_pool:           { label: "En proceso",            variant: "outline"     },
+  rfq_direct:        { label: "En proceso",            variant: "outline"     },
+  inventario:        { label: "Aprobado",              variant: "default"     },
+  rejected:          { label: "Rechazado",             variant: "destructive" },
 };
 
 const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "" };
@@ -294,8 +296,6 @@ export default function Pedidos() {
     setItems(copy);
   };
 
-  // ── Filter logic ─────────────────────────────────────────────────────────
-  // For arquitecto: "Aprobado" tab catches inventario / in_pool / rfq_direct too
   const filtered =
     requests?.filter((r) => {
       if (filter === "all") return true;
@@ -305,17 +305,17 @@ export default function Pedidos() {
       return r.status === filter;
     }) || [];
 
-  // Arquitecto sees simplified filters (no in_pool — it's internal)
   const filterOptions = canProcess
-    ? ["all", "draft", "approved", "in_pool", "rejected"]
-    : ["all", "draft", "approved", "rejected"];
+    ? ["all", "pending_approval", "approved", "in_pool", "rejected"]
+    : ["all", "draft", "pending_approval", "approved", "rejected"];
 
   const filterLabels: Record<string, string> = {
-    all:      "Todos",
-    draft:    "Borrador",
-    approved: "Aprobado",
-    in_pool:  "En Pool",
-    rejected: "Rechazado",
+    all:               "Todos",
+    draft:             "Borrador",
+    pending_approval:  "Pendiente",
+    approved:          "Aprobado",
+    in_pool:           "En Pool",
+    rejected:          "Rechazado",
   };
 
   // Only block actual arquitecto users (not admins previewing as arquitecto)
@@ -676,7 +676,20 @@ export default function Pedidos() {
                       </table>
                     </div>
                   )}
-                  {r.status === "draft" && canProcess && (
+                  {r.status === "draft" && role === "arquitecto" && r.created_by === user?.id && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          updateStatus.mutate({ id: r.id, status: "pending_approval" })
+                        }
+                      >
+                        <Send className="h-3 w-3 mr-1" />
+                        Enviar para Aprobación
+                      </Button>
+                    </div>
+                  )}
+                  {r.status === "pending_approval" && canProcess && (
                     <div className="flex gap-2">
                       <Button
                         size="sm"

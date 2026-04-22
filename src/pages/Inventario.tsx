@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Package, ArrowDownCircle, ArrowUpCircle, AlertTriangle } from "lucide-react";
+import { Plus, Package, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShoppingCart, Trash2, X } from "lucide-react";
+import { useBasket } from "@/contexts/BasketContext";
 
 type InventoryItem = {
   id: string;
@@ -52,8 +53,12 @@ export default function Inventario() {
   const [entryQty, setEntryQty] = useState("");
   const [entryNotes, setEntryNotes] = useState("");
   const [entryType, setEntryType] = useState<"in" | "out">("in");
+  const [basketDialogItem, setBasketDialogItem] = useState<InventoryItem | null>(null);
+  const [basketQty, setBasketQty] = useState("1");
+  const [basketPanelOpen, setBasketPanelOpen] = useState(false);
 
   const { toast } = useToast();
+  const basket = useBasket();
   const { user } = useAuth();
   const qc = useQueryClient();
 
@@ -411,6 +416,18 @@ export default function Inventario() {
                   >
                     Ver movimientos
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full text-xs"
+                    onClick={() => {
+                      setBasketDialogItem(item);
+                      setBasketQty("1");
+                    }}
+                  >
+                    <ShoppingCart className="h-3 w-3 mr-1" />
+                    Agregar a cesta
+                  </Button>
                 </CardContent>
               </Card>
             );
@@ -481,6 +498,109 @@ export default function Inventario() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Basket quantity dialog */}
+      <Dialog
+        open={!!basketDialogItem}
+        onOpenChange={(o) => { if (!o) setBasketDialogItem(null); }}
+      >
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Agregar a cesta</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm font-medium">{basketDialogItem?.materials?.name}</p>
+          <p className="text-xs text-muted-foreground">
+            Stock: {Number(basketDialogItem?.quantity || 0)} {basketDialogItem?.materials?.unit}
+          </p>
+          <div className="space-y-2">
+            <Label>Cantidad ({basketDialogItem?.materials?.unit})</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={basketQty}
+              onChange={(e) => setBasketQty(e.target.value)}
+            />
+          </div>
+          <Button
+            className="w-full"
+            onClick={() => {
+              if (!basketDialogItem?.materials) return;
+              const qty = parseFloat(basketQty) || 0;
+              if (qty <= 0) return;
+              basket.addItem(
+                {
+                  material_id: basketDialogItem.material_id,
+                  name: basketDialogItem.materials.name,
+                  unit: basketDialogItem.materials.unit,
+                },
+                qty
+              );
+              toast({ title: `${basketDialogItem.materials.name} agregado a la cesta` });
+              setBasketDialogItem(null);
+            }}
+          >
+            Agregar
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Floating basket indicator */}
+      {basket.totalItems > 0 && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <Button
+            size="lg"
+            className="rounded-full shadow-lg h-14 w-14 relative"
+            onClick={() => setBasketPanelOpen(!basketPanelOpen)}
+          >
+            <ShoppingCart className="h-5 w-5" />
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              {basket.totalItems}
+            </span>
+          </Button>
+
+          {basketPanelOpen && (
+            <div className="absolute bottom-16 right-0 w-72 bg-background border rounded-lg shadow-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium text-sm">Cesta de cotización</h3>
+                <Button size="sm" variant="ghost" onClick={() => setBasketPanelOpen(false)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {basket.items.map((item) => (
+                  <div key={item.material_id} className="flex items-center justify-between text-sm">
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.quantity} {item.unit}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => basket.removeItem(item.material_id)}
+                    >
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="w-full text-xs"
+                onClick={() => { basket.clear(); setBasketPanelOpen(false); }}
+              >
+                Vaciar cesta
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Generá el RFQ desde la sección Cotizaciones
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Movements history dialog */}
       <Dialog
