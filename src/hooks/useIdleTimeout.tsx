@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "scroll", "touchstart"] as const;
+const CLOSED_AT_KEY = "buildbuy_closed_at";
+const MAX_CLOSED_MS = 60 * 60 * 1000; // 1 hour
 
 export function useIdleTimeout(timeoutMinutes = 30, warningSeconds = 60) {
   const [showWarning, setShowWarning] = useState(false);
@@ -12,9 +14,28 @@ export function useIdleTimeout(timeoutMinutes = 30, warningSeconds = 60) {
   const logout = useCallback(async () => {
     clearTimeout(idleTimer.current);
     clearInterval(countdownTimer.current);
+    localStorage.removeItem(CLOSED_AT_KEY);
     await supabase.auth.signOut();
     window.location.href = "/login";
   }, []);
+
+  useEffect(() => {
+    const closedAt = localStorage.getItem(CLOSED_AT_KEY);
+    if (closedAt) {
+      const elapsed = Date.now() - Number(closedAt);
+      localStorage.removeItem(CLOSED_AT_KEY);
+      if (elapsed >= MAX_CLOSED_MS) {
+        logout();
+        return;
+      }
+    }
+
+    const handleBeforeUnload = () => {
+      localStorage.setItem(CLOSED_AT_KEY, String(Date.now()));
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [logout]);
 
   const resetIdle = useCallback(() => {
     clearTimeout(idleTimer.current);
