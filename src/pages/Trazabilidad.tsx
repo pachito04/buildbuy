@@ -132,7 +132,7 @@ export default function Trazabilidad() {
     if (!search) return true;
     const s = search.toLowerCase();
     return (
-      c.request.id.toLowerCase().includes(s) ||
+      String(c.request.request_number).includes(s) ||
       c.request.raw_message?.toLowerCase().includes(s) ||
       c.pool?.name?.toLowerCase().includes(s) ||
       c.rfq?.id?.toLowerCase().includes(s) ||
@@ -196,7 +196,7 @@ export default function Trazabilidad() {
                       {/* Request */}
                       <div className="flex items-center gap-1.5 shrink-0">
                         <Inbox className="h-4 w-4 text-primary" />
-                        <span className="text-xs font-medium">#{chain.request.id.slice(0, 6)}</span>
+                        <span className="text-xs font-medium">Pedido #{chain.request.request_number}</span>
                       </div>
 
                       {chain.pool && (
@@ -277,7 +277,7 @@ export default function Trazabilidad() {
                 icon={Inbox}
                 iconColor="text-primary"
                 title="Pedido"
-                id={selectedChain.request.id}
+                displayId={`#${selectedChain.request.request_number}`}
                 status={selectedChain.request.status}
                 date={selectedChain.request.created_at}
               >
@@ -404,6 +404,7 @@ function StepCard({
   iconColor,
   title,
   id,
+  displayId,
   status,
   date,
   subtitle,
@@ -413,18 +414,20 @@ function StepCard({
   iconColor: string;
   title: string;
   id?: string;
+  displayId?: string;
   status?: string;
   date?: string;
   subtitle?: string;
   children?: React.ReactNode;
 }) {
   const st = status ? getStatus(status) : null;
+  const shownId = displayId || (id ? `#${id.slice(0, 8)}` : null);
   return (
     <div className="border rounded-lg p-3 relative">
       <div className="flex items-center gap-2 mb-1.5">
         <Icon className={`h-4 w-4 ${iconColor}`} />
         <span className="text-sm font-semibold font-display">{title}</span>
-        {id && <span className="text-[10px] text-muted-foreground font-mono">#{id.slice(0, 8)}</span>}
+        {shownId && <span className="text-[10px] text-muted-foreground font-mono">{shownId}</span>}
         {st && <Badge variant={st.variant} className="text-[10px] ml-auto">{st.label}</Badge>}
       </div>
       {subtitle && <p className="text-xs font-medium mb-1">{subtitle}</p>}

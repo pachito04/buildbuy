@@ -6,10 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Inbox, Layers, FileText, ShoppingCart, Clock, Send } from "lucide-react";
 
-const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
   draft:             { label: "Borrador",              variant: "secondary"   },
   pending_approval:  { label: "Pendiente Aprobación",  variant: "outline"     },
-  approved:          { label: "Aprobado",              variant: "default"     },
+  approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   in_pool:           { label: "En proceso",            variant: "outline"     },
   rfq_direct:        { label: "En proceso",            variant: "outline"     },
   inventario:        { label: "Aprobado",              variant: "default"     },
@@ -298,12 +298,10 @@ export default function Dashboard() {
                         <p className="text-sm font-medium truncate">
                           {projName
                             ? projName
-                            : r.request_number
-                            ? `Pedido #${r.request_number}`
-                            : `Pedido #${r.id.slice(0, 6).toUpperCase()}`}
+                            : `Pedido #${r.request_number}`}
                         </p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <Badge variant={sl.variant} className="text-xs h-4 px-1.5">
+                          <Badge variant={sl.variant} className={`text-xs h-4 px-1.5 ${sl.className || ""}`}>
                             {sl.label}
                           </Badge>
                           {archName && (

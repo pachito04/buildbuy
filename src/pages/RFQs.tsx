@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Send, Eye, ShoppingCart } from "lucide-react";
+import { Plus, FileText, Send, Eye, ShoppingCart, Upload, X } from "lucide-react";
 import { useBasket } from "@/contexts/BasketContext";
 
 const rfqStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -46,6 +45,9 @@ export default function RFQs() {
   const [deliveryLocation, setDeliveryLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [description, setDescription] = useState("");
+  const [rfqType, setRfqType] = useState<"open" | "closed_bid">("open");
+  const [files, setFiles] = useState<File[]>([]);
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -150,16 +152,16 @@ export default function RFQs() {
       }
 
       if (items.length === 0) throw new Error("No hay ítems para el RFQ");
-      if (selectedProviders.length === 0) throw new Error("Selecciona al menos un proveedor");
       if (!companyId) throw new Error("Usuario sin empresa asignada");
 
-      // Create RFQ
       const { data: rfq, error } = await supabase
         .from("rfqs")
         .insert({
           company_id: companyId,
           pool_id: source === "pool" ? selectedPoolId : null,
           request_id: source === "request" ? selectedRequestId : null,
+          description: description || null,
+          rfq_type: rfqType,
           deadline: deadline || null,
           closing_datetime: closingDatetime || null,
           delivery_location: deliveryLocation || null,
@@ -171,8 +173,10 @@ export default function RFQs() {
         .single();
       if (error) throw error;
 
+      const rfqId = (rfq as any).id;
+
       const rfqItems = items.map((it) => ({
-        rfq_id: (rfq as any).id,
+        rfq_id: rfqId,
         description: it.description,
         quantity: it.quantity,
         unit: it.unit,
@@ -181,13 +185,32 @@ export default function RFQs() {
       const { error: itemsErr } = await supabase.from("rfq_items").insert(rfqItems);
       if (itemsErr) throw itemsErr;
 
-      // Insert RFQ providers
-      const rfqProviders = selectedProviders.map((pid) => ({
-        rfq_id: (rfq as any).id,
-        provider_id: pid,
-      }));
-      const { error: provErr } = await supabase.from("rfq_providers").insert(rfqProviders);
-      if (provErr) throw provErr;
+      if (selectedProviders.length > 0) {
+        const rfqProviders = selectedProviders.map((pid) => ({
+          rfq_id: rfqId,
+          provider_id: pid,
+        }));
+        const { error: provErr } = await supabase.from("rfq_providers").insert(rfqProviders);
+        if (provErr) throw provErr;
+      }
+
+      if (files.length > 0) {
+        for (const file of files) {
+          const filePath = `${rfqId}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("rfq-attachments")
+            .upload(filePath, file);
+          if (uploadErr) throw uploadErr;
+
+          const { error: attachErr } = await supabase.from("rfq_attachments").insert({
+            rfq_id: rfqId,
+            file_name: file.name,
+            file_path: filePath,
+            uploaded_by: user?.id,
+          } as any);
+          if (attachErr) throw attachErr;
+        }
+      }
 
       // Update source status
       if (source === "pool" && selectedPoolId) {
@@ -235,11 +258,14 @@ export default function RFQs() {
     setSource("request");
     setSelectedPoolId("");
     setSelectedRequestId("");
+    setDescription("");
+    setRfqType("open");
     setDeadline("");
     setClosingDatetime("");
     setDeliveryLocation("");
     setNotes("");
     setSelectedProviders([]);
+    setFiles([]);
   };
 
   const toggleProvider = (id: string) => {
@@ -360,56 +386,98 @@ export default function RFQs() {
                 </div>
               )}
 
-              {/* RFQ details */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Fecha límite de respuesta</Label>
-                  <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Cierre de cotización</Label>
-                  <Input type="datetime-local" value={closingDatetime} onChange={(e) => setClosingDatetime(e.target.value)} />
-                </div>
-              </div>
-
+              {/* Descripción del pedido */}
               <div className="space-y-2">
-                <Label>Ubicación de entrega</Label>
-                <Input placeholder="Ej: Obra Norte, Av. Reforma 123, CDMX" value={deliveryLocation} onChange={(e) => setDeliveryLocation(e.target.value)} />
+                <Label>Descripción del pedido</Label>
+                <Textarea
+                  placeholder="Describí brevemente qué necesitás cotizar..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
               </div>
 
+              {/* Tipo de pedido */}
+              <div className="space-y-2">
+                <Label>Tipo de pedido *</Label>
+                <Select value={rfqType} onValueChange={(v) => setRfqType(v as "open" | "closed_bid")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Pedido Abierto</SelectItem>
+                    <SelectItem value="closed_bid">Licitación Cerrada</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {rfqType === "open"
+                    ? "Cualquier proveedor puede enviar su cotización."
+                    : "Solo los proveedores invitados pueden cotizar."}
+                </p>
+              </div>
+
+              {/* Fecha de cierre de cotización */}
+              <div className="space-y-2">
+                <Label>Fecha de cierre de cotización</Label>
+                <Input type="datetime-local" value={closingDatetime} onChange={(e) => setClosingDatetime(e.target.value)} />
+              </div>
+
+              {/* Fecha límite de entrega */}
+              <div className="space-y-2">
+                <Label>Fecha límite de entrega</Label>
+                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+              </div>
+
+              {/* Lugar de entrega */}
+              <div className="space-y-2">
+                <Label>Lugar de entrega</Label>
+                <Input placeholder="Ej: Obra Norte, Av. Reforma 123" value={deliveryLocation} onChange={(e) => setDeliveryLocation(e.target.value)} />
+              </div>
+
+              {/* Observaciones */}
               <div className="space-y-2">
                 <Label>Observaciones</Label>
                 <Textarea placeholder="Notas adicionales para los proveedores..." value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
 
-              {/* Provider selection */}
+              {/* Adjuntar documentación */}
               <div className="space-y-2">
-                <Label>Proveedores a cotizar *</Label>
-                <div className="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-2">
-                  {providers?.map((p) => (
-                    <div key={p.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted/50">
-                      <Checkbox
-                        checked={selectedProviders.includes(p.id)}
-                        onCheckedChange={() => toggleProvider(p.id)}
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">{p.email || "Sin email"}</p>
-                      </div>
-                      {p.categories && (p.categories as string[]).length > 0 && (
-                        <div className="flex gap-1">
-                          {(p.categories as string[]).slice(0, 2).map((c: string) => (
-                            <Badge key={c} variant="secondary" className="text-[10px]">{c}</Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {!providers?.length && (
-                    <p className="text-xs text-muted-foreground p-2">No hay proveedores registrados.</p>
-                  )}
+                <Label>Documentación adjunta</Label>
+                <div className="border border-dashed rounded-lg p-4 text-center">
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    id="rfq-file-upload"
+                    onChange={(e) => {
+                      const newFiles = Array.from(e.target.files || []);
+                      setFiles((prev) => [...prev, ...newFiles]);
+                      e.target.value = "";
+                    }}
+                  />
+                  <label htmlFor="rfq-file-upload" className="cursor-pointer">
+                    <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Click para adjuntar archivos</p>
+                    <p className="text-xs text-muted-foreground">PDF, imágenes, planos, etc.</p>
+                  </label>
                 </div>
-                <p className="text-xs text-muted-foreground">{selectedProviders.length} proveedor(es) seleccionado(s)</p>
+                {files.length > 0 && (
+                  <div className="space-y-1">
+                    {files.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm border rounded px-2 py-1">
+                        <span className="truncate">{f.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 shrink-0"
+                          onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Button type="submit" className="w-full" disabled={createRfq.isPending}>
@@ -465,25 +533,36 @@ export default function RFQs() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">#{detailRfq.id.slice(0, 8)}</span>
-                <Badge variant={rfqStatusLabels[detailRfq.status]?.variant || "secondary"}>
-                  {rfqStatusLabels[detailRfq.status]?.label || detailRfq.status}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={rfqStatusLabels[detailRfq.status]?.variant || "secondary"}>
+                    {rfqStatusLabels[detailRfq.status]?.label || detailRfq.status}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {(detailRfq as any).rfq_type === "closed_bid" ? "Licitación Cerrada" : "Pedido Abierto"}
+                  </Badge>
+                </div>
               </div>
 
+              {(detailRfq as any).description && (
+                <p className="text-sm"><span className="text-muted-foreground">Descripción:</span> {(detailRfq as any).description}</p>
+              )}
               {(detailRfq as any).purchase_pools?.name && (
                 <p className="text-sm"><span className="text-muted-foreground">Pool:</span> {(detailRfq as any).purchase_pools.name}</p>
               )}
               {(detailRfq as any).requests?.raw_message && (
                 <p className="text-sm"><span className="text-muted-foreground">Pedido:</span> {(detailRfq as any).requests.raw_message.slice(0, 100)}</p>
               )}
-              {(detailRfq as any).delivery_location && (
-                <p className="text-sm"><span className="text-muted-foreground">Entrega:</span> {(detailRfq as any).delivery_location}</p>
-              )}
               {(detailRfq as any).closing_datetime && (
-                <p className="text-sm"><span className="text-muted-foreground">Cierre:</span> {new Date((detailRfq as any).closing_datetime).toLocaleString("es-MX")}</p>
+                <p className="text-sm"><span className="text-muted-foreground">Cierre cotización:</span> {new Date((detailRfq as any).closing_datetime).toLocaleString("es-AR")}</p>
+              )}
+              {detailRfq.deadline && (
+                <p className="text-sm"><span className="text-muted-foreground">Entrega límite:</span> {new Date(detailRfq.deadline).toLocaleDateString("es-AR")}</p>
+              )}
+              {(detailRfq as any).delivery_location && (
+                <p className="text-sm"><span className="text-muted-foreground">Lugar de entrega:</span> {(detailRfq as any).delivery_location}</p>
               )}
               {(detailRfq as any).observations && (
-                <p className="text-sm"><span className="text-muted-foreground">Notas:</span> {(detailRfq as any).observations}</p>
+                <p className="text-sm"><span className="text-muted-foreground">Observaciones:</span> {(detailRfq as any).observations}</p>
               )}
 
               {/* Items */}
@@ -568,6 +647,9 @@ export default function RFQs() {
                       <ShoppingCart className="h-3 w-3 mr-1" />Desde Cesta
                     </Badge>
                   )}
+                  <Badge variant="outline" className="text-xs">
+                    {(rfq as any).rfq_type === "closed_bid" ? "Licitación Cerrada" : "Pedido Abierto"}
+                  </Badge>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{(rfq.rfq_items as any[])?.length || 0} ítems</span>
@@ -576,12 +658,14 @@ export default function RFQs() {
                 </div>
               </CardHeader>
               <CardContent className="pb-3">
+                {(rfq as any).description && (
+                  <p className="text-sm text-muted-foreground mb-1 line-clamp-1">{(rfq as any).description}</p>
+                )}
                 <div className="flex gap-4 text-xs text-muted-foreground">
                   {(rfq as any).delivery_location && <span>📍 {(rfq as any).delivery_location}</span>}
-                  {rfq.deadline && <span>📅 Límite: {new Date(rfq.deadline).toLocaleDateString("es-MX")}</span>}
-                  {(rfq as any).closing_datetime && <span>⏰ Cierre: {new Date((rfq as any).closing_datetime).toLocaleString("es-MX")}</span>}
+                  {rfq.deadline && <span>📅 Entrega: {new Date(rfq.deadline).toLocaleDateString("es-AR")}</span>}
+                  {(rfq as any).closing_datetime && <span>⏰ Cierre: {new Date((rfq as any).closing_datetime).toLocaleString("es-AR")}</span>}
                 </div>
-                {rfq.notes && <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{rfq.notes}</p>}
                 <div className="flex gap-2 mt-2">
                   {rfq.status === "draft" && (
                     <Button size="sm" onClick={(e) => { e.stopPropagation(); sendRfq.mutate(rfq.id); }}>
