@@ -45,7 +45,6 @@ export default function RFQs() {
   const [deliveryLocation, setDeliveryLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
-  const [description, setDescription] = useState("");
   const [rfqType, setRfqType] = useState<"open" | "closed_bid">("open");
   const [files, setFiles] = useState<File[]>([]);
 
@@ -152,6 +151,9 @@ export default function RFQs() {
       }
 
       if (items.length === 0) throw new Error("No hay ítems para el RFQ");
+      if (!closingDatetime) throw new Error("La fecha de cierre de cotización es obligatoria");
+      if (!deadline) throw new Error("La fecha límite de entrega es obligatoria");
+      if (!deliveryLocation.trim()) throw new Error("El lugar de entrega es obligatorio");
       if (!companyId) throw new Error("Usuario sin empresa asignada");
 
       const { data: rfq, error } = await supabase
@@ -160,7 +162,6 @@ export default function RFQs() {
           company_id: companyId,
           pool_id: source === "pool" ? selectedPoolId : null,
           request_id: source === "request" ? selectedRequestId : null,
-          description: description || null,
           rfq_type: rfqType,
           deadline: deadline || null,
           closing_datetime: closingDatetime || null,
@@ -258,7 +259,6 @@ export default function RFQs() {
     setSource("request");
     setSelectedPoolId("");
     setSelectedRequestId("");
-    setDescription("");
     setRfqType("open");
     setDeadline("");
     setClosingDatetime("");
@@ -299,6 +299,7 @@ export default function RFQs() {
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nuevo RFQ</DialogTitle>
+              <p className="text-xs text-muted-foreground">* Campo obligatorio</p>
             </DialogHeader>
             <form onSubmit={(e) => { e.preventDefault(); createRfq.mutate(); }} className="space-y-4">
               {/* Source selection */}
@@ -360,7 +361,7 @@ export default function RFQs() {
                     <SelectContent>
                       {approvedRequests?.map((r) => (
                         <SelectItem key={r.id} value={r.id}>
-                          #{r.id.slice(0, 8)} — {r.request_items?.length || 0} ítems
+                          Pedido #{r.request_number} — {r.request_items?.length || 0} ítems
                           {r.raw_message ? ` — ${r.raw_message.slice(0, 40)}...` : ""}
                         </SelectItem>
                       ))}
@@ -372,29 +373,52 @@ export default function RFQs() {
                 </div>
               )}
 
-              {source === "basket" && basket.totalItems > 0 && (
-                <div className="space-y-2">
-                  <Label>Materiales en la cesta</Label>
-                  <div className="border rounded-lg p-2 space-y-1 max-h-32 overflow-y-auto">
-                    {basket.items.map((bi) => (
-                      <div key={bi.material_id} className="flex justify-between text-sm">
-                        <span>{bi.name}</span>
-                        <span className="text-muted-foreground">{bi.quantity} {bi.unit}</span>
-                      </div>
-                    ))}
+              {/* Descripción del pedido — items preview */}
+              {(() => {
+                let previewItems: { description: string; quantity: number; unit: string }[] = [];
+                if (source === "basket") {
+                  previewItems = basket.items.map((bi) => ({ description: bi.name, quantity: bi.quantity, unit: bi.unit }));
+                } else if (source === "request" && selectedRequestId) {
+                  const req = approvedRequests?.find((r) => r.id === selectedRequestId);
+                  previewItems = (req?.request_items || []).map((it: any) => ({ description: it.description, quantity: Number(it.quantity), unit: it.unit }));
+                } else if (source === "pool" && selectedPoolId) {
+                  const pool = closedPools?.find((p) => p.id === selectedPoolId);
+                  const allItems = ((pool as any)?.pool_requests || []).flatMap((pr: any) => pr.requests?.request_items || []);
+                  const consolidated: Record<string, { description: string; quantity: number; unit: string }> = {};
+                  allItems.forEach((item: any) => {
+                    const key = `${item.description.toLowerCase()}_${item.unit}`;
+                    if (!consolidated[key]) consolidated[key] = { description: item.description, quantity: 0, unit: item.unit };
+                    consolidated[key].quantity += Number(item.quantity);
+                  });
+                  previewItems = Object.values(consolidated);
+                }
+                if (previewItems.length === 0) return null;
+                return (
+                  <div className="space-y-2">
+                    <Label>Descripción del pedido *</Label>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="text-left px-3 py-1.5 text-xs font-medium">Material</th>
+                            <th className="text-right px-3 py-1.5 text-xs font-medium">Cantidad</th>
+                            <th className="text-left px-3 py-1.5 text-xs font-medium">Unidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewItems.map((it, i) => (
+                            <tr key={i} className="border-t">
+                              <td className="px-3 py-1.5">{it.description}</td>
+                              <td className="text-right px-3 py-1.5 font-medium">{it.quantity}</td>
+                              <td className="px-3 py-1.5 text-muted-foreground">{it.unit}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Descripción del pedido */}
-              <div className="space-y-2">
-                <Label>Descripción del pedido</Label>
-                <Textarea
-                  placeholder="Describí brevemente qué necesitás cotizar..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
+                );
+              })()}
 
               {/* Tipo de pedido */}
               <div className="space-y-2">
@@ -417,19 +441,19 @@ export default function RFQs() {
 
               {/* Fecha de cierre de cotización */}
               <div className="space-y-2">
-                <Label>Fecha de cierre de cotización</Label>
+                <Label>Fecha de cierre de cotización *</Label>
                 <Input type="datetime-local" value={closingDatetime} onChange={(e) => setClosingDatetime(e.target.value)} />
               </div>
 
               {/* Fecha límite de entrega */}
               <div className="space-y-2">
-                <Label>Fecha límite de entrega</Label>
+                <Label>Fecha límite de entrega *</Label>
                 <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
               </div>
 
               {/* Lugar de entrega */}
               <div className="space-y-2">
-                <Label>Lugar de entrega</Label>
+                <Label>Lugar de entrega *</Label>
                 <Input placeholder="Ej: Obra Norte, Av. Reforma 123" value={deliveryLocation} onChange={(e) => setDeliveryLocation(e.target.value)} />
               </div>
 

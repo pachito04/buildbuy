@@ -175,14 +175,22 @@ export default function Pedidos() {
 
   // ── Requests list ────────────────────────────────────────────────────────
   const { data: requests, isLoading } = useQuery({
-    queryKey: ["requests"],
+    queryKey: ["requests", role, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("requests")
         .select(
           "*, request_items(*), architects:architect_id(full_name), projects:project_id(name)"
         )
         .order("created_at", { ascending: false });
+
+      if (role === "arquitecto") {
+        query = query.eq("created_by", user!.id);
+      } else if (role === "compras") {
+        query = query.neq("status", "draft" as any);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

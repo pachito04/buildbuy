@@ -349,7 +349,7 @@ export default function Inventario() {
               Number(item.quantity) <= Number(item.min_stock) &&
               Number(item.min_stock) > 0;
             return (
-              <Card key={item.id} className={isLow ? "border-warning/50" : ""}>
+              <Card key={item.id} className={`flex flex-col ${isLow ? "border-warning/50" : ""}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-display">
@@ -363,7 +363,7 @@ export default function Inventario() {
                     </p>
                   )}
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 mt-auto">
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold font-display">
                       {Number(item.quantity).toLocaleString("es-AR")}
