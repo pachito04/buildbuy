@@ -709,7 +709,7 @@ export default function Pedidos() {
                     </CardTitle>
                     <Badge variant={sl.variant} className={sl.className}>{sl.label}</Badge>
                     {r.urgency === "urgente" && (
-                      <Badge variant="destructive">Urgente</Badge>
+                      <Badge className="bg-[#FF2800] text-white border-[#FF2800]">Urgente</Badge>
                     )}
                     {r.urgency === "alta" && (
                       <Badge className="bg-orange-100 text-orange-800 border-orange-200">
