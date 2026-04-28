@@ -76,7 +76,7 @@ export default function RFQs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rfqs")
-        .select("*, rfq_items(*), rfq_providers(*, providers:provider_id(name, email)), purchase_pools:pool_id(name), requests:request_id(raw_message)")
+        .select("*, rfq_items(*), rfq_providers(*, providers:provider_id(name, email)), purchase_pools:pool_id(name), requests:request_id(raw_message, request_number)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -632,7 +632,13 @@ export default function RFQs() {
           {detailRfq && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">#{detailRfq.id.slice(0, 8)}</span>
+                <span className="text-sm font-medium">
+                  {(detailRfq as any).requests?.request_number
+                    ? `Pedido #${(detailRfq as any).requests.request_number}`
+                    : (detailRfq as any).purchase_pools?.name
+                      ? `Pool: ${(detailRfq as any).purchase_pools.name}`
+                      : `SC #${detailRfq.id.slice(0, 8)}`}
+                </span>
                 <div className="flex items-center gap-2">
                   <Badge variant={rfqStatusLabels[detailRfq.status]?.variant || "secondary"}>
                     {rfqStatusLabels[detailRfq.status]?.label || detailRfq.status}
@@ -838,18 +844,16 @@ export default function RFQs() {
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div className="flex items-center gap-3">
                   <FileText className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm font-display">#{rfq.id.slice(0, 8)}</CardTitle>
+                  <CardTitle className="text-sm font-display">
+                    {(rfq as any).requests?.request_number
+                      ? `Pedido #${(rfq as any).requests.request_number}`
+                      : (rfq as any).purchase_pools?.name
+                        ? `Pool: ${(rfq as any).purchase_pools.name}`
+                        : `SC #${rfq.id.slice(0, 8)}`}
+                  </CardTitle>
                   <Badge variant={rfqStatusLabels[rfq.status]?.variant || "secondary"}>
                     {rfqStatusLabels[rfq.status]?.label || rfq.status}
                   </Badge>
-                  {rfq.pool_id && (
-                    <Badge variant="outline" className="text-xs">
-                      Pool: {(rfq as any).purchase_pools?.name || rfq.pool_id.slice(0, 8)}
-                    </Badge>
-                  )}
-                  {rfq.request_id && !rfq.pool_id && (
-                    <Badge variant="outline" className="text-xs">Directo</Badge>
-                  )}
                   {!rfq.request_id && !rfq.pool_id && (
                     <Badge variant="outline" className="text-xs">
                       <ShoppingCart className="h-3 w-3 mr-1" />Desde Cesta
