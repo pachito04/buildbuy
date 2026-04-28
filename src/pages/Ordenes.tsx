@@ -39,7 +39,7 @@ export default function Ordenes() {
     queryFn: async () => {
       let query = supabase
         .from("purchase_orders")
-        .select("*, providers:provider_id(name, email), rfqs:rfq_id(id, delivery_location)")
+        .select("*, providers:provider_id(name, email), rfqs:rfq_id(id, delivery_location), requests:request_id(request_number)")
         .order("created_at", { ascending: false });
 
       if (role === "proveedor" && myProvider) {
@@ -96,7 +96,13 @@ export default function Ordenes() {
             <Card key={po.id}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div className="flex items-center gap-3">
-                  <CardTitle className="text-sm font-display">OC #{po.id.slice(0, 8)}</CardTitle>
+                  <CardTitle className="text-sm font-display">
+                    {po.po_number
+                      ? `OC #${po.po_number}`
+                      : po.requests?.request_number
+                        ? `OC — Pedido #${po.requests.request_number}`
+                        : `OC #${po.id.slice(0, 8)}`}
+                  </CardTitle>
                   <Badge variant={poStatusLabels[po.status]?.variant || "secondary"}>
                     {poStatusLabels[po.status]?.label || po.status}
                   </Badge>

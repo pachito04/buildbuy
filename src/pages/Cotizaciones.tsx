@@ -93,7 +93,7 @@ export default function Cotizaciones() {
 
         const { data: openRfqs } = await supabase
           .from("rfqs")
-          .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name)")
+          .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number)")
           .or("rfq_type.eq.open,rfq_type.is.null")
           .in("status", ["sent", "responded"])
           .order("created_at", { ascending: false });
@@ -102,7 +102,7 @@ export default function Cotizaciones() {
         if (invitedIds.length) {
           const { data } = await supabase
             .from("rfqs")
-            .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name)")
+            .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number)")
             .eq("rfq_type", "closed_bid")
             .in("id", invitedIds)
             .in("status", ["sent", "responded"])
@@ -128,7 +128,7 @@ export default function Cotizaciones() {
       }
       const { data, error } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, pool_id, request_id, delivery_location, rfq_type, purchase_pools:pool_id(name)")
+        .select("id, status, created_at, pool_id, request_id, delivery_location, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number)")
         .in("status", ["sent", "responded", "closed"])
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -332,7 +332,13 @@ export default function Cotizaciones() {
               >
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <CardTitle className="text-sm font-display">SC #{rfq.id.slice(0, 8)}</CardTitle>
+                    <CardTitle className="text-sm font-display">
+                      {(rfq as any).requests?.request_number
+                        ? `Pedido #${(rfq as any).requests.request_number}`
+                        : (rfq as any).purchase_pools?.name
+                          ? `Pool: ${(rfq as any).purchase_pools.name}`
+                          : `SC #${rfq.id.slice(0, 8)}`}
+                    </CardTitle>
                     <Badge variant={rfq.status === "sent" ? "default" : "outline"}>
                       {rfq.status === "sent" ? "Abierto" : "Respondido"}
                     </Badge>
@@ -367,7 +373,13 @@ export default function Cotizaciones() {
               return (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">SC #{rfq.id.slice(0, 8)}</span>
+                    <span className="text-sm font-medium">
+                      {(rfq as any).requests?.request_number
+                        ? `Pedido #${(rfq as any).requests.request_number}`
+                        : (rfq as any).purchase_pools?.name
+                          ? `Pool: ${(rfq as any).purchase_pools.name}`
+                          : `SC #${rfq.id.slice(0, 8)}`}
+                    </span>
                     <div className="flex items-center gap-2">
                       <Badge variant={rfq.status === "sent" ? "default" : "outline"}>
                         {rfq.status === "sent" ? "Abierto" : "Respondido"}
@@ -507,8 +519,11 @@ export default function Cotizaciones() {
                 <SelectContent>
                   {rfqs?.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
-                      SC #{r.id.slice(0, 8)}
-                      {(r as any).purchase_pools?.name ? ` — Pool: ${(r as any).purchase_pools.name}` : ""}
+                      {(r as any).requests?.request_number
+                        ? `Pedido #${(r as any).requests.request_number}`
+                        : (r as any).purchase_pools?.name
+                          ? `Pool: ${(r as any).purchase_pools.name}`
+                          : `SC #${r.id.slice(0, 8)}`}
                       {" — "}
                       {new Date(r.created_at).toLocaleDateString("es-MX")}
                     </SelectItem>
