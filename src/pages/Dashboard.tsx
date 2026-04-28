@@ -98,20 +98,14 @@ export default function Dashboard() {
   });
 
   const { data: rfqCount } = useQuery({
-    queryKey: ["dashboard-rfqs"],
-    enabled: role !== "arquitecto" && !!role,
+    queryKey: ["dashboard-rfqs", role, user?.id],
+    enabled: role !== "arquitecto" && !!role && !!user?.id,
     queryFn: async () => {
       if (role === "proveedor") {
-        const { data: providerData } = await supabase
-          .from("providers")
-          .select("id")
-          .eq("user_id", user?.id)
-          .maybeSingle();
-        if (!providerData) return 0;
         const { count } = await supabase
-          .from("rfq_providers")
+          .from("rfqs")
           .select("*", { count: "exact", head: true })
-          .eq("provider_id", providerData.id);
+          .in("status", ["sent", "responded"]);
         return count || 0;
       }
       const { count } = await supabase
@@ -123,20 +117,20 @@ export default function Dashboard() {
   });
 
   const { data: poCount } = useQuery({
-    queryKey: ["dashboard-pos"],
-    enabled: role !== "arquitecto" && !!role,
+    queryKey: ["dashboard-pos", role, user?.id],
+    enabled: role !== "arquitecto" && !!role && !!user?.id,
     queryFn: async () => {
       if (role === "proveedor") {
         const { data: providerData } = await supabase
-          .from("providers")
-          .select("id")
+          .from("provider_users")
+          .select("provider_id")
           .eq("user_id", user?.id)
           .maybeSingle();
         if (!providerData) return 0;
         const { count } = await supabase
           .from("purchase_orders")
           .select("*", { count: "exact", head: true })
-          .eq("provider_id", providerData.id);
+          .eq("provider_id", providerData.provider_id);
         return count || 0;
       }
       const { count } = await supabase
@@ -219,7 +213,7 @@ export default function Dashboard() {
   }
   if (role !== "arquitecto") {
     stats.push({
-      label: role === "proveedor" ? "RFQs Recibidos" : "RFQs Abiertos",
+      label: role === "proveedor" ? "Solicitudes de cotizaciones vigentes" : "RFQs Abiertos",
       value: rfqCount ?? "—",
       icon: FileText,
       color: "text-warning",

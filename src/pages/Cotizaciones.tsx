@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BarChart3, TrendingDown, Clock, Award, Send } from "lucide-react";
+import { BarChart3, TrendingDown, Clock, Award, Send, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +47,7 @@ const CHART_COLORS = [
 
 export default function Cotizaciones() {
   const [selectedRfqId, setSelectedRfqId] = useState<string>("");
-  const { viewRole: role } = useViewRole();
+  const { viewRole: role, companyId } = useViewRole();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -58,45 +58,81 @@ export default function Cotizaciones() {
   const [quoteDeliveryDays, setQuoteDeliveryDays] = useState("");
   const [quoteConditions, setQuoteConditions] = useState("");
   const [quoteItems, setQuoteItems] = useState<{ rfq_item_id: string; unit_price: string }[]>([]);
+  const [detailRfqId, setDetailRfqId] = useState<string | null>(null);
+  const [awardQuoteId, setAwardQuoteId] = useState<string | null>(null);
+  const [awardNotes, setAwardNotes] = useState("");
+  const [awardPaymentTerms, setAwardPaymentTerms] = useState("");
 
-  // Get provider record for proveedor role (via provider_users join table)
+  // Get provider record for proveedor role
   const { data: myProvider } = useQuery({
     queryKey: ["my-provider", user?.id],
     enabled: role === "proveedor" && !!user,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data: pu } = await supabase
         .from("provider_users")
         .select("provider_id")
         .eq("user_id", user!.id)
         .maybeSingle();
-      return data ? { id: data.provider_id } : null;
+      if (pu) return { id: pu.provider_id };
+      const { data: p } = await supabase
+        .from("providers")
+        .select("id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return p ? { id: p.id } : null;
     },
   });
 
-  // Get RFQs - for providers, only show RFQs they're invited to
+  // Get RFQs - proveedores: all open + closed_bid only if invited
   const { data: rfqs } = useQuery({
     queryKey: ["rfqs-with-quotes", role, myProvider?.id],
     queryFn: async () => {
       if (role === "proveedor" && myProvider) {
-        // Get RFQ IDs where this provider is invited
         const { data: invites } = await supabase.from("rfq_providers").select("rfq_id").eq("provider_id", myProvider.id);
-        const rfqIds = (invites || []).map((i) => i.rfq_id);
-        if (!rfqIds.length) return [];
-        const { data, error } = await supabase
+        const invitedIds = (invites || []).map((i) => i.rfq_id);
+
+        const { data: openRfqs } = await supabase
           .from("rfqs")
-          .select("id, status, created_at, pool_id, request_id, delivery_location, notes, deadline, closing_datetime, purchase_pools:pool_id(name), rfq_items(*)")
-          .in("id", rfqIds)
+          .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name)")
+          .or("rfq_type.eq.open,rfq_type.is.null")
           .in("status", ["sent", "responded"])
           .order("created_at", { ascending: false });
-        if (error) throw error;
-        return data;
+
+        let closedRfqs: any[] = [];
+        if (invitedIds.length) {
+          const { data } = await supabase
+            .from("rfqs")
+            .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name)")
+            .eq("rfq_type", "closed_bid")
+            .in("id", invitedIds)
+            .in("status", ["sent", "responded"])
+            .order("created_at", { ascending: false });
+          closedRfqs = data || [];
+        }
+
+        const allRfqs = [...(openRfqs || []), ...closedRfqs];
+        allRfqs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        if (allRfqs.length) {
+          const rfqIds = allRfqs.map((r) => r.id);
+          const { data: items } = await supabase
+            .from("rfq_items")
+            .select("*")
+            .in("rfq_id", rfqIds);
+          return allRfqs.map((r) => ({
+            ...r,
+            rfq_items: (items || []).filter((i) => i.rfq_id === r.id),
+          }));
+        }
+        return allRfqs;
       }
       const { data, error } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, pool_id, request_id, delivery_location, purchase_pools:pool_id(name)")
+        .select("id, status, created_at, pool_id, request_id, delivery_location, rfq_type, purchase_pools:pool_id(name)")
         .in("status", ["sent", "responded", "closed"])
         .order("created_at", { ascending: false });
       if (error) throw error;
+
       return data;
     },
   });
@@ -133,6 +169,57 @@ export default function Cotizaciones() {
       qc.invalidateQueries({ queryKey: ["quotes-comparison"] });
       setQuoteDialogOpen(false);
       toast({ title: "Cotización enviada" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Award quote → create purchase order (compras/admin)
+  const awardQuote = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const quote = quotes?.find((q: any) => q.id === quoteId);
+      if (!quote) throw new Error("Cotización no encontrada");
+      if (!companyId) throw new Error("No se pudo determinar la empresa");
+
+      const { data: po, error: poErr } = await supabase
+        .from("purchase_orders")
+        .insert({
+          company_id: companyId,
+          provider_id: (quote as any).provider_id,
+          rfq_id: selectedRfqId,
+          request_id: (selectedRfq as any)?.request_id || null,
+          total_amount: Number((quote as any).total_price) || 0,
+          payment_terms: awardPaymentTerms || (quote as any).conditions || null,
+          notes: awardNotes || null,
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+      if (poErr) throw poErr;
+
+      const items = ((quote as any).quote_items || []).map((qi: any) => ({
+        purchase_order_id: po.id,
+        description: qi.rfq_items?.description || "Ítem",
+        quantity: Number(qi.rfq_items?.quantity) || 0,
+        unit: qi.rfq_items?.unit || "pza",
+        unit_price: Number(qi.unit_price) || 0,
+        quote_item_id: qi.id,
+        request_item_id: qi.rfq_items?.request_item_id || null,
+      }));
+      if (items.length) {
+        const { error: itemsErr } = await supabase.from("purchase_order_items").insert(items);
+        if (itemsErr) throw itemsErr;
+      }
+
+      await supabase.from("rfqs").update({ status: "closed" as any }).eq("id", selectedRfqId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rfqs-with-quotes"] });
+      qc.invalidateQueries({ queryKey: ["quotes-comparison"] });
+      qc.invalidateQueries({ queryKey: ["purchase-orders"] });
+      setAwardQuoteId(null);
+      setAwardNotes("");
+      setAwardPaymentTerms("");
+      toast({ title: "Orden de compra generada", description: "El RFQ ha sido cerrado y la OC enviada al proveedor." });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -223,8 +310,8 @@ export default function Cotizaciones() {
     return (
       <div className="p-6 space-y-6">
         <div>
-          <h1 className="font-display text-2xl font-bold">Mis Cotizaciones</h1>
-          <p className="text-muted-foreground text-sm mt-1">RFQs recibidos — envía tus cotizaciones</p>
+          <h1 className="font-display text-2xl font-bold">Cotizaciones</h1>
+          <p className="text-muted-foreground text-sm mt-1">Solicitudes de cotizaciones vigentes — envía tus cotizaciones</p>
         </div>
 
         {!rfqs?.length ? (
@@ -232,59 +319,114 @@ export default function Cotizaciones() {
             <CardContent className="text-center py-12 text-muted-foreground">
               <Send className="h-12 w-12 mx-auto mb-4 opacity-40" />
               <p className="text-sm">No tienes RFQs pendientes.</p>
-              <p className="text-xs mt-1">Aparecerán aquí cuando te inviten a cotizar.</p>
+              <p className="text-xs mt-1">Aparecerán aquí cuando haya solicitudes de cotización disponibles.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-3">
             {rfqs.map((rfq: any) => (
-              <Card key={rfq.id}>
+              <Card
+                key={rfq.id}
+                className="cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => setDetailRfqId(rfq.id)}
+              >
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <CardTitle className="text-sm font-display">RFQ #{rfq.id.slice(0, 8)}</CardTitle>
                     <Badge variant={rfq.status === "sent" ? "default" : "outline"}>
                       {rfq.status === "sent" ? "Abierto" : "Respondido"}
                     </Badge>
+                    {rfq.rfq_type === "closed_bid" && (
+                      <Badge variant="secondary" className="text-[10px]">Licitación Cerrada</Badge>
+                    )}
                   </div>
                   <span className="text-xs text-muted-foreground">{new Date(rfq.created_at).toLocaleDateString("es-MX")}</span>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="pb-3">
                   <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
                     {rfq.delivery_location && <span>📍 {rfq.delivery_location}</span>}
                     {rfq.deadline && <span>📅 Entrega: {new Date(rfq.deadline).toLocaleDateString("es-MX")}</span>}
                     {rfq.closing_datetime && <span>⏰ Cierre: {new Date(rfq.closing_datetime).toLocaleString("es-MX")}</span>}
+                    <span>{rfq.rfq_items?.length || 0} producto{rfq.rfq_items?.length !== 1 ? "s" : ""}</span>
                   </div>
-                  {rfq.notes && <p className="text-sm text-muted-foreground">{rfq.notes}</p>}
-                  {rfq.rfq_items?.length > 0 && (
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* RFQ detail dialog */}
+        <Dialog open={!!detailRfqId} onOpenChange={(o) => { if (!o) setDetailRfqId(null); }}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-display">Detalle de la Solicitud</DialogTitle>
+            </DialogHeader>
+            {(() => {
+              const rfq = rfqs?.find((r) => r.id === detailRfqId);
+              if (!rfq) return null;
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">RFQ #{rfq.id.slice(0, 8)}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={rfq.status === "sent" ? "default" : "outline"}>
+                        {rfq.status === "sent" ? "Abierto" : "Respondido"}
+                      </Badge>
+                      {rfq.rfq_type === "closed_bid" && (
+                        <Badge variant="secondary" className="text-[10px]">Licitación Cerrada</Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {rfq.delivery_location && (
+                      <p><span className="text-muted-foreground">Entrega:</span> {rfq.delivery_location}</p>
+                    )}
+                    {rfq.deadline && (
+                      <p><span className="text-muted-foreground">Fecha entrega:</span> {new Date(rfq.deadline).toLocaleDateString("es-AR")}</p>
+                    )}
+                    {rfq.closing_datetime && (
+                      <p><span className="text-muted-foreground">Cierre:</span> {new Date(rfq.closing_datetime).toLocaleString("es-AR")}</p>
+                    )}
+                    <p><span className="text-muted-foreground">Creado:</span> {new Date(rfq.created_at).toLocaleDateString("es-AR")}</p>
+                  </div>
+
+                  {rfq.observations && (
+                    <p className="text-sm"><span className="text-muted-foreground">Observaciones:</span> {rfq.observations}</p>
+                  )}
+
+                  {rfq.rfq_items && rfq.rfq_items.length > 0 && (
                     <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-muted px-3 py-2 text-xs font-medium">Materiales</div>
                       <table className="w-full text-sm">
-                        <thead className="bg-muted">
+                        <thead className="bg-muted/50">
                           <tr>
-                            <th className="text-left px-3 py-2">Material</th>
-                            <th className="text-right px-3 py-2">Cantidad</th>
-                            <th className="text-left px-3 py-2">Unidad</th>
+                            <th className="text-left px-3 py-1.5">Material</th>
+                            <th className="text-right px-3 py-1.5">Cantidad</th>
+                            <th className="text-left px-3 py-1.5">Unidad</th>
                           </tr>
                         </thead>
                         <tbody>
                           {rfq.rfq_items.map((item: any) => (
                             <tr key={item.id} className="border-t">
-                              <td className="px-3 py-2">{item.description}</td>
-                              <td className="text-right px-3 py-2">{item.quantity}</td>
-                              <td className="px-3 py-2">{item.unit}</td>
+                              <td className="px-3 py-1.5">{item.description}</td>
+                              <td className="text-right px-3 py-1.5 font-medium">{item.quantity}</td>
+                              <td className="px-3 py-1.5">{item.unit || "—"}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
                   )}
-                  <Button size="sm" onClick={() => openQuoteDialog(rfq)}>
+
+                  <Button size="sm" className="w-full" onClick={() => { setDetailRfqId(null); openQuoteDialog(rfq); }}>
                     <Send className="h-3 w-3 mr-1" />Enviar Cotización
                   </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
 
         {/* Quote submission dialog */}
         <Dialog open={quoteDialogOpen} onOpenChange={setQuoteDialogOpen}>
@@ -575,6 +717,9 @@ export default function Cotizaciones() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="font-display text-base">Detalle de Cotizaciones</CardTitle>
+              {selectedRfq?.status !== "closed" && (
+                <p className="text-xs text-muted-foreground">Hacé clic en una cotización para ver el detalle y adjudicar</p>
+              )}
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -591,7 +736,11 @@ export default function Cotizaciones() {
                   </thead>
                   <tbody>
                     {quotes.map((q: any, i: number) => (
-                      <tr key={q.id} className={`border-b ${i === 0 ? "bg-primary/5" : ""}`}>
+                      <tr
+                        key={q.id}
+                        className={`border-b cursor-pointer hover:bg-muted/30 transition-colors ${i === 0 ? "bg-primary/5" : ""}`}
+                        onClick={() => selectedRfq?.status !== "closed" && setAwardQuoteId(q.id)}
+                      >
                         <td className="px-3 py-2 font-medium flex items-center gap-2">
                           {i === 0 && <Badge className="text-[10px] py-0">Mejor</Badge>}
                           {q.providers?.name || "—"}
@@ -614,6 +763,83 @@ export default function Cotizaciones() {
           </Card>
         </>
       )}
+
+      {/* Award quote → generate PO dialog */}
+      <Dialog open={!!awardQuoteId} onOpenChange={(o) => { if (!o) { setAwardQuoteId(null); setAwardNotes(""); setAwardPaymentTerms(""); } }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display">Adjudicar Cotización</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const q = quotes?.find((q: any) => q.id === awardQuoteId);
+            if (!q) return null;
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{(q as any).providers?.name || "Proveedor"}</span>
+                  <span className="text-sm font-mono font-bold">${Number((q as any).total_price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <p><span className="text-muted-foreground">Entrega:</span> {(q as any).delivery_days ?? "—"} días</p>
+                  <p><span className="text-muted-foreground">Score:</span> {(q as any).providers?.score ?? "—"}</p>
+                  {(q as any).conditions && (
+                    <p className="col-span-2"><span className="text-muted-foreground">Condiciones:</span> {(q as any).conditions}</p>
+                  )}
+                </div>
+
+                {(q as any).quote_items?.length > 0 && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-muted px-3 py-2 text-xs font-medium">Detalle de Ítems</div>
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left px-3 py-1.5">Material</th>
+                          <th className="text-right px-3 py-1.5">Cant.</th>
+                          <th className="text-right px-3 py-1.5">P. Unit.</th>
+                          <th className="text-right px-3 py-1.5">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(q as any).quote_items.map((qi: any) => (
+                          <tr key={qi.id} className="border-t">
+                            <td className="px-3 py-1.5">{qi.rfq_items?.description || "—"}</td>
+                            <td className="text-right px-3 py-1.5">{qi.rfq_items?.quantity || 0}</td>
+                            <td className="text-right px-3 py-1.5 font-mono">${Number(qi.unit_price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                            <td className="text-right px-3 py-1.5 font-mono font-medium">
+                              ${(Number(qi.unit_price || 0) * Number(qi.rfq_items?.quantity || 0)).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="space-y-3 border-t pt-3">
+                  <div className="space-y-2">
+                    <Label>Condiciones de pago (OC)</Label>
+                    <Input placeholder="Ej: 30 días neto" value={awardPaymentTerms} onChange={(e) => setAwardPaymentTerms(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Notas adicionales</Label>
+                    <Textarea placeholder="Observaciones para la orden de compra..." value={awardNotes} onChange={(e) => setAwardNotes(e.target.value)} />
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => awardQuote.mutate(awardQuoteId!)}
+                  disabled={awardQuote.isPending}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  {awardQuote.isPending ? "Generando OC..." : "Adjudicar y Generar Orden de Compra"}
+                </Button>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

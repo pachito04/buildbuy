@@ -160,10 +160,14 @@ export default function Usuarios() {
       userId,
       role,
       existingRoleId,
+      fullName,
+      email,
     }: {
       userId: string;
       role: AppRole | "none";
       existingRoleId: string | null;
+      fullName: string | null;
+      email: string | null;
     }) => {
       if (role === "none") {
         if (existingRoleId) {
@@ -184,8 +188,18 @@ export default function Usuarios() {
       } else {
         const { error } = await supabase
           .from("user_roles")
-          .insert({ user_id: userId, role });
+          .insert({ user_id: userId, role, company_id: companyId });
         if (error) throw error;
+      }
+
+      if (role === "proveedor") {
+        const { error: rpcError } = await supabase.rpc("create_provider_for_user", {
+          p_user_id: userId,
+          p_name: fullName || email || "Proveedor",
+          p_email: email,
+          p_company_id: companyId,
+        });
+        if (rpcError) throw rpcError;
       }
     },
     onSuccess: (_data, vars) => {
@@ -253,6 +267,8 @@ export default function Usuarios() {
       userId: u.id,
       role: newRole as AppRole | "none",
       existingRoleId: u.role_row_id,
+      fullName: u.full_name,
+      email: u.email,
     });
   };
 
