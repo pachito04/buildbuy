@@ -153,7 +153,7 @@ export default function RFQs() {
         }));
       }
 
-      if (items.length === 0) throw new Error("No hay ítems para el RFQ");
+      if (items.length === 0) throw new Error("No hay ítems para la solicitud");
       if (!closingDatetime) throw new Error("La fecha de cierre de cotización es obligatoria");
       if (!deadline) throw new Error("La fecha límite de entrega es obligatoria");
       if (!deliveryLocation.trim()) throw new Error("El lugar de entrega es obligatorio");
@@ -231,7 +231,7 @@ export default function RFQs() {
       qc.invalidateQueries({ queryKey: ["pools"] });
       if (source === "basket") basket.clear();
       resetForm();
-      toast({ title: "RFQ creado exitosamente" });
+      toast({ title: "Solicitud de cotización creada" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -252,7 +252,7 @@ export default function RFQs() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rfqs"] });
-      toast({ title: "RFQ enviado a proveedores", description: "Se enviaron notificaciones por email." });
+      toast({ title: "Solicitud enviada a proveedores", description: "Se enviaron notificaciones por email." });
     },
   });
 
@@ -338,7 +338,7 @@ export default function RFQs() {
       setAwardNotes("");
       setAwardPaymentTerms("");
       setDetailId(null);
-      toast({ title: "Orden de compra generada", description: "El RFQ ha sido cerrado y la OC enviada al proveedor." });
+      toast({ title: "Orden de compra generada", description: "La solicitud ha sido cerrada y la OC enviada al proveedor." });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -348,7 +348,7 @@ export default function RFQs() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold">Solicitudes de Cotización</h1>
-          <p className="text-muted-foreground text-sm mt-1">RFQs enviados a proveedores — desde pools o pedidos directos</p>
+          <p className="text-muted-foreground text-sm mt-1">Solicitudes enviadas a proveedores — desde pools o pedidos directos</p>
         </div>
         <Dialog open={createOpen} onOpenChange={(o) => (o ? setCreateOpen(true) : resetForm())}>
           <DialogTrigger asChild>
@@ -360,18 +360,18 @@ export default function RFQs() {
                 }
               }}
             >
-              <Plus className="h-4 w-4 mr-2" />Generar RFQ
+              <Plus className="h-4 w-4 mr-2" />Nueva Solicitud
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Nuevo RFQ</DialogTitle>
+              <DialogTitle>Nueva Solicitud de Cotización</DialogTitle>
               <p className="text-xs text-muted-foreground">* Campo obligatorio</p>
             </DialogHeader>
             <form onSubmit={(e) => { e.preventDefault(); createRfq.mutate(); }} className="space-y-4">
               {/* Source selection */}
               <div className="space-y-2">
-                <Label>Origen del RFQ *</Label>
+                <Label>Origen de la solicitud *</Label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -516,6 +516,15 @@ export default function RFQs() {
               <div className="space-y-2">
                 <Label>Fecha límite de entrega *</Label>
                 <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+                {source === "request" && selectedRequestId && (() => {
+                  const req = approvedRequests?.find((r) => r.id === selectedRequestId);
+                  if (!req?.desired_date) return null;
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      El arquitecto que generó esta solicitud lo requirió para el {new Date(req.desired_date).toLocaleDateString("es-AR")}
+                    </p>
+                  );
+                })()}
               </div>
 
               {/* Lugar de entrega */}
@@ -572,7 +581,7 @@ export default function RFQs() {
               </div>
 
               <Button type="submit" className="w-full" disabled={createRfq.isPending}>
-                {createRfq.isPending ? "Creando..." : "Crear RFQ"}
+                {createRfq.isPending ? "Creando..." : "Crear Solicitud"}
               </Button>
             </form>
           </DialogContent>
@@ -586,7 +595,7 @@ export default function RFQs() {
             <DialogTitle>Tenés materiales en la cesta</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Hay {basket.totalItems} material(es) en tu cesta de cotización. ¿Querés generar el RFQ desde la cesta?
+            Hay {basket.totalItems} material(es) en tu cesta de cotización. ¿Querés generar la solicitud desde la cesta?
           </p>
           <div className="flex gap-2">
             <Button
@@ -618,7 +627,7 @@ export default function RFQs() {
       <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display">Detalle del RFQ</DialogTitle>
+            <DialogTitle className="font-display">Detalle de la Solicitud</DialogTitle>
           </DialogHeader>
           {detailRfq && (
             <div className="space-y-4">
@@ -650,7 +659,7 @@ export default function RFQs() {
                 <p className="text-sm"><span className="text-muted-foreground">Entrega límite:</span> {new Date(detailRfq.deadline).toLocaleDateString("es-AR")}</p>
               )}
               {(detailRfq as any).delivery_location && (
-                <p className="text-sm"><span className="text-muted-foreground">Lugar de entrega:</span> {(detailRfq as any).delivery_location}</p>
+                <p className="text-sm break-all"><span className="text-muted-foreground">Lugar de entrega:</span> {(detailRfq as any).delivery_location}</p>
               )}
               {(detailRfq as any).observations && (
                 <p className="text-sm"><span className="text-muted-foreground">Observaciones:</span> {(detailRfq as any).observations}</p>
@@ -695,7 +704,7 @@ export default function RFQs() {
 
               {detailRfq.status === "draft" && (
                 <Button className="w-full" onClick={() => { sendRfq.mutate(detailRfq.id); setDetailId(null); }}>
-                  <Send className="h-4 w-4 mr-2" />Enviar RFQ a Proveedores
+                  <Send className="h-4 w-4 mr-2" />Enviar a Proveedores
                 </Button>
               )}
 
@@ -818,8 +827,8 @@ export default function RFQs() {
         <Card>
           <CardContent className="text-center py-12 text-muted-foreground">
             <FileText className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">No hay RFQs generados.</p>
-            <p className="text-xs mt-1">Genera un RFQ desde un pool cerrado o un pedido aprobado.</p>
+            <p className="text-sm">No hay solicitudes generadas.</p>
+            <p className="text-xs mt-1">Generá una solicitud desde un pool cerrado o un pedido aprobado.</p>
           </CardContent>
         </Card>
       ) : (
@@ -861,7 +870,7 @@ export default function RFQs() {
                   <p className="text-sm text-muted-foreground mb-1 line-clamp-1">{(rfq as any).description}</p>
                 )}
                 <div className="flex gap-4 text-xs text-muted-foreground">
-                  {(rfq as any).delivery_location && <span>📍 {(rfq as any).delivery_location}</span>}
+                  {(rfq as any).delivery_location && <span className="truncate max-w-[200px]" title={(rfq as any).delivery_location}>📍 {(rfq as any).delivery_location}</span>}
                   {rfq.deadline && <span>📅 Entrega: {new Date(rfq.deadline).toLocaleDateString("es-AR")}</span>}
                   {(rfq as any).closing_datetime && <span>⏰ Cierre: {new Date((rfq as any).closing_datetime).toLocaleString("es-AR")}</span>}
                 </div>

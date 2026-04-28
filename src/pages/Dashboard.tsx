@@ -12,7 +12,7 @@ const statusLabelMap: Record<string, { label: string; variant: "default" | "seco
   approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   in_pool:           { label: "En proceso",            variant: "outline"     },
   rfq_direct:        { label: "En proceso",            variant: "outline"     },
-  inventario:        { label: "Aprobado",              variant: "default"     },
+  inventario:        { label: "Enviado",               variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   rejected:          { label: "Rechazado",             variant: "destructive" },
 };
 
@@ -102,11 +102,35 @@ export default function Dashboard() {
     enabled: role !== "arquitecto" && !!role && !!user?.id,
     queryFn: async () => {
       if (role === "proveedor") {
-        const { count } = await supabase
+        const { count: openCount } = await supabase
           .from("rfqs")
           .select("*", { count: "exact", head: true })
+          .or("rfq_type.eq.open,rfq_type.is.null")
           .in("status", ["sent", "responded"]);
-        return count || 0;
+
+        const { data: pu } = await supabase
+          .from("provider_users")
+          .select("provider_id")
+          .eq("user_id", user!.id)
+          .maybeSingle();
+        let closedCount = 0;
+        if (pu) {
+          const { data: invites } = await supabase
+            .from("rfq_providers")
+            .select("rfq_id")
+            .eq("provider_id", pu.provider_id);
+          const invitedIds = (invites || []).map((i) => i.rfq_id);
+          if (invitedIds.length) {
+            const { count } = await supabase
+              .from("rfqs")
+              .select("*", { count: "exact", head: true })
+              .eq("rfq_type", "closed_bid")
+              .in("id", invitedIds)
+              .in("status", ["sent", "responded"]);
+            closedCount = count || 0;
+          }
+        }
+        return (openCount || 0) + closedCount;
       }
       const { count } = await supabase
         .from("rfqs")
@@ -213,7 +237,7 @@ export default function Dashboard() {
   }
   if (role !== "arquitecto") {
     stats.push({
-      label: role === "proveedor" ? "Solicitudes de cotizaciones vigentes" : "RFQs Abiertos",
+      label: role === "proveedor" ? "Solicitudes de cotizaciones vigentes" : "Solicitudes Abiertas",
       value: rfqCount ?? "—",
       icon: FileText,
       color: "text-warning",

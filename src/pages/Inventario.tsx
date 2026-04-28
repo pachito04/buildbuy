@@ -595,7 +595,7 @@ export default function Inventario() {
                 Vaciar cesta
               </Button>
               <p className="text-xs text-muted-foreground text-center">
-                Generá el RFQ desde la sección Cotizaciones
+                Generá la solicitud desde la sección Solicitudes
               </p>
             </div>
           )}

@@ -37,7 +37,7 @@ const navItems: NavItem[] = [
   { to: "/obras",       label: "Obras",             icon: Building2,       roles: ["compras", "admin"] },
   { to: "/inventario",  label: "Inventario",        icon: Warehouse,       roles: ["compras", "admin"] },
   { to: "/pools",       label: "Pools de Compra",   icon: Layers,          roles: ["compras", "admin"] },
-  { to: "/rfqs",        label: "RFQs",              icon: FileText,        roles: ["compras", "admin"] },
+  { to: "/rfqs",        label: "Solicitudes",       icon: FileText,        roles: ["compras", "admin"] },
   { to: "/cotizaciones",label: "Cotizaciones",      icon: BarChart3,       roles: ["compras", "proveedor", "admin"] },
   { to: "/ordenes",     label: "Órdenes de Compra", icon: ShoppingCart,    roles: ["compras", "proveedor", "admin"] },
   { to: "/historial",   label: "Reportes",          icon: History,         roles: ["compras", "admin"] },

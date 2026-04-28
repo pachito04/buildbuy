@@ -261,7 +261,7 @@ export default function Historial() {
         <Card>
           <CardContent className="pt-5 pb-4">
             <FileText className="h-4 w-4 text-muted-foreground mb-1" />
-            <p className="text-xs text-muted-foreground">RFQs</p>
+            <p className="text-xs text-muted-foreground">Solicitudes</p>
             <p className="text-lg font-bold font-display">{totalRfqs}</p>
           </CardContent>
         </Card>
@@ -326,11 +326,11 @@ export default function Historial() {
         {/* RFQ source pie */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-base">Origen de RFQs</CardTitle>
+            <CardTitle className="font-display text-base">Origen de Solicitudes</CardTitle>
           </CardHeader>
           <CardContent>
             {rfqSourceData.length === 0 ? (
-              <p className="text-center py-12 text-sm text-muted-foreground">Sin RFQs este mes</p>
+              <p className="text-center py-12 text-sm text-muted-foreground">Sin solicitudes este mes</p>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>

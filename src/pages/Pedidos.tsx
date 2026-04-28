@@ -54,8 +54,8 @@ const adminStatusLabels: Record<
   pending_approval:  { label: "Pendiente Aprobación",  variant: "outline"     },
   approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   in_pool:           { label: "En Pool",               variant: "outline"     },
-  rfq_direct:        { label: "RFQ Directo",           variant: "outline"     },
-  inventario:        { label: "Inventario",            variant: "outline"     },
+  rfq_direct:        { label: "Solicitud Directa",     variant: "outline"     },
+  inventario:        { label: "Surtido",               variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   rejected:          { label: "Rechazado",             variant: "destructive" },
 };
 
@@ -68,7 +68,7 @@ const arqStatusLabels: Record<
   approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   in_pool:           { label: "En proceso",            variant: "outline"     },
   rfq_direct:        { label: "En proceso",            variant: "outline"     },
-  inventario:        { label: "Aprobado",              variant: "default"     },
+  inventario:        { label: "Enviado",               variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   rejected:          { label: "Rechazado",             variant: "destructive" },
 };
 
@@ -84,6 +84,7 @@ export default function Pedidos() {
   const [filter, setFilter] = useState<string>("all");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [surtidoRequestId, setSurtidoRequestId] = useState<string | null>(null);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -304,6 +305,154 @@ export default function Pedidos() {
     },
     onError: (e: Error) =>
       toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // ── Surtido de inventario ─────────────────────────────────────────────
+  const surtidoRequest = requests?.find((r: any) => r.id === surtidoRequestId);
+
+  const { data: surtidoStock } = useQuery({
+    queryKey: ["surtido-stock", surtidoRequestId],
+    enabled: !!surtidoRequestId && !!surtidoRequest,
+    queryFn: async () => {
+      const reqItems = (surtidoRequest as any)?.request_items || [];
+      const materialIds = reqItems.map((i: any) => i.material_id).filter(Boolean);
+      if (!materialIds.length) return [];
+
+      const { data: inv } = await supabase
+        .from("inventory")
+        .select("material_id, quantity")
+        .in("material_id", materialIds);
+
+      const stockMap: Record<string, number> = {};
+      inv?.forEach((row: any) => { stockMap[row.material_id] = Number(row.quantity); });
+
+      return reqItems.map((item: any) => {
+        const stock = item.material_id ? (stockMap[item.material_id] ?? 0) : 0;
+        const requested = Number(item.quantity) || 0;
+        const toFulfill = Math.min(requested, stock);
+        const remaining = requested - toFulfill;
+        return {
+          ...item,
+          stock,
+          requested,
+          toFulfill,
+          remaining,
+          hasStock: toFulfill > 0,
+          needsRfq: remaining > 0,
+        };
+      });
+    },
+  });
+
+  const hasAnyStock = surtidoStock?.some((i: any) => i.hasStock);
+  const hasRfqItems = surtidoStock?.some((i: any) => i.needsRfq);
+  const allFullyStocked = surtidoStock?.every((i: any) => !i.needsRfq);
+
+  const surtidoMutation = useMutation({
+    mutationFn: async () => {
+      if (!surtidoRequestId || !surtidoStock || !companyId || !user) throw new Error("Datos incompletos");
+
+      const itemsToFulfill = surtidoStock.filter((i: any) => i.hasStock);
+      const itemsForRfq = surtidoStock.filter((i: any) => i.needsRfq);
+
+      // 1. Deduct inventory for fulfilled items
+      for (const item of itemsToFulfill) {
+        const { error: mvErr } = await supabase.from("inventory_movements").insert({
+          company_id: companyId,
+          material_id: item.material_id,
+          movement_type: "salida",
+          quantity: item.toFulfill,
+          reason: `Surtido pedido #${(surtidoRequest as any)?.request_number}`,
+          request_id: surtidoRequestId,
+          created_by: user.id,
+        });
+        if (mvErr) throw mvErr;
+
+        const newQty = item.stock - item.toFulfill;
+        const { error: invErr } = await supabase
+          .from("inventory")
+          .update({ quantity: newQty })
+          .eq("material_id", item.material_id);
+        if (invErr) throw invErr;
+      }
+
+      // 2. Create RFQ draft for remaining items
+      let rfqCreated = false;
+      if (itemsForRfq.length > 0) {
+        const { data: rfq, error: rfqErr } = await supabase
+          .from("rfqs")
+          .insert({
+            company_id: companyId,
+            request_id: surtidoRequestId,
+            rfq_type: "open",
+            observations: `Generado automáticamente — ítems faltantes del pedido #${(surtidoRequest as any)?.request_number}`,
+            created_by: user.id,
+            status: "draft",
+          } as any)
+          .select()
+          .single();
+        if (rfqErr) throw rfqErr;
+
+        const rfqItems = itemsForRfq.map((item: any) => ({
+          rfq_id: (rfq as any).id,
+          description: item.description,
+          quantity: item.remaining,
+          unit: item.unit,
+          ...(item.material_id ? { material_id: item.material_id } : {}),
+        }));
+        const { error: riErr } = await supabase.from("rfq_items").insert(rfqItems);
+        if (riErr) throw riErr;
+        rfqCreated = true;
+      }
+
+      // 3. Update request status
+      const { error: stErr } = await supabase
+        .from("requests")
+        .update({ status: "inventario" as any })
+        .eq("id", surtidoRequestId);
+      if (stErr) throw stErr;
+
+      // 4. Notify architect
+      const projectName = (surtidoRequest as any)?.projects?.name || "Sin obra";
+      const reqNum = (surtidoRequest as any)?.request_number;
+      const architectUserId = (surtidoRequest as any)?.created_by;
+
+      if (architectUserId) {
+        let msg: string;
+        let detail: string;
+
+        if (allFullyStocked) {
+          msg = `Pedido #${reqNum} surtido de inventario`;
+          detail = `Tu pedido #${reqNum} de ${projectName} fue surtido de inventario y ya se encuentra en camino a la dirección de obra especificada.`;
+        } else {
+          const surtidos = itemsToFulfill.map((i: any) => `${i.description} (${i.toFulfill} ${i.unit})`).join(", ");
+          msg = `Pedido #${reqNum} parcialmente surtido`;
+          detail = `Tu pedido #${reqNum} de ${projectName} fue parcialmente surtido de inventario en los materiales: ${surtidos}. El resto del pedido fue enviado a proveedores.`;
+        }
+
+        await supabase.from("notificaciones").insert({
+          company_id: companyId,
+          user_id: architectUserId,
+          type: "request_approved" as any,
+          message: msg,
+          metadata: { request_id: surtidoRequestId, detail_message: detail },
+        });
+      }
+
+      return { rfqCreated };
+    },
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["requests"] });
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["rfqs"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-requests"] });
+      setSurtidoRequestId(null);
+      const msg = result?.rfqCreated
+        ? "Inventario descontado y solicitud de cotización generada para los faltantes. Revisala en la sección de Solicitudes."
+        : "Inventario descontado exitosamente.";
+      toast({ title: "Surtido completado", description: msg });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   function openEditDraft(r: any) {
@@ -818,15 +967,14 @@ export default function Pedidos() {
                         onClick={(e) => { e.stopPropagation(); navigate("/rfqs"); }}
                       >
                         <FileText className="h-3 w-3 mr-1" />
-                        RFQ Directo
+                        Solicitud Directa
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          updateStatus.mutate({ id: r.id, status: "inventario" });
-                          navigate("/inventario");
+                          setSurtidoRequestId(r.id);
                         }}
                       >
                         <Warehouse className="h-3 w-3 mr-1" />
@@ -927,6 +1075,82 @@ export default function Pedidos() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Surtido de inventario dialog */}
+      <Dialog open={!!surtidoRequestId} onOpenChange={(o) => { if (!o) setSurtidoRequestId(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display">Surtir de Inventario</DialogTitle>
+          </DialogHeader>
+          {surtidoStock && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-amber-800">
+                  {allFullyStocked
+                    ? "Todos los materiales serán surtidos de inventario."
+                    : "Solo se surtirán de inventario los ítems con stock disponible. Para el resto se generará una solicitud de cotización que compras deberá revisar y enviar a proveedores."}
+                </p>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="text-left px-3 py-2">Material</th>
+                      <th className="text-right px-3 py-2">Solicitado</th>
+                      <th className="text-right px-3 py-2">En stock</th>
+                      <th className="text-right px-3 py-2">A surtir</th>
+                      <th className="text-center px-3 py-2">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {surtidoStock.map((item: any) => (
+                      <tr key={item.id} className={`border-t ${item.needsRfq ? "bg-amber-50/50" : ""}`}>
+                        <td className="px-3 py-2">{item.description}</td>
+                        <td className="text-right px-3 py-2">{item.requested} {item.unit}</td>
+                        <td className="text-right px-3 py-2 font-mono">{item.stock} {item.unit}</td>
+                        <td className="text-right px-3 py-2 font-mono font-medium">{item.toFulfill} {item.unit}</td>
+                        <td className="text-center px-3 py-2">
+                          {item.needsRfq ? (
+                            <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">
+                              {item.hasStock ? `Faltante: ${item.remaining}` : "Sin stock → Solicitud"}
+                            </Badge>
+                          ) : (
+                            <Badge className="text-[10px] bg-green-600">Completo</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {hasRfqItems && (
+                <p className="text-xs text-muted-foreground">
+                  Se creará una solicitud de cotización borrador con {surtidoStock.filter((i: any) => i.needsRfq).length} ítem(s) faltante(s) para que compras la revise y envíe.
+                </p>
+              )}
+
+              {!hasAnyStock && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm">
+                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                  <p className="text-red-800">No hay stock disponible para ningún ítem. Considerá generar una solicitud de cotización directa.</p>
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                onClick={() => surtidoMutation.mutate()}
+                disabled={surtidoMutation.isPending || !hasAnyStock}
+              >
+                <Warehouse className="h-4 w-4 mr-2" />
+                {surtidoMutation.isPending ? "Procesando..." : "Confirmar Surtido"}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

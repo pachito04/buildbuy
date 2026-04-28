@@ -372,7 +372,7 @@ export default function RegistroProveedor() {
                   <p>Al registrarse como proveedor en BuildBuy, usted acepta:</p>
                   <ul className="list-disc pl-4 space-y-1">
                     <li>Proporcionar información veraz y actualizada sobre su empresa.</li>
-                    <li>Responder a las solicitudes de cotización (RFQ) en los plazos establecidos.</li>
+                    <li>Responder a las solicitudes de cotización en los plazos establecidos.</li>
                     <li>Mantener los precios cotizados durante el período de vigencia indicado.</li>
                     <li>Cumplir con los tiempos de entrega comprometidos en las órdenes de compra aceptadas.</li>
                     <li>Notificar cualquier cambio en su situación fiscal o capacidad de entrega.</li>

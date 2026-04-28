@@ -25,7 +25,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
   draft: { label: "Borrador", variant: "secondary" },
   approved: { label: "Aprobado", variant: "default" },
   in_pool: { label: "En Pool", variant: "outline" },
-  rfq_direct: { label: "RFQ Directo", variant: "outline" },
+  rfq_direct: { label: "Solicitud Directa", variant: "outline" },
   rejected: { label: "Rechazado", variant: "destructive" },
   open: { label: "Abierto", variant: "default" },
   closed: { label: "Cerrado", variant: "secondary" },
@@ -144,7 +144,7 @@ export default function Trazabilidad() {
   function chainStage(c: TraceChain): { label: string; icon: typeof Inbox; color: string } {
     if (c.po) return { label: "OC Emitida", icon: ShoppingCart, color: "text-green-600" };
     if (c.quotes.length > 0) return { label: "Cotizado", icon: BarChart3, color: "text-blue-600" };
-    if (c.rfq) return { label: "En RFQ", icon: FileText, color: "text-orange-600" };
+    if (c.rfq) return { label: "En Solicitud", icon: FileText, color: "text-orange-600" };
     if (c.pool) return { label: "En Pool", icon: Layers, color: "text-purple-600" };
     return { label: "Pedido", icon: Inbox, color: "text-muted-foreground" };
   }
@@ -153,7 +153,7 @@ export default function Trazabilidad() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold">Trazabilidad</h1>
-        <p className="text-muted-foreground text-sm mt-1">Cadena completa: Pedido → Pool → RFQ → Cotización → OC</p>
+        <p className="text-muted-foreground text-sm mt-1">Cadena completa: Pedido → Pool → Solicitud → Cotización → OC</p>
       </div>
 
       {/* Search */}
@@ -214,7 +214,7 @@ export default function Trazabilidad() {
                           <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                           <div className="flex items-center gap-1 shrink-0">
                             <FileText className="h-3.5 w-3.5 text-orange-500" />
-                            <span className="text-xs">RFQ #{chain.rfq.id.slice(0, 6)}</span>
+                            <span className="text-xs">SC #{chain.rfq.id.slice(0, 6)}</span>
                           </div>
                         </>
                       )}
@@ -322,13 +322,13 @@ export default function Trazabilidad() {
                 <StepCard
                   icon={FileText}
                   iconColor="text-orange-500"
-                  title="RFQ"
+                  title="Solicitud"
                   id={selectedChain.rfq.id}
                   status={selectedChain.rfq.status}
                   date={selectedChain.rfq.created_at}
                 >
                   {(selectedChain.rfq as any).delivery_location && (
-                    <p className="text-xs">📍 {(selectedChain.rfq as any).delivery_location}</p>
+                    <p className="text-xs truncate" title={(selectedChain.rfq as any).delivery_location}>📍 {(selectedChain.rfq as any).delivery_location}</p>
                   )}
                   {selectedChain.rfq.rfq_providers?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -341,7 +341,7 @@ export default function Trazabilidad() {
                   )}
                 </StepCard>
               ) : (
-                <StepEmpty label="Sin RFQ generado" />
+                <StepEmpty label="Sin solicitud generada" />
               )}
 
               {/* Step 4: Quotes */}

@@ -219,7 +219,7 @@ export default function Cotizaciones() {
       setAwardQuoteId(null);
       setAwardNotes("");
       setAwardPaymentTerms("");
-      toast({ title: "Orden de compra generada", description: "El RFQ ha sido cerrado y la OC enviada al proveedor." });
+      toast({ title: "Orden de compra generada", description: "La solicitud ha sido cerrada y la OC enviada al proveedor." });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -318,7 +318,7 @@ export default function Cotizaciones() {
           <Card>
             <CardContent className="text-center py-12 text-muted-foreground">
               <Send className="h-12 w-12 mx-auto mb-4 opacity-40" />
-              <p className="text-sm">No tienes RFQs pendientes.</p>
+              <p className="text-sm">No tienes solicitudes de cotización pendientes.</p>
               <p className="text-xs mt-1">Aparecerán aquí cuando haya solicitudes de cotización disponibles.</p>
             </CardContent>
           </Card>
@@ -332,7 +332,7 @@ export default function Cotizaciones() {
               >
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <CardTitle className="text-sm font-display">RFQ #{rfq.id.slice(0, 8)}</CardTitle>
+                    <CardTitle className="text-sm font-display">SC #{rfq.id.slice(0, 8)}</CardTitle>
                     <Badge variant={rfq.status === "sent" ? "default" : "outline"}>
                       {rfq.status === "sent" ? "Abierto" : "Respondido"}
                     </Badge>
@@ -344,7 +344,7 @@ export default function Cotizaciones() {
                 </CardHeader>
                 <CardContent className="pb-3">
                   <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
-                    {rfq.delivery_location && <span>📍 {rfq.delivery_location}</span>}
+                    {rfq.delivery_location && <span className="truncate max-w-[200px]" title={rfq.delivery_location}>📍 {rfq.delivery_location}</span>}
                     {rfq.deadline && <span>📅 Entrega: {new Date(rfq.deadline).toLocaleDateString("es-MX")}</span>}
                     {rfq.closing_datetime && <span>⏰ Cierre: {new Date(rfq.closing_datetime).toLocaleString("es-MX")}</span>}
                     <span>{rfq.rfq_items?.length || 0} producto{rfq.rfq_items?.length !== 1 ? "s" : ""}</span>
@@ -367,7 +367,7 @@ export default function Cotizaciones() {
               return (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">RFQ #{rfq.id.slice(0, 8)}</span>
+                    <span className="text-sm font-medium">SC #{rfq.id.slice(0, 8)}</span>
                     <div className="flex items-center gap-2">
                       <Badge variant={rfq.status === "sent" ? "default" : "outline"}>
                         {rfq.status === "sent" ? "Abierto" : "Respondido"}
@@ -380,7 +380,7 @@ export default function Cotizaciones() {
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     {rfq.delivery_location && (
-                      <p><span className="text-muted-foreground">Entrega:</span> {rfq.delivery_location}</p>
+                      <p className="break-all"><span className="text-muted-foreground">Entrega:</span> {rfq.delivery_location}</p>
                     )}
                     {rfq.deadline && (
                       <p><span className="text-muted-foreground">Fecha entrega:</span> {new Date(rfq.deadline).toLocaleDateString("es-AR")}</p>
@@ -490,7 +490,7 @@ export default function Cotizaciones() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold">Comparación de Cotizaciones</h1>
-          <p className="text-muted-foreground text-sm mt-1">Análisis visual de ofertas por RFQ</p>
+          <p className="text-muted-foreground text-sm mt-1">Análisis visual de ofertas por solicitud de cotización</p>
         </div>
       </div>
 
@@ -502,12 +502,12 @@ export default function Cotizaciones() {
             <div className="flex-1">
               <Select value={selectedRfqId} onValueChange={setSelectedRfqId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un RFQ para comparar cotizaciones..." />
+                  <SelectValue placeholder="Selecciona una solicitud para comparar cotizaciones..." />
                 </SelectTrigger>
                 <SelectContent>
                   {rfqs?.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
-                      RFQ #{r.id.slice(0, 8)}
+                      SC #{r.id.slice(0, 8)}
                       {(r as any).purchase_pools?.name ? ` — Pool: ${(r as any).purchase_pools.name}` : ""}
                       {" — "}
                       {new Date(r.created_at).toLocaleDateString("es-MX")}
@@ -524,7 +524,7 @@ export default function Cotizaciones() {
         <Card>
           <CardContent className="text-center py-16 text-muted-foreground">
             <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-40" />
-            <p className="text-sm font-medium">Selecciona un RFQ para ver la comparación</p>
+            <p className="text-sm font-medium">Selecciona una solicitud para ver la comparación</p>
             <p className="text-xs mt-1">Las gráficas se generarán automáticamente con las cotizaciones recibidas.</p>
           </CardContent>
         </Card>
@@ -539,7 +539,7 @@ export default function Cotizaciones() {
       {selectedRfqId && !quotesLoading && !quotes?.length && (
         <Card>
           <CardContent className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">No hay cotizaciones recibidas para este RFQ.</p>
+            <p className="text-sm">No hay cotizaciones recibidas para esta solicitud.</p>
             <p className="text-xs mt-1">Las cotizaciones aparecerán aquí cuando los proveedores respondan.</p>
           </CardContent>
         </Card>
