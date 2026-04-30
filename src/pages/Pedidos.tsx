@@ -32,7 +32,6 @@ import {
   Send,
   Pencil,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { PedidosFilters } from "@/components/pedidos/PedidosFilters";
 import { PedidosGrid } from "@/components/pedidos/PedidosGrid";
 import { PedidosBoard } from "@/components/pedidos/PedidosBoard";
@@ -90,9 +89,13 @@ export default function Pedidos() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [surtidoRequestId, setSurtidoRequestId] = useState<string | null>(null);
+  const [directaRequestId, setDirectaRequestId] = useState<string | null>(null);
+  const [directaDeadline, setDirectaDeadline] = useState("");
+  const [directaClosing, setDirectaClosing] = useState("");
+  const [directaLocation, setDirectaLocation] = useState("");
+  const [directaNotes, setDirectaNotes] = useState("");
 
   const { toast } = useToast();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { viewRole: role, actualRole, companyId } = useViewRole();
   const qc = useQueryClient();
@@ -467,6 +470,83 @@ export default function Pedidos() {
         ? "Inventario descontado y solicitud de cotización generada para los faltantes. Revisala en la sección de Solicitudes."
         : "Inventario descontado exitosamente.";
       toast({ title: "Surtido completado", description: msg });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // ── Solicitud Directa (RFQ from request) ─────────────────────────────
+  const directaRequest = requests?.find((r: any) => r.id === directaRequestId);
+
+  const { data: directaItems } = useQuery({
+    queryKey: ["directa-items", directaRequestId],
+    enabled: !!directaRequestId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("request_items")
+        .select("id, material_id, description, quantity, unit")
+        .eq("request_id", directaRequestId!)
+        .order("description");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const createDirectRfq = useMutation({
+    mutationFn: async () => {
+      if (!directaRequestId || !directaItems?.length) throw new Error("Sin ítems");
+      if (!directaClosing) throw new Error("La fecha de cierre es obligatoria");
+      if (!directaDeadline) throw new Error("La fecha de entrega es obligatoria");
+      if (!directaLocation.trim()) throw new Error("El lugar de entrega es obligatorio");
+      if (!companyId) throw new Error("Sin empresa");
+
+      const { data: rfq, error } = await supabase
+        .from("rfqs")
+        .insert({
+          company_id: companyId,
+          request_id: directaRequestId,
+          rfq_type: "open",
+          deadline: directaDeadline,
+          closing_datetime: directaClosing,
+          delivery_location: directaLocation,
+          observations: directaNotes || null,
+          created_by: user?.id,
+          status: "sent",
+        } as any)
+        .select()
+        .single();
+      if (error) throw error;
+
+      const rfqItems = directaItems.map((it: any) => ({
+        rfq_id: (rfq as any).id,
+        description: it.description,
+        quantity: Number(it.quantity) || 1,
+        unit: it.unit,
+        material_id: it.material_id,
+      }));
+      const { error: ie } = await supabase.from("rfq_items").insert(rfqItems);
+      if (ie) throw ie;
+
+      await supabase
+        .from("requests")
+        .update({ status: "rfq_direct" as any })
+        .eq("id", directaRequestId);
+
+      try {
+        await supabase.functions.invoke("notify-providers", {
+          body: { type: "rfq_sent", rfq_id: (rfq as any).id },
+        });
+      } catch (_) {}
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["requests"] });
+      qc.invalidateQueries({ queryKey: ["rfqs"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-requests"] });
+      setDirectaRequestId(null);
+      setDirectaDeadline("");
+      setDirectaClosing("");
+      setDirectaLocation("");
+      setDirectaNotes("");
+      toast({ title: "Solicitud de cotización enviada", description: "Se creó el RFQ y se envió a proveedores." });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -1024,7 +1104,7 @@ export default function Pedidos() {
         onApprove={(id) => { updateStatus.mutate({ id, status: "approved" }); setDetailId(null); }}
         onReject={(id) => { updateStatus.mutate({ id, status: "rejected" }); setDetailId(null); }}
         onSurtir={(id) => { setDetailId(null); setSurtidoRequestId(id); }}
-        onSolicitudDirecta={() => { setDetailId(null); navigate("/rfqs"); }}
+        onSolicitudDirecta={() => { const rid = detailId; setDetailId(null); setDirectaRequestId(rid); }}
         onSendForApproval={(id) => { updateStatus.mutate({ id, status: "pending_approval" }); setDetailId(null); }}
       />
 
@@ -1101,6 +1181,75 @@ export default function Pedidos() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Solicitud Directa dialog */}
+      <Dialog open={!!directaRequestId} onOpenChange={(o) => { if (!o) setDirectaRequestId(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <Send className="h-5 w-5 text-primary" />
+              Solicitud Directa — Pedido #{directaRequest?.request_number || ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {directaRequest?.projects?.name && (
+              <p className="text-sm"><span className="text-muted-foreground">Obra:</span> {directaRequest.projects.name}</p>
+            )}
+
+            <div className="border rounded-lg overflow-hidden">
+              <div className="bg-muted px-3 py-2 text-xs font-medium">Materiales del pedido</div>
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-3 py-1.5">Material</th>
+                    <th className="text-right px-3 py-1.5">Cantidad</th>
+                    <th className="text-left px-3 py-1.5">Unidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(directaItems ?? []).map((item: any) => (
+                    <tr key={item.id} className="border-t">
+                      <td className="px-3 py-1.5">{item.description}</td>
+                      <td className="text-right px-3 py-1.5 font-medium">{item.quantity}</td>
+                      <td className="px-3 py-1.5">{item.unit || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Cierre de cotización *</Label>
+                <Input type="datetime-local" value={directaClosing} onChange={(e) => setDirectaClosing(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Entrega límite *</Label>
+                <Input type="date" value={directaDeadline} onChange={(e) => setDirectaDeadline(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Lugar de entrega *</Label>
+              <Input placeholder="Ej: Obra Norte, Av. Reforma 123" value={directaLocation} onChange={(e) => setDirectaLocation(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Observaciones</Label>
+              <Textarea placeholder="Notas para proveedores..." value={directaNotes} onChange={(e) => setDirectaNotes(e.target.value)} rows={2} />
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={() => createDirectRfq.mutate()}
+              disabled={createDirectRfq.isPending}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {createDirectRfq.isPending ? "Enviando..." : "Emitir y Enviar a Proveedores"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

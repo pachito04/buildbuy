@@ -111,8 +111,9 @@ export default function Cotizaciones() {
   });
 
   // --- Proveedor: RFQs where I quoted (for enviadas + historicas) ---
+  const myQuoteIds = useMemo(() => (myQuotes ?? []).map((q: any) => q.id).join(","), [myQuotes]);
   const { data: quotedRfqs } = useQuery({
-    queryKey: ["quoted-rfqs", myProvider?.id],
+    queryKey: ["quoted-rfqs", myProvider?.id, myQuoteIds],
     enabled: role === "proveedor" && !!myProvider && !!myQuotes?.length,
     queryFn: async () => {
       const rfqIds = [...new Set(myQuotes!.map((q: any) => q.rfq_id))];
