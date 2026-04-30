@@ -2,29 +2,26 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Send, Eye, ShoppingCart, Upload, X, CheckCircle } from "lucide-react";
+import { Plus, FileText, Send, ShoppingCart, CheckCircle, Layers } from "lucide-react";
 import { useBasket } from "@/contexts/BasketContext";
+import { RfqNuevo } from "@/components/rfqs/RfqNuevo";
+import { RfqCesta } from "@/components/rfqs/RfqCesta";
+import { RfqList } from "@/components/rfqs/RfqList";
+
+type RfqTab = "nuevo" | "cesta" | "pool" | "vigentes" | "historico";
 
 const rfqStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   draft: { label: "Borrador", variant: "secondary" },
@@ -34,19 +31,8 @@ const rfqStatusLabels: Record<string, { label: string; variant: "default" | "sec
 };
 
 export default function RFQs() {
-  const [createOpen, setCreateOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<RfqTab>("vigentes");
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [source, setSource] = useState<"pool" | "request" | "basket">("request");
-  const [basketWarningOpen, setBasketWarningOpen] = useState(false);
-  const [selectedPoolId, setSelectedPoolId] = useState("");
-  const [selectedRequestId, setSelectedRequestId] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [closingDatetime, setClosingDatetime] = useState("");
-  const [deliveryLocation, setDeliveryLocation] = useState("");
-  const [notes, setNotes] = useState("");
-  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
-  const [rfqType, setRfqType] = useState<"open" | "closed_bid">("open");
-  const [files, setFiles] = useState<File[]>([]);
   const [awardQuoteId, setAwardQuoteId] = useState<string | null>(null);
   const [awardNotes, setAwardNotes] = useState("");
   const [awardPaymentTerms, setAwardPaymentTerms] = useState("");
@@ -83,32 +69,6 @@ export default function RFQs() {
     },
   });
 
-  const { data: closedPools } = useQuery({
-    queryKey: ["closed-pools"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_pools")
-        .select("*, pool_requests(*, requests:request_id(*, request_items(*)))")
-        .eq("status", "closed")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: approvedRequests } = useQuery({
-    queryKey: ["approved-requests-rfq"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("requests")
-        .select("*, request_items(*)")
-        .eq("status", "approved")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const { data: providers } = useQuery({
     queryKey: ["providers-list"],
     queryFn: async () => {
@@ -121,127 +81,24 @@ export default function RFQs() {
     },
   });
 
-  const createRfq = useMutation({
-    mutationFn: async () => {
-      let items: { description: string; quantity: number; unit: string; material_id?: string }[] = [];
-
-      if (source === "basket") {
-        if (basket.items.length === 0) throw new Error("La cesta está vacía");
-        items = basket.items.map((bi) => ({
-          description: bi.name,
-          quantity: bi.quantity,
-          unit: bi.unit,
-          material_id: bi.material_id,
-        }));
-      } else if (source === "pool" && selectedPoolId) {
-        const pool = closedPools?.find((p) => p.id === selectedPoolId);
-        const poolReqs = (pool?.pool_requests as any[]) || [];
-        const allItems = poolReqs.flatMap((pr: any) => pr.requests?.request_items || []);
-        const consolidated: Record<string, { description: string; quantity: number; unit: string }> = {};
-        allItems.forEach((item: any) => {
-          const key = `${item.description.toLowerCase()}_${item.unit}`;
-          if (!consolidated[key]) consolidated[key] = { description: item.description, quantity: 0, unit: item.unit };
-          consolidated[key].quantity += Number(item.quantity);
-        });
-        items = Object.values(consolidated);
-      } else if (source === "request" && selectedRequestId) {
-        const req = approvedRequests?.find((r) => r.id === selectedRequestId);
-        items = (req?.request_items || []).map((it: any) => ({
-          description: it.description,
-          quantity: Number(it.quantity),
-          unit: it.unit,
-        }));
-      }
-
-      if (items.length === 0) throw new Error("No hay ítems para la solicitud");
-      if (!closingDatetime) throw new Error("La fecha de cierre de cotización es obligatoria");
-      if (!deadline) throw new Error("La fecha límite de entrega es obligatoria");
-      if (!deliveryLocation.trim()) throw new Error("El lugar de entrega es obligatorio");
-      if (!companyId) throw new Error("Usuario sin empresa asignada");
-
-      const { data: rfq, error } = await supabase
-        .from("rfqs")
-        .insert({
-          company_id: companyId,
-          pool_id: source === "pool" ? selectedPoolId : null,
-          request_id: source === "request" ? selectedRequestId : null,
-          rfq_type: rfqType,
-          deadline: deadline || null,
-          closing_datetime: closingDatetime || null,
-          delivery_location: deliveryLocation || null,
-          observations: notes || null,
-          created_by: user?.id,
-          status: "draft",
-        } as any)
-        .select()
-        .single();
+  const { data: closedPools } = useQuery({
+    queryKey: ["closed-pools"],
+    enabled: activeTab === "pool",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_pools")
+        .select("*, pool_requests(*, requests:request_id(*, request_items(*)))")
+        .eq("status", "closed")
+        .order("created_at", { ascending: false });
       if (error) throw error;
-
-      const rfqId = (rfq as any).id;
-
-      const rfqItems = items.map((it) => ({
-        rfq_id: rfqId,
-        description: it.description,
-        quantity: it.quantity,
-        unit: it.unit,
-        ...(it.material_id ? { material_id: it.material_id } : {}),
-      }));
-      const { error: itemsErr } = await supabase.from("rfq_items").insert(rfqItems);
-      if (itemsErr) throw itemsErr;
-
-      if (selectedProviders.length > 0) {
-        const rfqProviders = selectedProviders.map((pid) => ({
-          rfq_id: rfqId,
-          provider_id: pid,
-        }));
-        const { error: provErr } = await supabase.from("rfq_providers").insert(rfqProviders);
-        if (provErr) throw provErr;
-      }
-
-      if (files.length > 0) {
-        for (const file of files) {
-          const filePath = `${rfqId}/${Date.now()}_${file.name}`;
-          const { error: uploadErr } = await supabase.storage
-            .from("rfq-attachments")
-            .upload(filePath, file);
-          if (uploadErr) throw uploadErr;
-
-          const { error: attachErr } = await supabase.from("rfq_attachments").insert({
-            rfq_id: rfqId,
-            file_name: file.name,
-            file_path: filePath,
-            uploaded_by: user?.id,
-          } as any);
-          if (attachErr) throw attachErr;
-        }
-      }
-
-      // Update source status
-      if (source === "pool" && selectedPoolId) {
-        await supabase.from("purchase_pools").update({ status: "quoting" as any }).eq("id", selectedPoolId);
-      } else if (source === "request" && selectedRequestId) {
-        await supabase.from("requests").update({ status: "rfq_direct" as any }).eq("id", selectedRequestId);
-      }
+      return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["rfqs"] });
-      qc.invalidateQueries({ queryKey: ["closed-pools"] });
-      qc.invalidateQueries({ queryKey: ["approved-requests-rfq"] });
-      qc.invalidateQueries({ queryKey: ["requests"] });
-      qc.invalidateQueries({ queryKey: ["pools"] });
-      if (source === "basket") basket.clear();
-      resetForm();
-      toast({ title: "Solicitud de cotización creada" });
-    },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const sendRfq = useMutation({
     mutationFn: async (rfqId: string) => {
       const { error } = await supabase.from("rfqs").update({ status: "sent" as any }).eq("id", rfqId);
       if (error) throw error;
-
-      // Notify providers via email
       try {
         await supabase.functions.invoke("notify-providers", {
           body: { type: "rfq_sent", rfq_id: rfqId },
@@ -252,31 +109,11 @@ export default function RFQs() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rfqs"] });
-      toast({ title: "Solicitud enviada a proveedores", description: "Se enviaron notificaciones por email." });
+      toast({ title: "Solicitud enviada a proveedores" });
     },
   });
 
-  const resetForm = () => {
-    setCreateOpen(false);
-    setBasketWarningOpen(false);
-    setSource("request");
-    setSelectedPoolId("");
-    setSelectedRequestId("");
-    setRfqType("open");
-    setDeadline("");
-    setClosingDatetime("");
-    setDeliveryLocation("");
-    setNotes("");
-    setSelectedProviders([]);
-    setFiles([]);
-  };
-
-  const toggleProvider = (id: string) => {
-    setSelectedProviders((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  };
-
+  // Detail & Award logic
   const detailRfq = rfqs?.find((r) => r.id === detailId);
 
   const { data: detailQuotes } = useQuery({
@@ -343,285 +180,116 @@ export default function RFQs() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  // Filtered lists
+  const vigentes = rfqs?.filter((r) => ["draft", "sent", "responded"].includes(r.status)) ?? [];
+  const historico = rfqs?.filter((r) => r.status === "closed") ?? [];
+
+  const tabs: { key: RfqTab; label: string; icon?: typeof FileText; badge?: number }[] = [
+    { key: "nuevo", label: "Nuevo", icon: Plus },
+    { key: "cesta", label: "Cesta", icon: ShoppingCart, badge: basket.totalItems || undefined },
+    { key: "pool", label: "Consolidar Pool", icon: Layers },
+    { key: "vigentes", label: "Vigentes", badge: vigentes.length || undefined },
+    { key: "historico", label: "Histórico", badge: historico.length || undefined },
+  ];
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Solicitudes de Cotización</h1>
-          <p className="text-muted-foreground text-sm mt-1">Solicitudes enviadas a proveedores — desde pools o pedidos directos</p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={(o) => (o ? setCreateOpen(true) : resetForm())}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={(e) => {
-                if (basket.totalItems > 0 && !createOpen) {
-                  e.preventDefault();
-                  setBasketWarningOpen(true);
-                }
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />Nueva Solicitud
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Nueva Solicitud de Cotización</DialogTitle>
-              <p className="text-xs text-muted-foreground">* Campo obligatorio</p>
-            </DialogHeader>
-            <form onSubmit={(e) => { e.preventDefault(); createRfq.mutate(); }} className="space-y-4">
-              {/* Source selection */}
-              <div className="space-y-2">
-                <Label>Origen de la solicitud *</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={source === "request" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { setSource("request"); setSelectedPoolId(""); }}
-                  >
-                    Pedido Directo
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={source === "pool" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { setSource("pool"); setSelectedRequestId(""); }}
-                  >
-                    Desde Pool
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={source === "basket" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { setSource("basket"); setSelectedPoolId(""); setSelectedRequestId(""); }}
-                    disabled={basket.totalItems === 0}
-                  >
-                    <ShoppingCart className="h-3 w-3 mr-1" />
-                    Desde Cesta ({basket.totalItems})
-                  </Button>
-                </div>
-              </div>
-
-              {/* Source selector */}
-              {source === "pool" && (
-                <div className="space-y-2">
-                  <Label>Pool cerrado *</Label>
-                  <Select value={selectedPoolId} onValueChange={setSelectedPoolId}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar pool..." /></SelectTrigger>
-                    <SelectContent>
-                      {closedPools?.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!closedPools?.length && (
-                    <p className="text-xs text-muted-foreground">No hay pools cerrados disponibles.</p>
-                  )}
-                </div>
-              )}
-
-              {source === "request" && (
-                <div className="space-y-2">
-                  <Label>Pedido aprobado *</Label>
-                  <Select value={selectedRequestId} onValueChange={setSelectedRequestId}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar pedido..." /></SelectTrigger>
-                    <SelectContent>
-                      {approvedRequests?.map((r) => (
-                        <SelectItem key={r.id} value={r.id}>
-                          Pedido #{r.request_number} — {r.request_items?.length || 0} ítems
-                          {r.raw_message ? ` — ${r.raw_message.slice(0, 40)}...` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!approvedRequests?.length && (
-                    <p className="text-xs text-muted-foreground">No hay pedidos aprobados disponibles.</p>
-                  )}
-                </div>
-              )}
-
-              {/* Descripción del pedido — items preview */}
-              {(() => {
-                let previewItems: { description: string; quantity: number; unit: string }[] = [];
-                if (source === "basket") {
-                  previewItems = basket.items.map((bi) => ({ description: bi.name, quantity: bi.quantity, unit: bi.unit }));
-                } else if (source === "request" && selectedRequestId) {
-                  const req = approvedRequests?.find((r) => r.id === selectedRequestId);
-                  previewItems = (req?.request_items || []).map((it: any) => ({ description: it.description, quantity: Number(it.quantity), unit: it.unit }));
-                } else if (source === "pool" && selectedPoolId) {
-                  const pool = closedPools?.find((p) => p.id === selectedPoolId);
-                  const allItems = ((pool as any)?.pool_requests || []).flatMap((pr: any) => pr.requests?.request_items || []);
-                  const consolidated: Record<string, { description: string; quantity: number; unit: string }> = {};
-                  allItems.forEach((item: any) => {
-                    const key = `${item.description.toLowerCase()}_${item.unit}`;
-                    if (!consolidated[key]) consolidated[key] = { description: item.description, quantity: 0, unit: item.unit };
-                    consolidated[key].quantity += Number(item.quantity);
-                  });
-                  previewItems = Object.values(consolidated);
-                }
-                if (previewItems.length === 0) return null;
-                return (
-                  <div className="space-y-2">
-                    <Label>Descripción del pedido *</Label>
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50">
-                          <tr>
-                            <th className="text-left px-3 py-1.5 text-xs font-medium">Material</th>
-                            <th className="text-right px-3 py-1.5 text-xs font-medium">Cantidad</th>
-                            <th className="text-left px-3 py-1.5 text-xs font-medium">Unidad</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {previewItems.map((it, i) => (
-                            <tr key={i} className="border-t">
-                              <td className="px-3 py-1.5">{it.description}</td>
-                              <td className="text-right px-3 py-1.5 font-medium">{it.quantity}</td>
-                              <td className="px-3 py-1.5 text-muted-foreground">{it.unit}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Tipo de pedido */}
-              <div className="space-y-2">
-                <Label>Tipo de pedido *</Label>
-                <Select value={rfqType} onValueChange={(v) => setRfqType(v as "open" | "closed_bid")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="open">Pedido Abierto</SelectItem>
-                    <SelectItem value="closed_bid">Licitación Cerrada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {rfqType === "open"
-                    ? "Cualquier proveedor puede enviar su cotización."
-                    : "Solo los proveedores invitados pueden cotizar."}
-                </p>
-              </div>
-
-              {/* Fecha de cierre de cotización */}
-              <div className="space-y-2">
-                <Label>Fecha de cierre de cotización *</Label>
-                <Input type="datetime-local" value={closingDatetime} onChange={(e) => setClosingDatetime(e.target.value)} />
-              </div>
-
-              {/* Fecha límite de entrega */}
-              <div className="space-y-2">
-                <Label>Fecha límite de entrega *</Label>
-                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-                {source === "request" && selectedRequestId && (() => {
-                  const req = approvedRequests?.find((r) => r.id === selectedRequestId);
-                  if (!req?.desired_date) return null;
-                  return (
-                    <p className="text-xs text-muted-foreground">
-                      El arquitecto que generó esta solicitud lo requirió para el {new Date(req.desired_date).toLocaleDateString("es-AR")}
-                    </p>
-                  );
-                })()}
-              </div>
-
-              {/* Lugar de entrega */}
-              <div className="space-y-2">
-                <Label>Lugar de entrega *</Label>
-                <Input placeholder="Ej: Obra Norte, Av. Reforma 123" value={deliveryLocation} onChange={(e) => setDeliveryLocation(e.target.value)} />
-              </div>
-
-              {/* Observaciones */}
-              <div className="space-y-2">
-                <Label>Observaciones</Label>
-                <Textarea placeholder="Notas adicionales para los proveedores..." value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
-
-              {/* Adjuntar documentación */}
-              <div className="space-y-2">
-                <Label>Documentación adjunta</Label>
-                <div className="border border-dashed rounded-lg p-4 text-center">
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    id="rfq-file-upload"
-                    onChange={(e) => {
-                      const newFiles = Array.from(e.target.files || []);
-                      setFiles((prev) => [...prev, ...newFiles]);
-                      e.target.value = "";
-                    }}
-                  />
-                  <label htmlFor="rfq-file-upload" className="cursor-pointer">
-                    <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Click para adjuntar archivos</p>
-                    <p className="text-xs text-muted-foreground">PDF, imágenes, planos, etc.</p>
-                  </label>
-                </div>
-                {files.length > 0 && (
-                  <div className="space-y-1">
-                    {files.map((f, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm border rounded px-2 py-1">
-                        <span className="truncate">{f.name}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 shrink-0"
-                          onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Button type="submit" className="w-full" disabled={createRfq.isPending}>
-                {createRfq.isPending ? "Creando..." : "Crear Solicitud"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+      <div>
+        <h1 className="font-display text-2xl font-bold">Solicitudes de Cotización</h1>
+        <p className="text-muted-foreground text-sm mt-1">Gestión de solicitudes enviadas a proveedores</p>
       </div>
 
-      {/* Basket warning dialog */}
-      <Dialog open={basketWarningOpen} onOpenChange={setBasketWarningOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Tenés materiales en la cesta</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Hay {basket.totalItems} material(es) en tu cesta de cotización. ¿Querés generar la solicitud desde la cesta?
-          </p>
-          <div className="flex gap-2">
+      {/* Tab bar */}
+      <div className="flex gap-2 flex-wrap border-b pb-3">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
             <Button
-              className="flex-1"
-              onClick={() => {
-                setBasketWarningOpen(false);
-                setSource("basket");
-                setCreateOpen(true);
-              }}
+              key={tab.key}
+              variant={activeTab === tab.key ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab(tab.key)}
             >
-              <ShoppingCart className="h-4 w-4 mr-2" />Usar cesta
+              {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
+              {tab.label}
+              {tab.badge !== undefined && tab.badge > 0 && (
+                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px]">
+                  {tab.badge}
+                </Badge>
+              )}
             </Button>
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => {
-                setBasketWarningOpen(false);
-                setSource("request");
-                setCreateOpen(true);
-              }}
-            >
-              Crear sin cesta
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          );
+        })}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === "nuevo" && (
+        <RfqNuevo companyId={companyId ?? null} providers={providers ?? []} />
+      )}
+
+      {activeTab === "cesta" && (
+        <RfqCesta companyId={companyId ?? null} providers={providers ?? []} />
+      )}
+
+      {activeTab === "pool" && (
+        <div className="space-y-3">
+          {!closedPools?.length ? (
+            <Card>
+              <CardContent className="text-center py-12 text-muted-foreground">
+                <Layers className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No hay pools cerrados para consolidar.</p>
+                <p className="text-xs mt-1">Cerrá un pool desde el módulo de Pools de Compra para generar una solicitud consolidada.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            closedPools.map((pool) => {
+              const allItems = ((pool as any).pool_requests || []).flatMap((pr: any) => pr.requests?.request_items || []);
+              const hasRfq = rfqs?.some((r) => (r as any).pool_id === pool.id);
+              return (
+                <Card key={pool.id} className="hover:border-primary/50 transition-colors">
+                  <CardContent className="py-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-primary" />
+                        <span className="font-medium text-sm">{pool.name}</span>
+                        <Badge variant="outline" className="text-xs">{allItems.length} ítems</Badge>
+                      </div>
+                      {hasRfq ? (
+                        <Badge variant="secondary" className="text-xs">Solicitud generada</Badge>
+                      ) : (
+                        <Button size="sm" onClick={() => { /* TODO: create from pool */ toast({ title: "Próximamente", description: "La creación desde pool se habilitará pronto." }); }}>
+                          <Send className="h-3 w-3 mr-1" />Generar solicitud
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {activeTab === "vigentes" && (
+        <RfqList
+          rfqs={vigentes}
+          isLoading={isLoading}
+          emptyMessage="No hay solicitudes vigentes."
+          emptySubMessage="Creá una desde la pestaña Nuevo o desde la Cesta."
+          onDetail={setDetailId}
+          onSend={(id) => sendRfq.mutate(id)}
+        />
+      )}
+
+      {activeTab === "historico" && (
+        <RfqList
+          rfqs={historico}
+          isLoading={isLoading}
+          emptyMessage="No hay solicitudes en el histórico."
+          emptySubMessage="Las solicitudes cerradas aparecerán acá."
+          onDetail={setDetailId}
+        />
+      )}
 
       {/* Detail dialog */}
       <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>
@@ -649,15 +317,6 @@ export default function RFQs() {
                 </div>
               </div>
 
-              {(detailRfq as any).description && (
-                <p className="text-sm"><span className="text-muted-foreground">Descripción:</span> {(detailRfq as any).description}</p>
-              )}
-              {(detailRfq as any).purchase_pools?.name && (
-                <p className="text-sm"><span className="text-muted-foreground">Pool:</span> {(detailRfq as any).purchase_pools.name}</p>
-              )}
-              {(detailRfq as any).requests?.raw_message && (
-                <p className="text-sm"><span className="text-muted-foreground">Pedido:</span> {(detailRfq as any).requests.raw_message.slice(0, 100)}</p>
-              )}
               {(detailRfq as any).closing_datetime && (
                 <p className="text-sm"><span className="text-muted-foreground">Cierre cotización:</span> {new Date((detailRfq as any).closing_datetime).toLocaleString("es-AR")}</p>
               )}
@@ -671,7 +330,6 @@ export default function RFQs() {
                 <p className="text-sm"><span className="text-muted-foreground">Observaciones:</span> {(detailRfq as any).observations}</p>
               )}
 
-              {/* Items */}
               {detailRfq.rfq_items && (detailRfq.rfq_items as any[]).length > 0 && (
                 <div className="border rounded-lg overflow-hidden">
                   <div className="bg-muted px-3 py-2 text-xs font-medium">Ítems</div>
@@ -696,7 +354,6 @@ export default function RFQs() {
                 </div>
               )}
 
-              {/* Providers */}
               {detailRfq.rfq_providers && (detailRfq.rfq_providers as any[]).length > 0 && (
                 <div>
                   <p className="text-sm font-medium mb-2">Proveedores:</p>
@@ -714,7 +371,6 @@ export default function RFQs() {
                 </Button>
               )}
 
-              {/* Quotes received */}
               {detailRfq.status !== "draft" && detailQuotes && detailQuotes.length > 0 && (
                 <div className="border-t pt-3 space-y-3">
                   <p className="text-sm font-medium">Cotizaciones Recibidas ({detailQuotes.length})</p>
@@ -753,7 +409,7 @@ export default function RFQs() {
         </DialogContent>
       </Dialog>
 
-      {/* Award quote dialog from RFQ detail */}
+      {/* Award quote dialog */}
       <Dialog open={!!awardQuoteId} onOpenChange={(o) => { if (!o) { setAwardQuoteId(null); setAwardNotes(""); setAwardPaymentTerms(""); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -825,74 +481,6 @@ export default function RFQs() {
           })()}
         </DialogContent>
       </Dialog>
-
-      {/* RFQ List */}
-      {isLoading ? (
-        <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
-      ) : !rfqs?.length ? (
-        <Card>
-          <CardContent className="text-center py-12 text-muted-foreground">
-            <FileText className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">No hay solicitudes generadas.</p>
-            <p className="text-xs mt-1">Generá una solicitud desde un pool cerrado o un pedido aprobado.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {rfqs.map((rfq) => (
-            <Card key={rfq.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setDetailId(rfq.id)}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm font-display">
-                    {(rfq as any).requests?.request_number
-                      ? `Pedido #${(rfq as any).requests.request_number}`
-                      : (rfq as any).purchase_pools?.name
-                        ? `Pool: ${(rfq as any).purchase_pools.name}`
-                        : `SC #${rfq.id.slice(0, 8)}`}
-                  </CardTitle>
-                  <Badge variant={rfqStatusLabels[rfq.status]?.variant || "secondary"}>
-                    {rfqStatusLabels[rfq.status]?.label || rfq.status}
-                  </Badge>
-                  {!rfq.request_id && !rfq.pool_id && (
-                    <Badge variant="outline" className="text-xs">
-                      <ShoppingCart className="h-3 w-3 mr-1" />Desde Cesta
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className="text-xs">
-                    {(rfq as any).rfq_type === "closed_bid" ? "Licitación Cerrada" : "Pedido Abierto"}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>{(rfq.rfq_items as any[])?.length || 0} ítems</span>
-                  <span>{(rfq.rfq_providers as any[])?.length || 0} proveedores</span>
-                  <span>{new Date(rfq.created_at).toLocaleDateString("es-MX")}</span>
-                </div>
-              </CardHeader>
-              <CardContent className="pb-3">
-                {(rfq as any).description && (
-                  <p className="text-sm text-muted-foreground mb-1 line-clamp-1">{(rfq as any).description}</p>
-                )}
-                <div className="flex gap-4 text-xs text-muted-foreground">
-                  {(rfq as any).delivery_location && <span className="truncate max-w-[200px]" title={(rfq as any).delivery_location}>📍 {(rfq as any).delivery_location}</span>}
-                  {rfq.deadline && <span>📅 Entrega: {new Date(rfq.deadline).toLocaleDateString("es-AR")}</span>}
-                  {(rfq as any).closing_datetime && <span>⏰ Cierre: {new Date((rfq as any).closing_datetime).toLocaleString("es-AR")}</span>}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  {rfq.status === "draft" && (
-                    <Button size="sm" onClick={(e) => { e.stopPropagation(); sendRfq.mutate(rfq.id); }}>
-                      <Send className="h-3 w-3 mr-1" />Enviar
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setDetailId(rfq.id); }}>
-                    <Eye className="h-3 w-3 mr-1" />Ver Detalle
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

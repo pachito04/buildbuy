@@ -27,16 +27,16 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
   Trash2,
-  CheckCircle,
-  XCircle,
-  FileText,
   Warehouse,
   AlertCircle,
   Send,
   Pencil,
-  Eye,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { PedidosFilters } from "@/components/pedidos/PedidosFilters";
+import { PedidosGrid } from "@/components/pedidos/PedidosGrid";
+import { PedidosBoard } from "@/components/pedidos/PedidosBoard";
+import { PedidoDetail } from "@/components/pedidos/PedidoDetail";
 
 interface ItemRow {
   material_id: string;
@@ -50,26 +50,27 @@ const adminStatusLabels: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }
 > = {
-  draft:             { label: "Borrador",              variant: "secondary"   },
-  pending_approval:  { label: "Pendiente Aprobación",  variant: "outline"     },
-  approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  in_pool:           { label: "En Pool",               variant: "outline"     },
-  rfq_direct:        { label: "Solicitud Directa",     variant: "outline"     },
-  inventario:        { label: "Surtido",               variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  rejected:          { label: "Rechazado",             variant: "destructive" },
+  pending_approval:    { label: "Pendiente",            variant: "outline"     },
+  approved:            { label: "Pendiente",            variant: "outline"     },
+  in_pool:             { label: "Procesado total",      variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  rfq_direct:          { label: "Procesado total",      variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  inventario:          { label: "Procesado total",      variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  procesado_parcial:   { label: "Procesado parcial",    variant: "outline", className: "bg-amber-100 text-amber-800 border-amber-300" },
+  rejected:            { label: "Rechazado",            variant: "destructive" },
 };
 
 const arqStatusLabels: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }
 > = {
-  draft:             { label: "Borrador",              variant: "secondary"   },
-  pending_approval:  { label: "Pendiente",              variant: "outline"     },
-  approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  in_pool:           { label: "En proceso",            variant: "outline"     },
-  rfq_direct:        { label: "En proceso",            variant: "outline"     },
-  inventario:        { label: "Enviado",               variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  rejected:          { label: "Rechazado",             variant: "destructive" },
+  draft:               { label: "Borrador",              variant: "secondary"   },
+  pending_approval:    { label: "Pendiente",              variant: "outline"     },
+  approved:            { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  in_pool:             { label: "En proceso",            variant: "outline"     },
+  rfq_direct:          { label: "En proceso",            variant: "outline"     },
+  inventario:          { label: "En proceso",            variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  procesado_parcial:   { label: "En proceso",            variant: "outline"     },
+  rejected:            { label: "Rechazado",             variant: "destructive" },
 };
 
 const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "" };
@@ -82,6 +83,10 @@ export default function Pedidos() {
   const [desiredDate, setDesiredDate] = useState("");
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [filter, setFilter] = useState<string>("all");
+  const [obraFilter, setObraFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "board">("grid");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [surtidoRequestId, setSurtidoRequestId] = useState<string | null>(null);
@@ -416,9 +421,10 @@ export default function Pedidos() {
       }
 
       // 3. Update request status
+      const newStatus = allFullyStocked ? "inventario" : "procesado_parcial";
       const { error: stErr } = await supabase
         .from("requests")
-        .update({ status: "inventario" as any })
+        .update({ status: newStatus as any })
         .eq("id", surtidoRequestId);
       if (stErr) throw stErr;
 
@@ -533,26 +539,41 @@ export default function Pedidos() {
     setItems(copy);
   };
 
-  const filtered =
-    requests?.filter((r) => {
-      if (filter === "all") return true;
-      if (role === "arquitecto" && filter === "approved") {
-        return ["approved", "in_pool", "rfq_direct", "inventario"].includes(r.status);
+  const filtered = (requests ?? [])
+    .filter((r) => {
+      if (filter !== "all") {
+        if (role === "arquitecto" && filter === "approved") {
+          if (!["approved", "in_pool", "rfq_direct", "inventario", "procesado_parcial"].includes(r.status)) return false;
+        } else if (canProcess && filter === "pendiente") {
+          if (!["pending_approval", "approved"].includes(r.status)) return false;
+        } else if (canProcess && filter === "procesado_total") {
+          if (!["inventario", "rfq_direct", "in_pool"].includes(r.status)) return false;
+        } else if (canProcess && filter === "procesado_parcial") {
+          if (r.status !== "procesado_parcial") return false;
+        } else {
+          if (r.status !== filter) return false;
+        }
       }
-      return r.status === filter;
-    }) || [];
+      if (obraFilter !== "all" && r.project_id !== obraFilter) return false;
+      if (dateFrom && r.created_at < dateFrom) return false;
+      if (dateTo && r.created_at.slice(0, 10) > dateTo) return false;
+      return true;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const filterOptions = canProcess
-    ? ["all", "pending_approval", "approved", "in_pool", "rejected"]
+    ? ["all", "pendiente", "procesado_parcial", "procesado_total", "rejected"]
     : ["all", "draft", "pending_approval", "approved", "rejected"];
 
   const filterLabels: Record<string, string> = {
-    all:               "Todos",
-    draft:             "Borrador",
-    pending_approval:  "Pendiente",
-    approved:          "Aprobado",
-    in_pool:           "En Pool",
-    rejected:          "Rechazado",
+    all:                "Todos",
+    draft:              "Borrador",
+    pending_approval:   "Pendiente",
+    pendiente:          "Pendiente",
+    approved:           "Aprobado",
+    procesado_parcial:  "Procesado parcial",
+    procesado_total:    "Procesado total",
+    rejected:           "Rechazado",
   };
 
   // Only block actual arquitecto users (not admins previewing as arquitecto)
@@ -564,12 +585,12 @@ export default function Pedidos() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold">
-            {role === "arquitecto" ? "Mis Pedidos" : "Gestión de Pedidos"}
+            {role === "arquitecto" ? "Mis Pedidos" : "Gestión de Requerimientos"}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {role === "arquitecto"
               ? "Requerimientos de materiales para obra"
-              : "Pedidos recibidos desde obra"}
+              : "Requerimientos recibidos desde obra"}
           </p>
         </div>
 
@@ -831,283 +852,181 @@ export default function Pedidos() {
         )}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {filterOptions.map((s) => (
-          <Button
-            key={s}
-            variant={filter === s ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter(s)}
-          >
-            {filterLabels[s] ?? s}
-          </Button>
-        ))}
-      </div>
+      <PedidosFilters
+        statusFilter={filter}
+        onStatusFilterChange={setFilter}
+        statusOptions={filterOptions}
+        statusLabels={filterLabels}
+        obraFilter={obraFilter}
+        onObraFilterChange={setObraFilter}
+        projects={projects ?? []}
+        dateFrom={dateFrom}
+        onDateFromChange={setDateFrom}
+        dateTo={dateTo}
+        onDateToChange={setDateTo}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        showViewToggle={canProcess}
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
         </div>
-      ) : !filtered.length ? (
-        <Card>
-          <CardContent className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">
-              No hay pedidos{filter !== "all" ? " con ese estado" : ""}.
-            </p>
-          </CardContent>
-        </Card>
+      ) : canProcess && viewMode === "board" ? (
+        <PedidosBoard
+          requests={filtered}
+          statusLabels={statusLabels}
+          statusFilterOptions={filterOptions}
+          statusFilterLabels={filterLabels}
+          canProcess={canProcess}
+          onCardClick={(r) => setDetailId(r.id)}
+        />
+      ) : canProcess && viewMode === "grid" ? (
+        <PedidosGrid
+          requests={filtered}
+          statusLabels={statusLabels}
+          onRowClick={(r) => setDetailId(r.id)}
+        />
       ) : (
         <div className="space-y-3">
-          {filtered.map((r) => {
-            const reqNum  = (r as any).request_number;
-            const projName = (r as any).projects?.name;
-            const archName = (r as any).architects?.full_name;
-            const sl = statusLabels[r.status] ?? {
-              label: r.status,
-              variant: "secondary" as const,
-            };
+          {!filtered.length ? (
+            <Card>
+              <CardContent className="text-center py-12 text-muted-foreground">
+                <p className="text-sm">
+                  No hay pedidos{filter !== "all" ? " con ese estado" : ""}.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            filtered.map((r) => {
+              const reqNum  = (r as any).request_number;
+              const projName = (r as any).projects?.name;
+              const archName = (r as any).architects?.full_name;
+              const sl = statusLabels[r.status] ?? {
+                label: r.status,
+                variant: "secondary" as const,
+              };
 
-            return (
-              <Card
-                key={r.id}
-                className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => {
-                  if (r.status === "draft" && role === "arquitecto" && r.created_by === user?.id) {
-                    openEditDraft(r);
-                  } else {
-                    setDetailId(r.id);
-                  }
-                }}
-              >
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <CardTitle className="text-sm font-display">
-                      {projName
-                        ? projName
-                        : `Pedido #${reqNum || r.request_number}`}
-                    </CardTitle>
-                    <Badge variant={sl.variant} className={sl.className}>{sl.label}</Badge>
-                    {r.urgency === "urgente" && (
-                      <Badge className="bg-[#FF2800] text-white border-[#FF2800]">Urgente</Badge>
+              return (
+                <Card
+                  key={r.id}
+                  className="cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => {
+                    if (r.status === "draft" && role === "arquitecto" && r.created_by === user?.id) {
+                      openEditDraft(r);
+                    } else {
+                      setDetailId(r.id);
+                    }
+                  }}
+                >
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <CardTitle className="text-sm font-display">
+                        {projName
+                          ? projName
+                          : `Pedido #${reqNum || r.request_number}`}
+                      </CardTitle>
+                      <Badge variant={sl.variant} className={sl.className}>{sl.label}</Badge>
+                      {r.urgency === "urgente" && (
+                        <Badge className="bg-[#FF2800] text-white border-[#FF2800]">Urgente</Badge>
+                      )}
+                      {r.urgency === "alta" && (
+                        <Badge className="bg-orange-100 text-orange-800 border-orange-200">
+                          Alta
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      Creado: {new Date(r.created_at).toLocaleDateString("es-AR")}
+                    </span>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
+                      <span>🏗️ {projName ?? "Sin obra asignada"}</span>
+                      {archName && <span>👷 {archName}</span>}
+                      {r.desired_date && (
+                        <span>
+                          📅 Entrega deseada:{" "}
+                          {new Date(r.desired_date).toLocaleDateString("es-AR")}
+                        </span>
+                      )}
+                      {reqNum && (
+                        <span className="font-mono text-muted-foreground/50">
+                          #{reqNum}
+                        </span>
+                      )}
+                    </div>
+                    {r.raw_message && (
+                      <p className="text-sm text-muted-foreground">{r.raw_message}</p>
                     )}
-                    {r.urgency === "alta" && (
-                      <Badge className="bg-orange-100 text-orange-800 border-orange-200">
-                        Alta
-                      </Badge>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    Creado: {new Date(r.created_at).toLocaleDateString("es-AR")}
-                  </span>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
-                    <span>🏗️ {projName ?? "Sin obra asignada"}</span>
-                    {archName && <span>👷 {archName}</span>}
-                    {r.desired_date && (
-                      <span>
-                        📅 Entrega deseada:{" "}
-                        {new Date(r.desired_date).toLocaleDateString("es-AR")}
-                      </span>
-                    )}
-                    {reqNum && (
-                      <span className="font-mono text-muted-foreground/50">
-                        #{reqNum}
-                      </span>
-                    )}
-                  </div>
-                  {r.raw_message && (
-                    <p className="text-sm text-muted-foreground">{r.raw_message}</p>
-                  )}
-                  {r.request_items && r.request_items.length > 0 && (
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted">
-                          <tr>
-                            <th className="text-left px-3 py-2">Material</th>
-                            <th className="text-right px-3 py-2">Cantidad</th>
-                            <th className="text-left px-3 py-2">Unidad</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {r.request_items.map((it: any) => (
-                            <tr key={it.id} className="border-t">
-                              <td className="px-3 py-2">{it.description}</td>
-                              <td className="text-right px-3 py-2">{it.quantity}</td>
-                              <td className="px-3 py-2">{it.unit || "—"}</td>
+                    {r.request_items && r.request_items.length > 0 && (
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted">
+                            <tr>
+                              <th className="text-left px-3 py-2">Material</th>
+                              <th className="text-right px-3 py-2">Cantidad</th>
+                              <th className="text-left px-3 py-2">Unidad</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  {r.status === "draft" && role === "arquitecto" && r.created_by === user?.id && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => { e.stopPropagation(); openEditDraft(r); }}
-                      >
-                        <Pencil className="h-3 w-3 mr-1" />
-                        Modificar borrador
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateStatus.mutate({ id: r.id, status: "pending_approval" });
-                        }}
-                      >
-                        <Send className="h-3 w-3 mr-1" />
-                        Enviar para Aprobación
-                      </Button>
-                    </div>
-                  )}
-                  {r.status === "pending_approval" && canProcess && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateStatus.mutate({ id: r.id, status: "approved" });
-                        }}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Aprobar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateStatus.mutate({ id: r.id, status: "rejected" });
-                        }}
-                      >
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Rechazar
-                      </Button>
-                    </div>
-                  )}
-                  {r.status === "approved" && canProcess && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => { e.stopPropagation(); navigate("/rfqs"); }}
-                      >
-                        <FileText className="h-3 w-3 mr-1" />
-                        Solicitud Directa
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSurtidoRequestId(r.id);
-                        }}
-                      >
-                        <Warehouse className="h-3 w-3 mr-1" />
-                        Surtir de Inventario
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                          </thead>
+                          <tbody>
+                            {r.request_items.map((it: any) => (
+                              <tr key={it.id} className="border-t">
+                                <td className="px-3 py-2">{it.description}</td>
+                                <td className="text-right px-3 py-2">{it.quantity}</td>
+                                <td className="px-3 py-2">{it.unit || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {r.status === "draft" && role === "arquitecto" && r.created_by === user?.id && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => { e.stopPropagation(); openEditDraft(r); }}
+                        >
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Modificar borrador
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateStatus.mutate({ id: r.id, status: "pending_approval" });
+                          }}
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          Enviar para Aprobación
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
         </div>
       )}
 
-      {/* Detail dialog (read-only) */}
-      <Dialog open={!!detailId} onOpenChange={(o) => { if (!o) setDetailId(null); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display">Detalle del Pedido</DialogTitle>
-          </DialogHeader>
-          {(() => {
-            const r = requests?.find((req) => req.id === detailId);
-            if (!r) return null;
-            const projName = (r as any).projects?.name;
-            const archName = (r as any).architects?.full_name;
-            const sl = statusLabels[r.status] ?? { label: r.status, variant: "secondary" as const };
-            const canEdit = r.status === "draft" && role === "arquitecto" && r.created_by === user?.id;
-
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {projName || `Pedido #${(r as any).request_number}`}
-                  </span>
-                  <Badge variant={sl.variant} className={sl.className}>{sl.label}</Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {projName && <p><span className="text-muted-foreground">Obra:</span> {projName}</p>}
-                  {archName && <p><span className="text-muted-foreground">Arquitecto:</span> {archName}</p>}
-                  <p><span className="text-muted-foreground">Urgencia:</span> {r.urgency}</p>
-                  {r.desired_date && (
-                    <p><span className="text-muted-foreground">Entrega:</span> {new Date(r.desired_date).toLocaleDateString("es-AR")}</p>
-                  )}
-                  <p><span className="text-muted-foreground">Creado:</span> {new Date(r.created_at).toLocaleDateString("es-AR")}</p>
-                </div>
-
-                {r.raw_message && (
-                  <p className="text-sm"><span className="text-muted-foreground">Observaciones:</span> {r.raw_message}</p>
-                )}
-
-                {r.request_items && r.request_items.length > 0 && (
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="bg-muted px-3 py-2 text-xs font-medium">Materiales</div>
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50">
-                        <tr>
-                          <th className="text-left px-3 py-1.5">Material</th>
-                          <th className="text-right px-3 py-1.5">Cantidad</th>
-                          <th className="text-left px-3 py-1.5">Unidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {r.request_items.map((it: any) => (
-                          <tr key={it.id} className="border-t">
-                            <td className="px-3 py-1.5">{it.description}</td>
-                            <td className="text-right px-3 py-1.5 font-medium">{it.quantity}</td>
-                            <td className="px-3 py-1.5">{it.unit || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {canEdit && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => openEditDraft(r)}
-                    >
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Modificar borrador
-                    </Button>
-                    <Button
-                      className="flex-1"
-                      onClick={() => {
-                        updateStatus.mutate({ id: r.id, status: "pending_approval" });
-                        setDetailId(null);
-                      }}
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      Enviar para Aprobación
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+      <PedidoDetail
+        requestId={detailId}
+        requests={requests ?? []}
+        statusLabels={statusLabels}
+        role={role ?? ""}
+        canProcess={canProcess}
+        userId={user?.id}
+        onClose={() => setDetailId(null)}
+        onEditDraft={(r) => { setDetailId(null); openEditDraft(r); }}
+        onApprove={(id) => { updateStatus.mutate({ id, status: "approved" }); setDetailId(null); }}
+        onReject={(id) => { updateStatus.mutate({ id, status: "rejected" }); setDetailId(null); }}
+        onSurtir={(id) => { setDetailId(null); setSurtidoRequestId(id); }}
+        onSolicitudDirecta={() => { setDetailId(null); navigate("/rfqs"); }}
+        onSendForApproval={(id) => { updateStatus.mutate({ id, status: "pending_approval" }); setDetailId(null); }}
+      />
 
       {/* Surtido de inventario dialog */}
       <Dialog open={!!surtidoRequestId} onOpenChange={(o) => { if (!o) setSurtidoRequestId(null); }}>

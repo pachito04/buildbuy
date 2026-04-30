@@ -4,16 +4,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Inbox, Layers, FileText, ShoppingCart, Clock, Send } from "lucide-react";
+import { Inbox, Layers, FileText, ShoppingCart, Clock, Send, CheckCircle } from "lucide-react";
 
 const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
-  draft:             { label: "Borrador",              variant: "secondary"   },
-  pending_approval:  { label: "Pendiente Aprobación",  variant: "outline"     },
-  approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  in_pool:           { label: "En proceso",            variant: "outline"     },
-  rfq_direct:        { label: "En proceso",            variant: "outline"     },
-  inventario:        { label: "Enviado",               variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  rejected:          { label: "Rechazado",             variant: "destructive" },
+  draft:               { label: "Borrador",              variant: "secondary"   },
+  pending_approval:    { label: "Pendiente",             variant: "outline"     },
+  approved:            { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  in_pool:             { label: "En proceso",            variant: "outline"     },
+  rfq_direct:          { label: "En proceso",            variant: "outline"     },
+  inventario:          { label: "En proceso",            variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  procesado_parcial:   { label: "En proceso",            variant: "outline"     },
+  rejected:            { label: "Rechazado",             variant: "destructive" },
 };
 
 export default function Dashboard() {
@@ -46,6 +47,7 @@ export default function Dashboard() {
     },
   });
 
+  // Compras/admin: Pendientes (pending_approval + approved)
   const { data: pendingApprovalCount } = useQuery({
     queryKey: ["dashboard-pending-approval", role],
     enabled: (role === "compras" || role === "admin") && !!role,
@@ -53,12 +55,38 @@ export default function Dashboard() {
       const { count } = await supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .eq("status", "pending_approval");
+        .in("status", ["pending_approval", "approved"]);
       return count || 0;
     },
   });
 
-  // En Proceso — arquitecto only: approved/in_pool/rfq_direct/inventario
+  // Compras/admin: Procesado parcial
+  const { data: parcialCount } = useQuery({
+    queryKey: ["dashboard-parcial", role],
+    enabled: (role === "compras" || role === "admin") && !!role,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "procesado_parcial");
+      return count || 0;
+    },
+  });
+
+  // Compras/admin: Procesado total
+  const { data: totalCount } = useQuery({
+    queryKey: ["dashboard-total", role],
+    enabled: (role === "compras" || role === "admin") && !!role,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("requests")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["inventario", "rfq_direct", "in_pool"]);
+      return count || 0;
+    },
+  });
+
+  // En Proceso — arquitecto only
   const { data: inProgressCount } = useQuery({
     queryKey: ["dashboard-inprogress", role, user?.id],
     enabled: role === "arquitecto" && !!user?.id,
@@ -66,21 +94,8 @@ export default function Dashboard() {
       const { count } = await supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .in("status", ["approved", "in_pool", "rfq_direct", "inventario"])
+        .in("status", ["approved", "in_pool", "rfq_direct", "inventario", "procesado_parcial"])
         .eq("created_by", user!.id);
-      return count || 0;
-    },
-  });
-
-  // En Proceso — admin/compras: all non-draft, non-rejected pending PO
-  const { data: inProgressAdminCount } = useQuery({
-    queryKey: ["dashboard-inprogress-admin", role],
-    enabled: role === "compras" || role === "admin",
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("requests")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["approved", "in_pool", "rfq_direct", "inventario"]);
       return count || 0;
     },
   });
@@ -215,16 +230,22 @@ export default function Dashboard() {
     });
   } else if (role !== "proveedor") {
     stats.push({
-      label: "Pedidos Pendientes",
+      label: "Requerimientos Pendientes",
       value: pendingApprovalCount ?? "—",
       icon: Inbox,
       color: "text-primary",
     });
     stats.push({
-      label: "En Proceso",
-      value: inProgressAdminCount ?? "—",
+      label: "Procesado Parcial",
+      value: parcialCount ?? "—",
       icon: Clock,
       color: "text-warning",
+    });
+    stats.push({
+      label: "Procesado Total",
+      value: totalCount ?? "—",
+      icon: CheckCircle,
+      color: "text-green-600",
     });
   }
   if (role === "compras" || role === "admin") {

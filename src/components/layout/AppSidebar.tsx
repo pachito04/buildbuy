@@ -87,7 +87,9 @@ export function AppSidebar() {
               )}
             >
               <item.icon className="h-4 w-4 shrink-0" />
-              {item.label}
+              {item.to === "/pedidos" && (role === "compras" || role === "admin")
+                ? "Requerimientos"
+                : item.label}
             </NavLink>
           );
         })}

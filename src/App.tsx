@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { AuthProvider, RequireAuth, useAuth } from "./hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { BasketProvider } from "@/contexts/BasketContext";
+import { AwardCartProvider } from "@/contexts/AwardCartContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Pedidos from "./pages/Pedidos";
@@ -56,6 +57,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <BasketProvider>
+          <AwardCartProvider>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<Login />} />
@@ -86,6 +88,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </AwardCartProvider>
           </BasketProvider>
         </AuthProvider>
       </BrowserRouter>
