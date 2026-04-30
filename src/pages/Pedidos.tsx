@@ -64,7 +64,7 @@ const arqStatusLabels: Record<
   { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }
 > = {
   draft:             { label: "Borrador",              variant: "secondary"   },
-  pending_approval:  { label: "Enviado",               variant: "outline"     },
+  pending_approval:  { label: "Pendiente",              variant: "outline"     },
   approved:          { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   in_pool:           { label: "En proceso",            variant: "outline"     },
   rfq_direct:        { label: "En proceso",            variant: "outline"     },
@@ -199,7 +199,7 @@ export default function Pedidos() {
 
   // ── Create request ───────────────────────────────────────────────────────
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (targetStatus: string = "draft") => {
       if (!companyId) throw new Error("Usuario sin empresa asignada");
       if (role === "arquitecto" && !myArchitect)
         throw new Error("Tu usuario no tiene perfil de arquitecto asociado");
@@ -216,6 +216,7 @@ export default function Pedidos() {
           project_id:   projectId || null,
           architect_id: architectId || null,
           desired_date: desiredDate || null,
+          ...(targetStatus !== "draft" ? { status: targetStatus as any } : {}),
         })
         .select()
         .single();
@@ -231,16 +232,25 @@ export default function Pedidos() {
         }))
       );
       if (ie) throw ie;
+
+      return targetStatus;
     },
-    onSuccess: () => {
+    onSuccess: (_result, targetStatus) => {
       qc.invalidateQueries({ queryKey: ["requests"] });
       qc.invalidateQueries({ queryKey: ["dashboard-requests"] });
       setOpen(false);
       resetForm();
-      toast({
-        title: "Pedido creado",
-        description: "El pedido fue enviado para revisión.",
-      });
+      if (targetStatus === "pending_approval") {
+        toast({
+          title: "¡Requerimiento generado!",
+          description: "Tu requerimiento fue generado con éxito.",
+        });
+      } else {
+        toast({
+          title: "Borrador guardado",
+          description: "Tu pedido fue guardado como borrador.",
+        });
+      }
     },
     onError: (e: Error) =>
       toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -781,19 +791,40 @@ export default function Pedidos() {
 
                 <p className="text-xs text-muted-foreground">* Campo obligatorio</p>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={
-                    createMutation.isPending || !companyId || isArqWithoutProfile
-                  }
-                >
-                  {createMutation.isPending
-                    ? "Creando..."
-                    : isArqWithoutProfile
-                    ? "Sin perfil de arquitecto asociado"
-                    : "Crear Pedido"}
-                </Button>
+                {role === "arquitecto" && actualRole === "arquitecto" ? (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={createMutation.isPending || !companyId || isArqWithoutProfile}
+                      onClick={() => createMutation.mutate("draft")}
+                    >
+                      {createMutation.isPending ? "Guardando..." : "Guardar en Borrador"}
+                    </Button>
+                    <Button
+                      type="button"
+                      className="flex-1"
+                      disabled={createMutation.isPending || !companyId || isArqWithoutProfile}
+                      onClick={() => createMutation.mutate("pending_approval")}
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      {createMutation.isPending ? "Generando..." : "Generar Requerimiento"}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={createMutation.isPending || !companyId || isArqWithoutProfile}
+                  >
+                    {createMutation.isPending
+                      ? "Creando..."
+                      : isArqWithoutProfile
+                      ? "Sin perfil de arquitecto asociado"
+                      : "Crear Pedido"}
+                  </Button>
+                )}
               </form>
             </DialogContent>
           </Dialog>
