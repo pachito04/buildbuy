@@ -33,7 +33,7 @@ const allRoles: AppRole[] = ["arquitecto", "compras", "proveedor", "admin"];
 
 const navItems: NavItem[] = [
   { to: "/dashboard",   label: "Dashboard",        icon: LayoutDashboard, roles: allRoles },
-  { to: "/pedidos",     label: "Pedidos",           icon: Inbox,           roles: ["arquitecto", "compras", "admin"] },
+  { to: "/pedidos",     label: "Requerimientos",    icon: Inbox,           roles: ["arquitecto", "compras", "admin"] },
   { to: "/obras",       label: "Obras",             icon: Building2,       roles: ["compras", "admin"] },
   { to: "/inventario",  label: "Inventario",        icon: Warehouse,       roles: ["compras", "admin"] },
   { to: "/pools",       label: "Pools de Compra",   icon: Layers,          roles: ["compras", "admin"] },

@@ -31,6 +31,7 @@ import {
   AlertCircle,
   Send,
   Pencil,
+  MessageSquare,
 } from "lucide-react";
 import { PedidosFilters } from "@/components/pedidos/PedidosFilters";
 import { PedidosGrid } from "@/components/pedidos/PedidosGrid";
@@ -42,6 +43,7 @@ interface ItemRow {
   description: string;
   quantity: string;
   unit: string;
+  observations: string;
 }
 
 // Status labels for admin/compras (show internal states)
@@ -72,7 +74,7 @@ const arqStatusLabels: Record<
   rejected:            { label: "Rechazado",             variant: "destructive" },
 };
 
-const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "" };
+const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "", observations: "" };
 
 export default function Pedidos() {
   const [open, setOpen] = useState(false);
@@ -94,6 +96,7 @@ export default function Pedidos() {
   const [directaClosing, setDirectaClosing] = useState("");
   const [directaLocation, setDirectaLocation] = useState("");
   const [directaNotes, setDirectaNotes] = useState("");
+  const [expandedObs, setExpandedObs] = useState<Set<number>>(new Set());
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -237,13 +240,14 @@ export default function Pedidos() {
           description: i.description,
           quantity:    parseFloat(i.quantity) || 1,
           unit:        i.unit,
+          observations: i.observations || null,
         }))
       );
       if (ie) throw ie;
 
-      return targetStatus;
+      return { targetStatus, requestNumber: req.request_number };
     },
-    onSuccess: (_result, targetStatus) => {
+    onSuccess: ({ targetStatus, requestNumber }) => {
       qc.invalidateQueries({ queryKey: ["requests"] });
       qc.invalidateQueries({ queryKey: ["dashboard-requests"] });
       setOpen(false);
@@ -251,7 +255,7 @@ export default function Pedidos() {
       if (targetStatus === "pending_approval") {
         toast({
           title: "¡Requerimiento generado!",
-          description: "Tu requerimiento fue generado con éxito.",
+          description: `Tu requerimiento N#${requestNumber} fue generado con éxito.`,
         });
       } else {
         toast({
@@ -310,6 +314,7 @@ export default function Pedidos() {
           description: i.description,
           quantity: parseFloat(i.quantity) || 1,
           unit: i.unit,
+          observations: i.observations || null,
         }))
       );
       if (ie) throw ie;
@@ -564,6 +569,7 @@ export default function Pedidos() {
             description: it.description || "",
             quantity: String(it.quantity),
             unit: it.unit || "",
+            observations: it.observations || "",
           }))
         : [{ ...EMPTY_ITEM }]
     );
@@ -577,6 +583,7 @@ export default function Pedidos() {
     if (!myArchitect) setArchitectId("");
     setDesiredDate("");
     setItems([{ ...EMPTY_ITEM }]);
+    setExpandedObs(new Set());
   }
 
   // ── Item helpers ─────────────────────────────────────────────────────────
@@ -665,7 +672,7 @@ export default function Pedidos() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold">
-            {role === "arquitecto" ? "Mis Pedidos" : "Gestión de Requerimientos"}
+            {role === "arquitecto" ? "Mis Requerimientos" : "Gestión de Requerimientos"}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {role === "arquitecto"
@@ -827,54 +834,83 @@ export default function Pedidos() {
                   )}
 
                   {items.map((item, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <div className="flex-1">
-                        <Select
-                          value={item.material_id}
-                          onValueChange={(v) => selectMaterial(i, v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar material..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allMaterials?.map((m) => (
-                              <SelectItem key={m.material_id} value={m.material_id}>
-                                {m.name}
-                                <span className="text-muted-foreground ml-1 text-xs">
-                                  {m.stock > 0
-                                    ? `(stock: ${m.stock} ${m.unit})`
-                                    : "(sin stock)"}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div key={i} className="space-y-1">
+                      <div className="flex gap-2 items-center">
+                        <div className="flex-1">
+                          <Select
+                            value={item.material_id}
+                            onValueChange={(v) => selectMaterial(i, v)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar material..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allMaterials?.map((m) => (
+                                <SelectItem key={m.material_id} value={m.material_id}>
+                                  {m.name}
+                                  <span className="text-muted-foreground ml-1 text-xs">
+                                    {m.stock > 0
+                                      ? `(stock: ${m.stock} ${m.unit})`
+                                      : "(sin stock)"}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                      <Input
-                        className="w-20"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="Cant."
-                        value={item.quantity}
-                        onChange={(e) => updateQty(i, e.target.value)}
-                      />
+                        <Input
+                          className="w-20"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="Cant."
+                          value={item.quantity}
+                          onChange={(e) => updateQty(i, e.target.value)}
+                        />
 
-                      {/* Unit — always visible, shows "—" until material selected */}
-                      <span className="text-sm text-muted-foreground w-10 shrink-0 text-center">
-                        {item.unit || "—"}
-                      </span>
+                        <span className="text-sm text-muted-foreground w-10 shrink-0 text-center">
+                          {item.unit || "—"}
+                        </span>
 
-                      {items.length > 1 && (
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeItem(i)}
+                          onClick={() => setExpandedObs((prev) => {
+                            const next = new Set(prev);
+                            next.has(i) ? next.delete(i) : next.add(i);
+                            return next;
+                          })}
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <MessageSquare className={`h-4 w-4 ${item.observations ? "text-primary" : "text-muted-foreground"}`} />
                         </Button>
+
+                        {items.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeItem(i)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+
+                      {expandedObs.has(i) && (
+                        <Input
+                          className="ml-0 text-sm"
+                          placeholder="Observación del material..."
+                          value={item.observations}
+                          onChange={(e) =>
+                            setItems((prev) =>
+                              prev.map((it, idx) =>
+                                idx === i ? { ...it, observations: e.target.value } : it
+                              )
+                            )
+                          }
+                        />
                       )}
                     </div>
                   ))}
