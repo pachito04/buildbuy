@@ -253,7 +253,7 @@ export function PedidoDetail({
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={onSolicitudDirecta}>
                 <FileText className="h-4 w-4 mr-2" />
-                Solicitud Directa
+                Solicitud de Cotización
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => onSurtir(r.id)}>
                 <Warehouse className="h-4 w-4 mr-2" />

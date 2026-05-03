@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -17,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Building2, Search, MapPin, User } from "lucide-react";
+import { PROVINCIAS, PROVINCIA_NAMES } from "@/data/argentina-geo";
 
 type Obra = {
   id: string;
@@ -220,20 +228,40 @@ export default function Obras() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Ciudad</Label>
-                  <Input
-                    placeholder="Buenos Aires"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                  />
+                  <Label>Provincia</Label>
+                  <Select
+                    value={province}
+                    onValueChange={(v) => {
+                      setProvince(v);
+                      setCity("");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar provincia..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVINCIA_NAMES.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Provincia</Label>
-                  <Input
-                    placeholder="CABA"
-                    value={province}
-                    onChange={(e) => setProvince(e.target.value)}
-                  />
+                  <Label>Ciudad</Label>
+                  <Select
+                    value={city}
+                    onValueChange={setCity}
+                    disabled={!province}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={province ? "Seleccionar ciudad..." : "Elegí una provincia primero"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {province && PROVINCIAS[province]?.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
