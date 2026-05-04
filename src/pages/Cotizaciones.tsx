@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useViewRole } from "@/hooks/useViewRole";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Send, ShoppingCart, Trash2, FileText, Clock, CheckCircle, History } from "lucide-react";
+import { BarChart3, Send, ShoppingCart, Trash2, FileText, Clock, CheckCircle, History, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { useAwardCart } from "@/contexts/AwardCartContext";
 import { ComparativaGrid } from "@/components/cotizaciones/ComparativaGrid";
-import { ComparativaDetail } from "@/components/cotizaciones/ComparativaDetail";
 
 export default function Cotizaciones() {
   const { viewRole: role, companyId } = useViewRole();
@@ -23,14 +23,15 @@ export default function Cotizaciones() {
   const qc = useQueryClient();
   const cart = useAwardCart();
 
+  const navigate = useNavigate();
   const [tab, setTab] = useState<"comparativas" | "carrito">("comparativas");
-  const [selectedRfq, setSelectedRfq] = useState<any>(null);
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
   // --- Proveedor state ---
   const [provTab, setProvTab] = useState<"vigentes" | "enviadas" | "historicas">("vigentes");
   const [quoteDialogOpen, setQuoteDialogOpen] = useState(false);
   const [quoteRfqId, setQuoteRfqId] = useState("");
-  const [quoteDeliveryDays, setQuoteDeliveryDays] = useState("");
+  const [quoteDeliveryDate, setQuoteDeliveryDate] = useState("");
   const [quoteConditions, setQuoteConditions] = useState("");
   const [quoteItems, setQuoteItems] = useState<{ rfq_item_id: string; unit_price: string }[]>([]);
   const [detailRfqId, setDetailRfqId] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export default function Cotizaciones() {
 
       const { data: openRfqs } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number)")
+        .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
         .or("rfq_type.eq.open,rfq_type.is.null")
         .in("status", ["sent", "responded"])
         .order("created_at", { ascending: false });
@@ -75,7 +76,7 @@ export default function Cotizaciones() {
       if (invitedIds.length) {
         const { data } = await supabase
           .from("rfqs")
-          .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number)")
+          .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
           .eq("rfq_type", "closed_bid")
           .in("id", invitedIds)
           .in("status", ["sent", "responded"])
@@ -120,7 +121,7 @@ export default function Cotizaciones() {
       if (!rfqIds.length) return [];
       const { data, error } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number)")
+        .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
         .in("id", rfqIds)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -157,9 +158,14 @@ export default function Cotizaciones() {
     mutationFn: async () => {
       if (!myProvider) throw new Error("No se encontró tu registro de proveedor");
       const totalPrice = quoteItems.reduce((sum, qi) => sum + (parseFloat(qi.unit_price) || 0), 0);
+      let deliveryDays: number | null = null;
+      if (quoteDeliveryDate) {
+        const diff = Math.ceil((new Date(quoteDeliveryDate + "T00:00:00").getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
+        deliveryDays = diff > 0 ? diff : null;
+      }
       const { data: quote, error } = await supabase
         .from("quotes")
-        .insert({ rfq_id: quoteRfqId, provider_id: myProvider.id, delivery_days: parseInt(quoteDeliveryDays) || null, conditions: quoteConditions || null, total_price: totalPrice })
+        .insert({ rfq_id: quoteRfqId, provider_id: myProvider.id, delivery_days: deliveryDays, conditions: quoteConditions || null, total_price: totalPrice })
         .select()
         .single();
       if (error) throw error;
@@ -182,7 +188,7 @@ export default function Cotizaciones() {
 
   const openQuoteDialog = (rfq: any) => {
     setQuoteRfqId(rfq.id);
-    setQuoteDeliveryDays("");
+    setQuoteDeliveryDate("");
     setQuoteConditions("");
     setQuoteItems((rfq.rfq_items || []).map((i: any) => ({ rfq_item_id: i.id, unit_price: "" })));
     setQuoteDialogOpen(true);
@@ -195,7 +201,7 @@ export default function Cotizaciones() {
     queryFn: async () => {
       const { data: rfqs, error } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, requests:request_id(request_number), purchase_pools:pool_id(name)")
+        .select("id, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, requests:request_id(request_number, desired_date), purchase_pools:pool_id(name)")
         .eq("company_id", companyId!)
         .in("status", ["sent", "responded", "closed"])
         .order("created_at", { ascending: false });
@@ -242,6 +248,7 @@ export default function Cotizaciones() {
   // --- Compras/Admin: generate OC from cart ---
   const generateOC = useMutation({
     mutationFn: async (providerId: string) => {
+      setGeneratingFor(providerId);
       const providerItems = cart.items.filter((i) => i.provider_id === providerId);
       if (!providerItems.length) throw new Error("No hay productos para este proveedor");
       if (!companyId) throw new Error("No se pudo determinar la empresa");
@@ -275,10 +282,14 @@ export default function Cotizaciones() {
       cart.removeByProvider(providerId);
     },
     onSuccess: () => {
+      setGeneratingFor(null);
       qc.invalidateQueries({ queryKey: ["purchase-orders"] });
       toast({ title: "Orden de compra generada", description: "La OC fue creada y enviada al proveedor." });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      setGeneratingFor(null);
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    },
   });
 
   // --- Cart grouped by provider ---
@@ -641,8 +652,19 @@ export default function Cotizaciones() {
               })}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Días de entrega</Label>
-                  <Input type="number" placeholder="Ej: 5" value={quoteDeliveryDays} onChange={(e) => setQuoteDeliveryDays(e.target.value)} />
+                  <Label>Fecha de entrega</Label>
+                  <Input type="date" value={quoteDeliveryDate} onChange={(e) => setQuoteDeliveryDate(e.target.value)} />
+                  {(() => {
+                    const rfq = provVigentes.find((r: any) => r.id === quoteRfqId) || provRfqs?.find((r: any) => r.id === quoteRfqId) || (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
+                    const desiredDate = (rfq as any)?.requests?.desired_date;
+                    if (!desiredDate) return null;
+                    return (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        El arquitecto solicitó entrega para el {new Date(desiredDate + "T00:00:00").toLocaleDateString("es-AR")}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label>Total</Label>
@@ -707,12 +729,7 @@ export default function Cotizaciones() {
           <ComparativaGrid
             rows={comparativaRfqs ?? []}
             isLoading={comparativasLoading}
-            onSelect={(rfq) => setSelectedRfq(rfq)}
-          />
-          <ComparativaDetail
-            rfq={selectedRfq}
-            open={!!selectedRfq}
-            onClose={() => setSelectedRfq(null)}
+            onSelect={(rfq) => navigate(`/comparativa/${rfq.id}`)}
           />
         </>
       )}
@@ -784,10 +801,10 @@ export default function Cotizaciones() {
                     <Button
                       className="w-full"
                       onClick={() => generateOC.mutate(group.provider_id)}
-                      disabled={generateOC.isPending}
+                      disabled={generatingFor === group.provider_id}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
-                      {generateOC.isPending ? "Generando OC..." : "Generar Orden de Compra"}
+                      {generatingFor === group.provider_id ? "Generando OC..." : "Generar Orden de Compra"}
                     </Button>
                   </CardContent>
                 </Card>

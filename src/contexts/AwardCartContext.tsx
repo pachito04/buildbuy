@@ -17,6 +17,7 @@ interface AwardCartContextType {
   addItem: (item: AwardCartItem) => void;
   removeItem: (quoteItemId: string) => void;
   removeByProvider: (providerId: string) => void;
+  updateItemQuantity: (quoteItemId: string, quantity: number) => void;
   clear: () => void;
   isAwarded: (quoteItemId: string) => boolean;
   totalItems: number;
@@ -44,7 +45,12 @@ export function AwardCartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback((item: AwardCartItem) => {
     setItems((prev) => {
-      if (prev.some((i) => i.quote_item_id === item.quote_item_id)) return prev;
+      const idx = prev.findIndex((i) => i.quote_item_id === item.quote_item_id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = item;
+        return next;
+      }
       return [...prev, item];
     });
   }, []);
@@ -57,6 +63,14 @@ export function AwardCartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((i) => i.provider_id !== providerId));
   }, []);
 
+  const updateItemQuantity = useCallback((quoteItemId: string, quantity: number) => {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.quote_item_id === quoteItemId ? { ...i, quantity } : i
+      )
+    );
+  }, []);
+
   const clear = useCallback(() => setItems([]), []);
 
   const isAwarded = useCallback(
@@ -65,7 +79,7 @@ export function AwardCartProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AwardCartContext.Provider value={{ items, addItem, removeItem, removeByProvider, clear, isAwarded, totalItems: items.length }}>
+    <AwardCartContext.Provider value={{ items, addItem, removeItem, removeByProvider, updateItemQuantity, clear, isAwarded, totalItems: items.length }}>
       {children}
     </AwardCartContext.Provider>
   );

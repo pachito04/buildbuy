@@ -51,7 +51,7 @@ export default function Ordenes() {
     queryFn: async () => {
       let query = supabase
         .from("purchase_orders")
-        .select("*, providers:provider_id(name, email), rfqs:rfq_id(id, delivery_location), requests:request_id(request_number)")
+        .select("*, providers:provider_id(name, email), rfqs:rfq_id(id, delivery_location, requests:request_id(request_number), purchase_pools:pool_id(name)), requests:request_id(request_number)")
         .order("created_at", { ascending: false });
 
       if (role === "proveedor" && myProvider) {
@@ -182,9 +182,11 @@ export default function Ordenes() {
                   <CardTitle className="text-sm font-display">
                     {po.po_number
                       ? `OC #${po.po_number}`
-                      : po.requests?.request_number
-                        ? `OC — Pedido #${po.requests.request_number}`
-                        : `OC #${po.id.slice(0, 8)}`}
+                      : (po.requests?.request_number ?? po.rfqs?.requests?.request_number)
+                        ? `OC — Pedido #${po.requests?.request_number ?? po.rfqs?.requests?.request_number}`
+                        : po.rfqs?.purchase_pools?.name
+                          ? `OC — Pool: ${po.rfqs.purchase_pools.name}`
+                          : `OC #${po.id.slice(0, 8)}`}
                   </CardTitle>
                   <Badge variant={poStatusLabels[po.status]?.variant || "secondary"}>
                     {poStatusLabels[po.status]?.label || po.status}
@@ -214,11 +216,13 @@ export default function Ordenes() {
           <DialogHeader>
             <DialogTitle className="font-display flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              {detailPO?.po_number
+              {(detailPO as any)?.po_number
                 ? `OC #${(detailPO as any).po_number}`
-                : (detailPO as any)?.requests?.request_number
-                  ? `OC — Pedido #${(detailPO as any).requests.request_number}`
-                  : `OC #${detailPO?.id?.slice(0, 8) || ""}`}
+                : ((detailPO as any)?.requests?.request_number ?? (detailPO as any)?.rfqs?.requests?.request_number)
+                  ? `OC — Pedido #${(detailPO as any)?.requests?.request_number ?? (detailPO as any)?.rfqs?.requests?.request_number}`
+                  : (detailPO as any)?.rfqs?.purchase_pools?.name
+                    ? `OC — Pool: ${(detailPO as any).rfqs.purchase_pools.name}`
+                    : `OC #${detailPO?.id?.slice(0, 8) || ""}`}
             </DialogTitle>
           </DialogHeader>
 

@@ -130,6 +130,30 @@ export default function RFQs() {
     },
   });
 
+  // Chequear si ya hay OCs generadas para los quote_items de este RFQ.
+  // Recolectamos todos los quote_item IDs de todas las cotizaciones, y buscamos
+  // cuáles ya tienen un registro en purchase_order_items.
+  const { data: existingPOQuoteItemIds } = useQuery({
+    queryKey: ["rfq-existing-po-items", detailId],
+    enabled: !!detailId && !!detailQuotes?.length,
+    queryFn: async () => {
+      // Paso 1: juntamos todos los IDs de quote_items de todas las cotizaciones
+      const allQuoteItemIds = (detailQuotes ?? []).flatMap((q: any) =>
+        (q.quote_items || []).map((qi: any) => qi.id)
+      );
+      if (!allQuoteItemIds.length) return new Set<string>();
+
+      // Paso 2: preguntamos a Supabase cuáles de esos IDs ya tienen una OC
+      const { data } = await supabase
+        .from("purchase_order_items")
+        .select("quote_item_id")
+        .in("quote_item_id", allQuoteItemIds);
+
+      // Paso 3: devolvemos un Set para hacer búsquedas rápidas con .has()
+      return new Set((data ?? []).map((d: any) => d.quote_item_id as string));
+    },
+  });
+
   const awardFromRfq = useMutation({
     mutationFn: async (quoteId: string) => {
       const quote = detailQuotes?.find((q: any) => q.id === quoteId);
@@ -371,36 +395,72 @@ export default function RFQs() {
                 </Button>
               )}
 
-              {detailRfq.status !== "draft" && detailQuotes && detailQuotes.length > 0 && (
-                <div className="border-t pt-3 space-y-3">
-                  <p className="text-sm font-medium">Cotizaciones Recibidas ({detailQuotes.length})</p>
-                  {detailQuotes.map((q: any, i: number) => (
-                    <div key={q.id} className={`border rounded-lg p-3 space-y-2 ${i === 0 ? "border-primary/50 bg-primary/5" : ""}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {i === 0 && <Badge className="text-[10px] py-0">Mejor</Badge>}
-                          <span className="text-sm font-medium">{q.providers?.name || "Proveedor"}</span>
+              {detailRfq.status !== "draft" && detailQuotes && detailQuotes.length > 0 && (() => {
+                // Calculamos si ALGÚN quote_item de este RFQ ya tiene OC generada.
+                // "some" devuelve true si AL MENOS UNO cumple la condición.
+                const hasAnyPO = (detailQuotes as any[]).some((q: any) =>
+                  (q.quote_items || []).some((qi: any) => existingPOQuoteItemIds?.has(qi.id))
+                );
+
+                return (
+                  <div className="border-t pt-3 space-y-3">
+                    <p className="text-sm font-medium">Cotizaciones Recibidas ({detailQuotes.length})</p>
+
+                    {/* Si ya hay OCs, mostramos un aviso para que el usuario sepa */}
+                    {hasAnyPO && detailRfq.status !== "closed" && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                        <ShoppingCart className="h-4 w-4 text-blue-600 shrink-0" />
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          Esta solicitud ya tiene productos adjudicados desde la Comparativa. Usá la pantalla de Comparativa para gestionar adjudicaciones.
+                        </p>
+                      </div>
+                    )}
+
+                    {detailQuotes.map((q: any, i: number) => {
+                      // Por cada cotización, contamos cuántos de sus ítems ya tienen OC
+                      const quoteItemIds = (q.quote_items || []).map((qi: any) => qi.id);
+                      const awardedCount = quoteItemIds.filter((id: string) => existingPOQuoteItemIds?.has(id)).length;
+                      const totalCount = quoteItemIds.length;
+                      const fullyAwarded = totalCount > 0 && awardedCount === totalCount;
+                      const partiallyAwarded = awardedCount > 0 && awardedCount < totalCount;
+
+                      return (
+                        <div key={q.id} className={`border rounded-lg p-3 space-y-2 ${i === 0 && !fullyAwarded ? "border-primary/50 bg-primary/5" : ""} ${fullyAwarded ? "opacity-60" : ""}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {i === 0 && !fullyAwarded && <Badge className="text-[10px] py-0">Mejor</Badge>}
+                              <span className="text-sm font-medium">{q.providers?.name || "Proveedor"}</span>
+                              {fullyAwarded && (
+                                <Badge className="bg-green-600 text-white text-[10px] py-0">OC Generada</Badge>
+                              )}
+                              {partiallyAwarded && (
+                                <Badge variant="outline" className="text-[10px] py-0 text-blue-600 border-blue-300">
+                                  {awardedCount}/{totalCount} adjudicados
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-sm font-mono font-bold">${Number(q.total_price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex gap-4 text-xs text-muted-foreground">
+                            <span>Entrega: {q.delivery_days ?? "—"} días</span>
+                            <span>Score: {q.providers?.score ?? "—"}</span>
+                          </div>
+                          {detailRfq.status !== "closed" && !hasAnyPO && (
+                            <Button
+                              size="sm"
+                              variant={i === 0 ? "default" : "outline"}
+                              className="w-full mt-1"
+                              onClick={() => setAwardQuoteId(q.id)}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />Adjudicar
+                            </Button>
+                          )}
                         </div>
-                        <span className="text-sm font-mono font-bold">${Number(q.total_price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span>Entrega: {q.delivery_days ?? "—"} días</span>
-                        <span>Score: {q.providers?.score ?? "—"}</span>
-                      </div>
-                      {detailRfq.status !== "closed" && (
-                        <Button
-                          size="sm"
-                          variant={i === 0 ? "default" : "outline"}
-                          className="w-full mt-1"
-                          onClick={() => setAwardQuoteId(q.id)}
-                        >
-                          <CheckCircle className="h-3 w-3 mr-1" />Adjudicar
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {detailRfq.status !== "draft" && detailQuotes?.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center border-t pt-3">Aún no se recibieron cotizaciones.</p>
               )}

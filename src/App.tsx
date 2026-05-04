@@ -14,6 +14,7 @@ import Pedidos from "./pages/Pedidos";
 import Pools from "./pages/Pools";
 import RFQs from "./pages/RFQs";
 import Cotizaciones from "./pages/Cotizaciones";
+import Comparativa from "./pages/Comparativa";
 import Ordenes from "./pages/Ordenes";
 import Inventario from "./pages/Inventario";
 import Historial from "./pages/Historial";
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="/pools" element={<Pools />} />
               <Route path="/rfqs" element={<RFQs />} />
               <Route path="/cotizaciones" element={<Cotizaciones />} />
+              <Route path="/comparativa/:rfqId" element={<Comparativa />} />
               <Route path="/ordenes" element={<Ordenes />} />
               <Route path="/historial" element={<Historial />} />
               <Route path="/trazabilidad" element={<Trazabilidad />} />

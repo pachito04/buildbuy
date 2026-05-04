@@ -32,6 +32,7 @@ import {
   Send,
   Pencil,
   MessageSquare,
+  Calendar,
 } from "lucide-react";
 import { PedidosFilters } from "@/components/pedidos/PedidosFilters";
 import { PedidosGrid } from "@/components/pedidos/PedidosGrid";
@@ -1264,6 +1265,12 @@ export default function Pedidos() {
               <div className="space-y-2">
                 <Label>Entrega límite *</Label>
                 <Input type="date" value={directaDeadline} onChange={(e) => setDirectaDeadline(e.target.value)} />
+                {(directaRequest as any)?.desired_date && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    El arquitecto solicitó entrega para el {new Date((directaRequest as any).desired_date + "T00:00:00").toLocaleDateString("es-AR")}
+                  </p>
+                )}
               </div>
             </div>
 
