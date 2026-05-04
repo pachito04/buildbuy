@@ -10,8 +10,8 @@ import { BarChart3, Send, ShoppingCart, Trash2, FileText, Clock, CheckCircle, Hi
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAwardCart } from "@/contexts/AwardCartContext";
 import { ComparativaGrid } from "@/components/cotizaciones/ComparativaGrid";
@@ -32,7 +32,8 @@ export default function Cotizaciones() {
   const [quoteDialogOpen, setQuoteDialogOpen] = useState(false);
   const [quoteRfqId, setQuoteRfqId] = useState("");
   const [quoteDeliveryDate, setQuoteDeliveryDate] = useState("");
-  const [quoteConditions, setQuoteConditions] = useState("");
+  const [quotePaymentCondition, setQuotePaymentCondition] = useState("");
+  const [quoteShippingCost, setQuoteShippingCost] = useState("");
   const [quoteItems, setQuoteItems] = useState<{ rfq_item_id: string; unit_price: string }[]>([]);
   const [detailRfqId, setDetailRfqId] = useState<string | null>(null);
   const [quoteDetailId, setQuoteDetailId] = useState<string | null>(null);
@@ -157,15 +158,17 @@ export default function Cotizaciones() {
   const submitQuote = useMutation({
     mutationFn: async () => {
       if (!myProvider) throw new Error("No se encontró tu registro de proveedor");
-      const totalPrice = quoteItems.reduce((sum, qi) => sum + (parseFloat(qi.unit_price) || 0), 0);
+      const itemsTotal = quoteItems.reduce((sum, qi) => sum + (parseFloat(qi.unit_price) || 0), 0);
+      const totalPrice = itemsTotal + (parseFloat(quoteShippingCost) || 0);
       let deliveryDays: number | null = null;
       if (quoteDeliveryDate) {
         const diff = Math.ceil((new Date(quoteDeliveryDate + "T00:00:00").getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
         deliveryDays = diff > 0 ? diff : null;
       }
+      const shippingCost = parseFloat(quoteShippingCost) || 0;
       const { data: quote, error } = await supabase
         .from("quotes")
-        .insert({ rfq_id: quoteRfqId, provider_id: myProvider.id, delivery_days: deliveryDays, conditions: quoteConditions || null, total_price: totalPrice })
+        .insert({ rfq_id: quoteRfqId, provider_id: myProvider.id, delivery_days: deliveryDays, conditions: quotePaymentCondition || null, total_price: totalPrice, shipping_cost: shippingCost } as any)
         .select()
         .single();
       if (error) throw error;
@@ -189,7 +192,8 @@ export default function Cotizaciones() {
   const openQuoteDialog = (rfq: any) => {
     setQuoteRfqId(rfq.id);
     setQuoteDeliveryDate("");
-    setQuoteConditions("");
+    setQuotePaymentCondition("");
+    setQuoteShippingCost("");
     setQuoteItems((rfq.rfq_items || []).map((i: any) => ({ rfq_item_id: i.id, unit_price: "" })));
     setQuoteDialogOpen(true);
   };
@@ -652,8 +656,8 @@ export default function Cotizaciones() {
               })}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Fecha de entrega</Label>
-                  <Input type="date" value={quoteDeliveryDate} onChange={(e) => setQuoteDeliveryDate(e.target.value)} />
+                  <Label>Fecha de entrega <span className="text-destructive">*</span></Label>
+                  <Input type="date" required value={quoteDeliveryDate} onChange={(e) => setQuoteDeliveryDate(e.target.value)} />
                   {(() => {
                     const rfq = provVigentes.find((r: any) => r.id === quoteRfqId) || provRfqs?.find((r: any) => r.id === quoteRfqId) || (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
                     const desiredDate = (rfq as any)?.requests?.desired_date;
@@ -667,15 +671,42 @@ export default function Cotizaciones() {
                   })()}
                 </div>
                 <div className="space-y-2">
-                  <Label>Total</Label>
-                  <Input disabled value={`$${quoteItems.reduce((s, qi) => s + (parseFloat(qi.unit_price) || 0), 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`} />
+                  <Label>Condición de pago <span className="text-destructive">*</span></Label>
+                  <Select value={quotePaymentCondition} onValueChange={setQuotePaymentCondition} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cheque_30">Cheque a 30 días</SelectItem>
+                      <SelectItem value="cheque_60">Cheque a 60 días</SelectItem>
+                      <SelectItem value="cheque_90">Cheque a 90 días</SelectItem>
+                      <SelectItem value="transferencia_inmediata">Transferencia inmediata</SelectItem>
+                      <SelectItem value="contrato_acopio">Contrato por Acopio</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Condiciones</Label>
-                <Textarea placeholder="Condiciones de pago, vigencia, etc." value={quoteConditions} onChange={(e) => setQuoteConditions(e.target.value)} />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Importe del envío <span className="text-destructive">*</span></Label>
+                  <Input type="number" step="0.01" min="0" required placeholder="0.00" value={quoteShippingCost} onChange={(e) => setQuoteShippingCost(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total</Label>
+                  <Input disabled value={`$${(quoteItems.reduce((s, qi) => s + (parseFloat(qi.unit_price) || 0), 0) + (parseFloat(quoteShippingCost) || 0)).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`} />
+                </div>
               </div>
-              <Button type="submit" className="w-full" disabled={submitQuote.isPending}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  submitQuote.isPending ||
+                  !quoteDeliveryDate ||
+                  !quotePaymentCondition ||
+                  !quoteShippingCost ||
+                  quoteItems.some((qi) => !qi.unit_price || parseFloat(qi.unit_price) <= 0)
+                }
+              >
                 {submitQuote.isPending ? "Enviando..." : "Enviar Cotización"}
               </Button>
             </form>
