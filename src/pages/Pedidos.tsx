@@ -88,7 +88,7 @@ export default function Pedidos() {
   const [obraFilter, setObraFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "board">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "board">(() => (localStorage.getItem("pedidos-view") as "grid" | "board") || "grid");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [surtidoRequestId, setSurtidoRequestId] = useState<string | null>(null);
@@ -982,7 +982,7 @@ export default function Pedidos() {
         dateTo={dateTo}
         onDateToChange={setDateTo}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={(v) => { setViewMode(v); localStorage.setItem("pedidos-view", v); }}
         showViewToggle={canProcess}
       />
 

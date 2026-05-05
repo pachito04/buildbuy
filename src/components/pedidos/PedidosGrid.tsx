@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -13,7 +14,9 @@ interface PedidosGridProps {
   onRowClick: (r: any) => void;
 }
 
-export function PedidosGrid({ requests, statusLabels, onRowClick }: PedidosGridProps) {
+export function PedidosGrid({ requests, statusLabels }: PedidosGridProps) {
+  const navigate = useNavigate();
+
   if (!requests.length) {
     return (
       <Card>
@@ -45,7 +48,7 @@ export function PedidosGrid({ requests, statusLabels, onRowClick }: PedidosGridP
               <tr
                 key={r.id}
                 className="border-t cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => onRowClick(r)}
+                onClick={() => navigate(`/pedidos/${r.id}`)}
               >
                 <td className="px-4 py-3 font-mono font-medium">
                   #{r.request_number}

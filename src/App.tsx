@@ -11,6 +11,8 @@ import { AwardCartProvider } from "@/contexts/AwardCartContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Pedidos from "./pages/Pedidos";
+import PedidosObra from "./pages/PedidosObra";
+import PedidoDetallePage from "./pages/PedidoDetallePage";
 import Pools from "./pages/Pools";
 import RFQs from "./pages/RFQs";
 import Cotizaciones from "./pages/Cotizaciones";
@@ -74,6 +76,9 @@ const App = () => (
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pedidos" element={<Pedidos />} />
+              <Route path="/pedidos/:requestId" element={<PedidoDetallePage />} />
+              <Route path="/pedidos/obra/:obraId" element={<PedidosObra />} />
+              <Route path="/pedidos/obra/:obraId/:requestId" element={<PedidoDetallePage />} />
               <Route path="/inventario" element={<Inventario />} />
               <Route path="/pools" element={<Pools />} />
               <Route path="/rfqs" element={<RFQs />} />
