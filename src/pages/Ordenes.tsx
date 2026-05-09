@@ -92,7 +92,7 @@ export default function Ordenes() {
             .select("status")
             .eq("id", requestId)
             .single();
-          if (req?.status === "procesado_parcial") {
+          if (req?.status === "en_curso") {
             await supabase
               .from("requests")
               .update({ status: "inventario" as any })

@@ -20,12 +20,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Building2, Search, MapPin, User, Inbox } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Search, MapPin, User, Inbox, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PROVINCIAS, PROVINCIA_NAMES } from "@/data/argentina-geo";
+import { WizardNuevaObra } from "@/components/obras/WizardNuevaObra";
+import { useObrasAvance } from "@/hooks/useObrasAvance";
+import { formatCurrency } from "@/lib/computo-utils";
 
 type Obra = {
   id: string;
@@ -42,7 +44,8 @@ type Obra = {
 };
 
 export default function Obras() {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Obra | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -57,6 +60,8 @@ export default function Obras() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { companyId, loading: roleLoading } = useViewRole();
+
+  const { data: avanceMap } = useObrasAvance(companyId);
 
   const { data: obras, isLoading } = useQuery({
     queryKey: ["obras", companyId],
@@ -74,7 +79,7 @@ export default function Obras() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("No hay empresa asociada");
+      if (!companyId || !editing) throw new Error("No hay empresa asociada");
       const payload = {
         company_id: companyId,
         name,
@@ -85,19 +90,14 @@ export default function Obras() {
         province: province || null,
         contact_name: contactName || null,
       };
-      if (editing) {
-        const { error } = await supabase.from("projects").update(payload).eq("id", editing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("projects").insert(payload);
-        if (error) throw error;
-      }
+      const { error } = await supabase.from("projects").update(payload).eq("id", editing.id);
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["obras"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
-      closeDialog();
-      toast({ title: editing ? "Obra actualizada" : "Obra creada" });
+      closeEditDialog();
+      toast({ title: "Obra actualizada" });
     },
     onError: (e: Error) =>
       toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -119,8 +119,8 @@ export default function Obras() {
       toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const closeDialog = () => {
-    setDialogOpen(false);
+  const closeEditDialog = () => {
+    setEditDialogOpen(false);
     setEditing(null);
     setName("");
     setDescription("");
@@ -140,7 +140,7 @@ export default function Obras() {
     setCity(o.city || "");
     setProvince(o.province || "");
     setContactName(o.contact_name || "");
-    setDialogOpen(true);
+    setEditDialogOpen(true);
   };
 
   const filtered = obras?.filter(
@@ -161,120 +161,121 @@ export default function Obras() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Obra
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar Obra" : "Nueva Obra"}</DialogTitle>
-            </DialogHeader>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                save.mutate();
-              }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <Label>Nombre de la obra *</Label>
-                <Input
-                  placeholder="Ej: Edificio Palermo III"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Descripción</Label>
-                <Textarea
-                  placeholder="Descripción del proyecto..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Código de obra</Label>
-                  <Input
-                    placeholder="Ej: OBR-2024-003"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Persona de contacto</Label>
-                  <Input
-                    placeholder="Nombre y apellido"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Domicilio</Label>
-                <Input
-                  placeholder="Calle y número"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Provincia</Label>
-                  <Select
-                    value={province}
-                    onValueChange={(v) => {
-                      setProvince(v);
-                      setCity("");
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar provincia..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROVINCIA_NAMES.map((p) => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Ciudad</Label>
-                  <Select
-                    value={city}
-                    onValueChange={setCity}
-                    disabled={!province}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={province ? "Seleccionar ciudad..." : "Elegí una provincia primero"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {province && PROVINCIAS[province]?.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground">* Campo obligatorio</p>
-
-              <Button type="submit" className="w-full" disabled={save.isPending}>
-                {save.isPending ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Obra"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setWizardOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva Obra
+        </Button>
       </div>
+
+      <WizardNuevaObra open={wizardOpen} onOpenChange={setWizardOpen} />
+
+      <Dialog open={editDialogOpen} onOpenChange={(o) => (o ? setEditDialogOpen(true) : closeEditDialog())}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Obra</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate();
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label>Nombre de la obra *</Label>
+              <Input
+                placeholder="Ej: Edificio Palermo III"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Descripción</Label>
+              <Textarea
+                placeholder="Descripción del proyecto..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Código de obra</Label>
+                <Input
+                  placeholder="Ej: OBR-2024-003"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Persona de contacto</Label>
+                <Input
+                  placeholder="Nombre y apellido"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Domicilio</Label>
+              <Input
+                placeholder="Calle y número"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Provincia</Label>
+                <Select
+                  value={province}
+                  onValueChange={(v) => {
+                    setProvince(v);
+                    setCity("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar provincia..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROVINCIA_NAMES.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ciudad</Label>
+                <Select
+                  value={city}
+                  onValueChange={setCity}
+                  disabled={!province}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={province ? "Seleccionar ciudad..." : "Elegí una provincia primero"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {province && PROVINCIAS[province]?.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">* Campo obligatorio</p>
+
+            <Button type="submit" className="w-full" disabled={save.isPending}>
+              {save.isPending ? "Guardando..." : "Guardar Cambios"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -338,8 +339,39 @@ export default function Obras() {
                         </span>
                       )}
                     </div>
+                    {avanceMap?.get(o.id) && (() => {
+                      const av = avanceMap.get(o.id)!;
+                      const total = Math.max(av.presupuesto, av.comprometido, 1);
+                      const pctRecibido = Math.min((av.recibido / total) * 100, 100);
+                      const pctComprometido = Math.min((av.comprometido / total) * 100, 100);
+                      return (
+                        <div className="mt-2 space-y-1">
+                          <div className="relative h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              className="absolute inset-y-0 left-0 bg-green-300 transition-all duration-500"
+                              style={{ width: `${pctComprometido}%` }}
+                            />
+                            <div
+                              className="absolute inset-y-0 left-0 bg-green-600 transition-all duration-500"
+                              style={{ width: `${pctRecibido}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                            <span>{av.itemCount} ítems</span>
+                            <span>Presup. {formatCurrency(av.presupuesto)}</span>
+                            <span>Recib. {formatCurrency(av.recibido)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to={`/obras/${o.id}`}>
+                        <LayoutDashboard className="h-4 w-4 mr-1" />
+                        Dashboard
+                      </Link>
+                    </Button>
                     <Button variant="ghost" size="sm" asChild>
                       <Link to={`/obras/${o.id}/requerimientos`}>
                         <Inbox className="h-4 w-4 mr-1" />

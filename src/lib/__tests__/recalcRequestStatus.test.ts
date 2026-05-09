@@ -59,7 +59,7 @@ describe('recalcRequestStatus', () => {
     expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
   });
 
-  it('transitions to procesado_total when all items are recibido', async () => {
+  it('transitions to recibido when all items are recibido', async () => {
     mockEq.mockResolvedValue({
       data: [{ status: 'recibido' }, { status: 'recibido' }],
       error: null,
@@ -67,10 +67,10 @@ describe('recalcRequestStatus', () => {
 
     await recalcRequestStatus('req-1', 'pendiente', 'user-1', 'comp-1', queryClient);
 
-    expect(mockUpdate).toHaveBeenCalledWith({ status: 'procesado_total' });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: 'recibido' });
     expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
       request_id: 'req-1',
-      tipo: 'procesado_total',
+      tipo: 'recibido',
     }));
     expect(queryClient.invalidateQueries).toHaveBeenCalled();
   });
@@ -81,7 +81,7 @@ describe('recalcRequestStatus', () => {
       error: null,
     });
 
-    await recalcRequestStatus('req-1', 'procesado_parcial', 'user-1', 'comp-1', queryClient);
+    await recalcRequestStatus('req-1', 'en_curso', 'user-1', 'comp-1', queryClient);
 
     expect(mockUpdate).toHaveBeenCalledWith({ status: 'pendiente' });
     expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -89,7 +89,7 @@ describe('recalcRequestStatus', () => {
     }));
   });
 
-  it('transitions to procesado_parcial for mixed items', async () => {
+  it('transitions to en_curso for mixed items', async () => {
     mockEq.mockResolvedValue({
       data: [{ status: 'sin_pedir' }, { status: 'recibido' }],
       error: null,
@@ -97,7 +97,7 @@ describe('recalcRequestStatus', () => {
 
     await recalcRequestStatus('req-1', 'pendiente', 'user-1', 'comp-1', queryClient);
 
-    expect(mockUpdate).toHaveBeenCalledWith({ status: 'procesado_parcial' });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: 'en_curso' });
   });
 
   it('does not update when computed status equals current status', async () => {
@@ -106,7 +106,7 @@ describe('recalcRequestStatus', () => {
       error: null,
     });
 
-    await recalcRequestStatus('req-1', 'procesado_parcial', 'user-1', 'comp-1', queryClient);
+    await recalcRequestStatus('req-1', 'en_curso', 'user-1', 'comp-1', queryClient);
 
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(mockInsert).not.toHaveBeenCalled();

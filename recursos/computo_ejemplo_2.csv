@@ -1,0 +1,41 @@
+Rubro,Descripcion,Unidad,Cantidad,Precio Unitario,Subtotal
+Estructura,Cemento Portland CPN40 x 50kg,bolsa,250,8500,2125000
+Estructura,Arena gruesa,m3,60,18000,1080000
+Estructura,Piedra partida 6/20,m3,40,22000,880000
+Estructura,Hierro ADN420 diam 6mm x 12m,barra,300,6800,2040000
+Estructura,Hierro ADN420 diam 8mm x 12m,barra,250,9200,2300000
+Estructura,Hierro ADN420 diam 12mm x 12m,barra,180,21000,3780000
+Estructura,Alambre de atar N17,kg,40,4800,192000
+Estructura,Tabla de encofrado 1x4x3m,u,80,5500,440000
+Mamposteria,Ladrillo hueco 18x18x33,u,8000,185,1480000
+Mamposteria,Ladrillo hueco 8x18x33,u,4000,120,480000
+Mamposteria,Ladrillo comun,u,3000,65,195000
+Mamposteria,Cal hidraulica x 30kg,bolsa,120,6200,744000
+Mamposteria,Cemento de albañileria x 40kg,bolsa,90,7100,639000
+Mamposteria,Mezcla adhesiva x 30kg,bolsa,80,5800,464000
+Instalacion sanitaria,Cano PPL termofusion 20mm x 4m,barra,60,3200,192000
+Instalacion sanitaria,Cano PPL termofusion 25mm x 4m,barra,35,4100,143500
+Instalacion sanitaria,Cano PPL termofusion 32mm x 4m,barra,15,5600,84000
+Instalacion sanitaria,Cano PVC 110mm x 4m,barra,20,12500,250000
+Instalacion sanitaria,Cano PVC 63mm x 4m,barra,18,7800,140400
+Instalacion sanitaria,Inodoro deposito apoyo blanco,u,3,62000,186000
+Instalacion sanitaria,Vanitory 60cm con mesada,u,3,85000,255000
+Instalacion electrica,Cable unipolar 2.5mm rojo x 100m,rollo,8,42000,336000
+Instalacion electrica,Cable unipolar 2.5mm celeste x 100m,rollo,8,42000,336000
+Instalacion electrica,Cable unipolar 4mm verde/amarillo x 100m,rollo,5,58000,290000
+Instalacion electrica,Cable unipolar 6mm x 100m,rollo,3,78000,234000
+Instalacion electrica,Tablero 18 bocas,u,1,48000,48000
+Instalacion electrica,Termica bipolar 20A,u,6,12000,72000
+Instalacion electrica,Disyuntor diferencial 40A,u,2,35000,70000
+Terminaciones,Membrana asfaltica 4mm x 10m2,rollo,30,32000,960000
+Terminaciones,Pintura latex interior x 20lts,lata,18,48000,864000
+Terminaciones,Pintura latex exterior x 20lts,lata,8,55000,440000
+Terminaciones,Ceramica piso 45x45 1era,m2,120,8900,1068000
+Terminaciones,Ceramica pared 30x45,m2,65,7500,487500
+Terminaciones,Pegamento ceramico x 30kg,bolsa,60,5200,312000
+Terminaciones,Pastina x 5kg,bolsa,25,3800,95000
+Carpinteria,Puerta placa interior 70cm,u,6,45000,270000
+Carpinteria,Puerta placa interior 80cm,u,3,48000,144000
+Carpinteria,Ventana aluminio corrediza 150x110,u,4,185000,740000
+Carpinteria,Ventana aluminio corrediza 120x110,u,3,155000,465000
+Carpinteria,Puerta ventana aluminio 200x200,u,2,320000,640000

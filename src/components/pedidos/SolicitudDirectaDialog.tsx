@@ -91,7 +91,7 @@ export function SolicitudDirectaDialog({
 
       await supabase
         .from("requests")
-        .update({ status: "procesado_total" as any })
+        .update({ status: "recibido" as any })
         .eq("id", requestId);
 
       try {

@@ -72,8 +72,8 @@ export function KanbanBoard({
   const columns = useMemo(() => {
     const grouped: Record<RequestStatus, RequestWithItems[]> = {
       pendiente: [],
-      procesado_parcial: [],
-      procesado_total: [],
+      en_curso: [],
+      recibido: [],
       rechazado: [],
     };
     for (const req of filtered) {
@@ -149,6 +149,8 @@ export function KanbanBoard({
     );
   }
 
+  const totalCount = filtered.length;
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="grid grid-cols-4 gap-4">
@@ -162,6 +164,16 @@ export function KanbanBoard({
             onCardClick={onCardClick}
           />
         ))}
+      </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t mt-4">
+        <span>{totalCount} requerimiento{totalCount !== 1 ? 's' : ''}</span>
+        <div className="flex gap-4">
+          {KANBAN_COLUMNS.map(col => (
+            <span key={col.status}>
+              {col.title}: {columns[col.status].length}
+            </span>
+          ))}
+        </div>
       </div>
       <DragOverlay>
         {activeRequest && (

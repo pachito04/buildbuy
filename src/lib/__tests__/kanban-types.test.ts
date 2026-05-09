@@ -19,51 +19,51 @@ describe('getTransitionType', () => {
   });
 
   it('returns BLOCK for any transition FROM rechazado', () => {
-    const targets: RequestStatus[] = ['pendiente', 'procesado_parcial', 'procesado_total'];
+    const targets: RequestStatus[] = ['pendiente', 'en_curso', 'recibido'];
     for (const to of targets) {
       expect(getTransitionType('rechazado', to)).toBe('BLOCK');
     }
   });
 
   it('returns MODAL for any transition TO rechazado', () => {
-    const sources: RequestStatus[] = ['pendiente', 'procesado_parcial', 'procesado_total'];
+    const sources: RequestStatus[] = ['pendiente', 'en_curso', 'recibido'];
     for (const from of sources) {
       expect(getTransitionType(from, 'rechazado')).toBe('MODAL');
     }
   });
 
-  it('returns BLOCK for transitions FROM procesado_total (except to rechazado)', () => {
-    expect(getTransitionType('procesado_total', 'pendiente')).toBe('BLOCK');
-    expect(getTransitionType('procesado_total', 'procesado_parcial')).toBe('BLOCK');
+  it('returns BLOCK for transitions FROM recibido (except to rechazado)', () => {
+    expect(getTransitionType('recibido', 'pendiente')).toBe('BLOCK');
+    expect(getTransitionType('recibido', 'en_curso')).toBe('BLOCK');
   });
 
-  it('returns VALIDATED for transitions TO procesado_total', () => {
-    expect(getTransitionType('pendiente', 'procesado_total')).toBe('VALIDATED');
-    expect(getTransitionType('procesado_parcial', 'procesado_total')).toBe('VALIDATED');
+  it('returns VALIDATED for transitions TO recibido', () => {
+    expect(getTransitionType('pendiente', 'recibido')).toBe('VALIDATED');
+    expect(getTransitionType('en_curso', 'recibido')).toBe('VALIDATED');
   });
 
-  it('returns ALLOW for pendiente <-> procesado_parcial', () => {
-    expect(getTransitionType('pendiente', 'procesado_parcial')).toBe('ALLOW');
-    expect(getTransitionType('procesado_parcial', 'pendiente')).toBe('ALLOW');
+  it('returns ALLOW for pendiente <-> en_curso', () => {
+    expect(getTransitionType('pendiente', 'en_curso')).toBe('ALLOW');
+    expect(getTransitionType('en_curso', 'pendiente')).toBe('ALLOW');
   });
 
   it('covers all 16 from×to combinations', () => {
     const expected: Record<string, string> = {
       'pendiente->pendiente': 'NOOP',
-      'pendiente->procesado_parcial': 'ALLOW',
-      'pendiente->procesado_total': 'VALIDATED',
+      'pendiente->en_curso': 'ALLOW',
+      'pendiente->recibido': 'VALIDATED',
       'pendiente->rechazado': 'MODAL',
-      'procesado_parcial->pendiente': 'ALLOW',
-      'procesado_parcial->procesado_parcial': 'NOOP',
-      'procesado_parcial->procesado_total': 'VALIDATED',
-      'procesado_parcial->rechazado': 'MODAL',
-      'procesado_total->pendiente': 'BLOCK',
-      'procesado_total->procesado_parcial': 'BLOCK',
-      'procesado_total->procesado_total': 'NOOP',
-      'procesado_total->rechazado': 'MODAL',
+      'en_curso->pendiente': 'ALLOW',
+      'en_curso->en_curso': 'NOOP',
+      'en_curso->recibido': 'VALIDATED',
+      'en_curso->rechazado': 'MODAL',
+      'recibido->pendiente': 'BLOCK',
+      'recibido->en_curso': 'BLOCK',
+      'recibido->recibido': 'NOOP',
+      'recibido->rechazado': 'MODAL',
       'rechazado->pendiente': 'BLOCK',
-      'rechazado->procesado_parcial': 'BLOCK',
-      'rechazado->procesado_total': 'BLOCK',
+      'rechazado->en_curso': 'BLOCK',
+      'rechazado->recibido': 'BLOCK',
       'rechazado->rechazado': 'NOOP',
     };
 
@@ -80,7 +80,7 @@ describe('constants', () => {
   it('REQUEST_STATUSES has exactly 4 values', () => {
     expect(REQUEST_STATUSES).toHaveLength(4);
     expect(REQUEST_STATUSES).toEqual([
-      'pendiente', 'procesado_parcial', 'procesado_total', 'rechazado',
+      'pendiente', 'en_curso', 'recibido', 'rechazado',
     ]);
   });
 
@@ -114,8 +114,8 @@ describe('constants', () => {
   it('KANBAN_COLUMNS has 4 columns in correct order', () => {
     expect(KANBAN_COLUMNS).toHaveLength(4);
     expect(KANBAN_COLUMNS[0].status).toBe('pendiente');
-    expect(KANBAN_COLUMNS[1].status).toBe('procesado_parcial');
-    expect(KANBAN_COLUMNS[2].status).toBe('procesado_total');
+    expect(KANBAN_COLUMNS[1].status).toBe('en_curso');
+    expect(KANBAN_COLUMNS[2].status).toBe('recibido');
     expect(KANBAN_COLUMNS[3].status).toBe('rechazado');
   });
 

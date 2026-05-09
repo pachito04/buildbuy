@@ -26,10 +26,10 @@ export async function recalcRequestStatus(
   const allSinPedir = items.every(i => i.status === 'sin_pedir');
 
   const newStatus = allRecibido
-    ? 'procesado_total'
+    ? 'recibido'
     : allSinPedir
       ? 'pendiente'
-      : 'procesado_parcial';
+      : 'en_curso';
 
   if (newStatus === currentStatus) {
     queryClient.invalidateQueries({ queryKey: ['requests', companyId] });

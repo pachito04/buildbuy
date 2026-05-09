@@ -135,7 +135,7 @@ export function SurtidoDialog({
         rfqCreated = true;
       }
 
-      const newStatus = allFullyStocked ? "procesado_total" : "procesado_parcial";
+      const newStatus = allFullyStocked ? "recibido" : "en_curso";
       const { error: stErr } = await supabase
         .from("requests")
         .update({ status: newStatus as any })

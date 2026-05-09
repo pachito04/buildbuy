@@ -23,8 +23,8 @@ import {
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pendiente: { label: "Pendiente", variant: "outline" },
-  procesado_parcial: { label: "Procesado parcial", variant: "outline" },
-  procesado_total: { label: "Procesado total", variant: "default" },
+  en_curso: { label: "En curso", variant: "outline" },
+  recibido: { label: "Recibido", variant: "default" },
   rechazado: { label: "Rechazado", variant: "destructive" },
   open: { label: "Abierto", variant: "default" },
   closed: { label: "Cerrado", variant: "secondary" },

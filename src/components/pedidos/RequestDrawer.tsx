@@ -78,11 +78,11 @@ export function RequestDrawer({ requestId, onClose, onReject, onSurtir, onSolici
   const isLoading = loadingDetail || loadingEvents;
   const canProcess = role === 'compras' || role === 'admin';
   const canReject = canProcess &&
-    request && (request.status === 'pendiente' || request.status === 'procesado_parcial');
+    request && (request.status === 'pendiente' || request.status === 'en_curso');
   const canSurtir = canProcess &&
-    request && (request.status === 'pendiente' || request.status === 'procesado_parcial');
+    request && (request.status === 'pendiente' || request.status === 'en_curso');
   const canSolicitud = canProcess &&
-    request && (request.status === 'pendiente' || request.status === 'procesado_parcial');
+    request && (request.status === 'pendiente' || request.status === 'en_curso');
 
   return (
     <Sheet open={!!requestId} onOpenChange={(open) => !open && onClose()}>
@@ -147,7 +147,7 @@ export function RequestDrawer({ requestId, onClose, onReject, onSurtir, onSolici
               <ActivityTimeline events={events} />
             </div>
 
-            {canProcess && request.status !== 'rechazado' && request.status !== 'procesado_total' && (
+            {canProcess && request.status !== 'rechazado' && request.status !== 'recibido' && (
               <>
                 <Separator />
                 <div className="space-y-2">

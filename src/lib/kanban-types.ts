@@ -1,9 +1,9 @@
-export type RequestStatus = 'pendiente' | 'procesado_parcial' | 'procesado_total' | 'rechazado';
+export type RequestStatus = 'pendiente' | 'en_curso' | 'recibido' | 'rechazado';
 
 export const REQUEST_STATUSES: readonly RequestStatus[] = [
   'pendiente',
-  'procesado_parcial',
-  'procesado_total',
+  'en_curso',
+  'recibido',
   'rechazado',
 ] as const;
 
@@ -18,8 +18,8 @@ export const ITEM_SUB_STATES: readonly ItemSubState[] = [
 
 export const STATUS_LABELS: Record<RequestStatus, string> = {
   pendiente: 'Pendiente',
-  procesado_parcial: 'Procesado parcial',
-  procesado_total: 'Procesado total',
+  en_curso: 'En curso',
+  recibido: 'Recibido',
   rechazado: 'Rechazado',
 };
 
@@ -27,10 +27,10 @@ export const STATUS_BADGE_VARIANTS: Record<
   RequestStatus,
   { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }
 > = {
-  pendiente:         { variant: 'outline' },
-  procesado_parcial: { variant: 'outline', className: 'bg-amber-100 text-amber-800 border-amber-300' },
-  procesado_total:   { variant: 'default', className: 'bg-green-600 text-white border-green-600 hover:bg-green-600' },
-  rechazado:         { variant: 'destructive' },
+  pendiente: { variant: 'outline' },
+  en_curso:  { variant: 'outline', className: 'bg-amber-100 text-amber-800 border-amber-300' },
+  recibido:  { variant: 'default', className: 'bg-green-600 text-white border-green-600 hover:bg-green-600' },
+  rechazado: { variant: 'destructive' },
 };
 
 export const ITEM_SUB_STATE_COLORS: Record<ItemSubState, { bg: string; label: string }> = {
@@ -47,10 +47,10 @@ export interface KanbanColumnConfig {
 }
 
 export const KANBAN_COLUMNS: readonly KanbanColumnConfig[] = [
-  { status: 'pendiente',         title: 'Pendiente',         headerColor: 'border-gray-400' },
-  { status: 'procesado_parcial', title: 'Procesado parcial', headerColor: 'border-amber-400' },
-  { status: 'procesado_total',   title: 'Procesado total',   headerColor: 'border-green-500' },
-  { status: 'rechazado',         title: 'Rechazado',         headerColor: 'border-red-500' },
+  { status: 'pendiente', title: 'Pendiente', headerColor: 'border-gray-400' },
+  { status: 'en_curso',  title: 'En curso',  headerColor: 'border-amber-400' },
+  { status: 'recibido',  title: 'Recibido',  headerColor: 'border-green-500' },
+  { status: 'rechazado', title: 'Rechazado', headerColor: 'border-red-500' },
 ] as const;
 
 export type TransitionResult = 'ALLOW' | 'VALIDATED' | 'MODAL' | 'BLOCK' | 'NOOP';
@@ -59,8 +59,8 @@ export function getTransitionType(from: RequestStatus, to: RequestStatus): Trans
   if (from === to) return 'NOOP';
   if (from === 'rechazado') return 'BLOCK';
   if (to === 'rechazado') return 'MODAL';
-  if (from === 'procesado_total') return 'BLOCK';
-  if (to === 'procesado_total') return 'VALIDATED';
+  if (from === 'recibido') return 'BLOCK';
+  if (to === 'recibido') return 'VALIDATED';
   return 'ALLOW';
 }
 

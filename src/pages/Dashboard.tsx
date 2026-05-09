@@ -8,8 +8,8 @@ import { Inbox, Layers, FileText, ShoppingCart, Clock, CheckCircle } from "lucid
 
 const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
   pendiente:           { label: "Pendiente",             variant: "outline"     },
-  procesado_parcial:   { label: "Procesado parcial",     variant: "outline", className: "bg-amber-100 text-amber-800 border-amber-300" },
-  procesado_total:     { label: "Procesado total",       variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  en_curso:            { label: "En curso",               variant: "outline", className: "bg-amber-100 text-amber-800 border-amber-300" },
+  recibido:            { label: "Recibido",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
   rechazado:           { label: "Rechazado",             variant: "destructive" },
 };
 
@@ -38,7 +38,7 @@ export default function Dashboard() {
       let query = supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .eq("status", "procesado_parcial" as any);
+        .eq("status", "en_curso" as any);
       if (role === "arquitecto") query = query.eq("created_by", user!.id);
       const { count } = await query;
       return count || 0;
@@ -52,7 +52,7 @@ export default function Dashboard() {
       let query = supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .eq("status", "procesado_total" as any);
+        .eq("status", "recibido" as any);
       if (role === "arquitecto") query = query.eq("created_by", user!.id);
       const { count } = await query;
       return count || 0;

@@ -97,6 +97,108 @@ export type Database = {
         }
         Relationships: []
       }
+      computo: {
+        Row: {
+          id: string
+          project_id: string
+          version: number
+          archivo_origen: string | null
+          archivo_url: string | null
+          total_estimado: number
+          activo: boolean
+          created_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          version?: number
+          archivo_origen?: string | null
+          archivo_url?: string | null
+          total_estimado?: number
+          activo?: boolean
+          created_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          version?: number
+          archivo_origen?: string | null
+          archivo_url?: string | null
+          total_estimado?: number
+          activo?: boolean
+          created_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "computo_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      computo_item: {
+        Row: {
+          id: string
+          computo_id: string
+          rubro: string
+          descripcion_origen: string
+          material_id: string | null
+          unidad: string
+          cantidad_estimada: number
+          precio_unit_estimado: number
+          subtotal_estimado: number
+          agregado_retroactivamente: boolean
+          orden_dentro_rubro: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          computo_id: string
+          rubro: string
+          descripcion_origen: string
+          material_id?: string | null
+          unidad: string
+          cantidad_estimada?: number
+          precio_unit_estimado?: number
+          agregado_retroactivamente?: boolean
+          orden_dentro_rubro?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          computo_id?: string
+          rubro?: string
+          descripcion_origen?: string
+          material_id?: string | null
+          unidad?: string
+          cantidad_estimada?: number
+          precio_unit_estimado?: number
+          agregado_retroactivamente?: boolean
+          orden_dentro_rubro?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "computo_item_computo_id_fkey"
+            columns: ["computo_id"]
+            isOneToOne: false
+            referencedRelation: "computo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "computo_item_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory: {
         Row: {
           company_id: string
@@ -733,8 +835,10 @@ export type Database = {
       }
       purchase_order_items: {
         Row: {
+          computo_item_id: string | null
           created_at: string
           description: string
+          factor_conversion: number
           id: string
           material_id: string | null
           purchase_order_id: string
@@ -746,8 +850,10 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          computo_item_id?: string | null
           created_at?: string
           description: string
+          factor_conversion?: number
           id?: string
           material_id?: string | null
           purchase_order_id: string
@@ -759,8 +865,10 @@ export type Database = {
           unit_price: number
         }
         Update: {
+          computo_item_id?: string | null
           created_at?: string
           description?: string
+          factor_conversion?: number
           id?: string
           material_id?: string | null
           purchase_order_id?: string
@@ -772,6 +880,13 @@ export type Database = {
           unit_price?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_computo_item_id_fkey"
+            columns: ["computo_item_id"]
+            isOneToOne: false
+            referencedRelation: "computo_item"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_order_items_material_id_fkey"
             columns: ["material_id"]
@@ -1065,6 +1180,7 @@ export type Database = {
       }
       remito_items: {
         Row: {
+          computo_item_id: string | null
           delivered: boolean
           id: string
           material_id: string
@@ -1074,6 +1190,7 @@ export type Database = {
           request_item_id: string | null
         }
         Insert: {
+          computo_item_id?: string | null
           delivered?: boolean
           id?: string
           material_id: string
@@ -1083,6 +1200,7 @@ export type Database = {
           request_item_id?: string | null
         }
         Update: {
+          computo_item_id?: string | null
           delivered?: boolean
           id?: string
           material_id?: string
@@ -1092,6 +1210,13 @@ export type Database = {
           request_item_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "remito_items_computo_item_id_fkey"
+            columns: ["computo_item_id"]
+            isOneToOne: false
+            referencedRelation: "computo_item"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "remito_items_material_id_fkey"
             columns: ["material_id"]
@@ -1701,6 +1826,16 @@ export type Database = {
         Returns: string
       }
       onboard_join_with_code: { Args: { p_code: string }; Returns: string }
+      match_materials: {
+        Args: { p_company_id: string; p_descriptions: string[] }
+        Returns: {
+          descripcion: string
+          material_id: string | null
+          material_name: string | null
+          material_unit: string | null
+          similarity_score: number
+        }[]
+      }
     }
     Enums: {
       app_role:
@@ -1738,8 +1873,8 @@ export type Database = {
         | "cancelado"
       request_status:
         | "pendiente"
-        | "procesado_parcial"
-        | "procesado_total"
+        | "en_curso"
+        | "recibido"
         | "rechazado"
       rfq_status: "draft" | "sent" | "responded" | "closed"
     }
@@ -1907,8 +2042,8 @@ export const Constants = {
       ],
       request_status: [
         "pendiente",
-        "procesado_parcial",
-        "procesado_total",
+        "en_curso",
+        "recibido",
         "rechazado",
       ],
       rfq_status: ["draft", "sent", "responded", "closed"],

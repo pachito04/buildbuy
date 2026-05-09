@@ -14,8 +14,8 @@ import type { TimelineEvent } from "@/lib/kanban-types";
 const EVENT_CONFIG: Record<string, { icon: LucideIcon; color: string; label: string }> = {
   creado:            { icon: FileText,      color: 'text-gray-500',  label: 'Requerimiento creado' },
   pendiente:         { icon: Clock,         color: 'text-gray-500',  label: 'Movido a Pendiente' },
-  procesado_parcial: { icon: Layers,        color: 'text-amber-500', label: 'Procesado parcial' },
-  procesado_total:   { icon: CheckCircle,   color: 'text-green-500', label: 'Procesado total' },
+  en_curso:          { icon: Layers,        color: 'text-amber-500', label: 'En curso' },
+  recibido:          { icon: CheckCircle,   color: 'text-green-500', label: 'Recibido' },
   rechazado:         { icon: XCircle,       color: 'text-red-500',   label: 'Rechazado' },
   item_actualizado:  { icon: Package,       color: 'text-blue-500',  label: 'Item actualizado' },
   nota:              { icon: MessageSquare,  color: 'text-gray-500',  label: 'Nota' },

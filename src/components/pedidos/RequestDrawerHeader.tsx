@@ -11,6 +11,38 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+function getDiasRestantes(dateStr: string | null, status: string): {
+  text: string;
+  className: string;
+} | null {
+  if (!dateStr) return null;
+
+  if (status === 'recibido') {
+    const d = new Date(dateStr);
+    return {
+      text: `Entregado ${d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`,
+      className: 'text-muted-foreground',
+    };
+  }
+
+  if (status === 'rechazado') return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr);
+  target.setHours(0, 0, 0, 0);
+  const diffMs = target.getTime() - today.getTime();
+  const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (days < 0) {
+    return { text: `Atrasado ${Math.abs(days)} días`, className: 'text-red-600 font-medium' };
+  }
+  if (days <= 3) {
+    return { text: `${days} días restantes`, className: 'text-red-600 font-medium' };
+  }
+  return { text: `${days} días restantes`, className: 'text-muted-foreground' };
+}
+
 function formatRequestNumber(num: number): string {
   return `REQ-${num.toString().padStart(4, '0')}`;
 }
@@ -48,6 +80,12 @@ export function RequestDrawerHeader({ request }: RequestDrawerHeaderProps) {
         <div>
           <span className="text-muted-foreground">Entrega: </span>
           <span>{formatDate(request.desired_date)}</span>
+          {(() => {
+            const dias = getDiasRestantes(request.desired_date, request.status);
+            return dias ? (
+              <span className={`ml-2 text-xs ${dias.className}`}>({dias.text})</span>
+            ) : null;
+          })()}
         </div>
       </div>
 
