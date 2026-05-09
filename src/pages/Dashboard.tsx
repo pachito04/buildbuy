@@ -4,98 +4,69 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Inbox, Layers, FileText, ShoppingCart, Clock, Send, CheckCircle } from "lucide-react";
+import { Inbox, Layers, FileText, ShoppingCart, Clock, CheckCircle } from "lucide-react";
 
 const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
-  draft:               { label: "Borrador",              variant: "secondary"   },
-  pending_approval:    { label: "Pendiente",             variant: "outline"     },
-  approved:            { label: "Aprobado",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  in_pool:             { label: "En proceso",            variant: "outline"     },
-  rfq_direct:          { label: "En proceso",            variant: "outline"     },
-  inventario:          { label: "En proceso",            variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  procesado_parcial:   { label: "En proceso",            variant: "outline"     },
-  rejected:            { label: "Rechazado",             variant: "destructive" },
+  pendiente:           { label: "Pendiente",             variant: "outline"     },
+  procesado_parcial:   { label: "Procesado parcial",     variant: "outline", className: "bg-amber-100 text-amber-800 border-amber-300" },
+  procesado_total:     { label: "Procesado total",       variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
+  rechazado:           { label: "Rechazado",             variant: "destructive" },
 };
 
 export default function Dashboard() {
   const { viewRole: role } = useViewRole();
   const { user } = useAuth();
 
-  const { data: draftCount } = useQuery({
-    queryKey: ["dashboard-drafts", user?.id],
-    enabled: role === "arquitecto" && !!user?.id,
+  const { data: pendienteCount } = useQuery({
+    queryKey: ["dashboard-pendiente", role, user?.id],
+    enabled: !!role && !!user?.id,
     queryFn: async () => {
-      const { count } = await supabase
+      let query = supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .eq("status", "draft")
-        .eq("created_by", user!.id);
+        .eq("status", "pendiente" as any);
+      if (role === "arquitecto") query = query.eq("created_by", user!.id);
+      const { count } = await query;
       return count || 0;
     },
   });
 
-  const { data: arqPendingCount } = useQuery({
-    queryKey: ["dashboard-arq-pending", user?.id],
-    enabled: role === "arquitecto" && !!user?.id,
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("requests")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pending_approval")
-        .eq("created_by", user!.id);
-      return count || 0;
-    },
-  });
-
-  // Compras/admin: Pendientes (pending_approval + approved)
-  const { data: pendingApprovalCount } = useQuery({
-    queryKey: ["dashboard-pending-approval", role],
-    enabled: (role === "compras" || role === "admin") && !!role,
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("requests")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["pending_approval", "approved"]);
-      return count || 0;
-    },
-  });
-
-  // Compras/admin: Procesado parcial
   const { data: parcialCount } = useQuery({
-    queryKey: ["dashboard-parcial", role],
-    enabled: (role === "compras" || role === "admin") && !!role,
+    queryKey: ["dashboard-parcial", role, user?.id],
+    enabled: !!role && !!user?.id,
     queryFn: async () => {
-      const { count } = await supabase
+      let query = supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .eq("status", "procesado_parcial");
+        .eq("status", "procesado_parcial" as any);
+      if (role === "arquitecto") query = query.eq("created_by", user!.id);
+      const { count } = await query;
       return count || 0;
     },
   });
 
-  // Compras/admin: Procesado total
   const { data: totalCount } = useQuery({
-    queryKey: ["dashboard-total", role],
+    queryKey: ["dashboard-total", role, user?.id],
+    enabled: !!role && !!user?.id,
+    queryFn: async () => {
+      let query = supabase
+        .from("requests")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "procesado_total" as any);
+      if (role === "arquitecto") query = query.eq("created_by", user!.id);
+      const { count } = await query;
+      return count || 0;
+    },
+  });
+
+  const { data: rechazadoCount } = useQuery({
+    queryKey: ["dashboard-rechazado", role, user?.id],
     enabled: (role === "compras" || role === "admin") && !!role,
     queryFn: async () => {
       const { count } = await supabase
         .from("requests")
         .select("*", { count: "exact", head: true })
-        .in("status", ["inventario", "rfq_direct", "in_pool"]);
-      return count || 0;
-    },
-  });
-
-  // En Proceso — arquitecto only
-  const { data: inProgressCount } = useQuery({
-    queryKey: ["dashboard-inprogress", role, user?.id],
-    enabled: role === "arquitecto" && !!user?.id,
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("requests")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["approved", "in_pool", "rfq_direct", "inventario", "procesado_parcial"])
-        .eq("created_by", user!.id);
+        .eq("status", "rechazado" as any);
       return count || 0;
     },
   });
@@ -187,7 +158,7 @@ export default function Dashboard() {
       let query = supabase
         .from("requests")
         .select(
-          "id, status, urgency, raw_message, created_at, updated_at, request_number, projects:project_id(name), architects:architect_id(full_name)"
+          "id, status, urgente, raw_message, created_at, updated_at, request_number, projects:project_id(name), architects:architect_id(full_name)"
         )
         .order("updated_at", { ascending: false })
         .limit(5);
@@ -211,27 +182,27 @@ export default function Dashboard() {
   const stats = [];
   if (role === "arquitecto") {
     stats.push({
-      label: "Mis Borradores",
-      value: draftCount ?? "—",
+      label: "Pendientes",
+      value: pendienteCount ?? "—",
       icon: Inbox,
-      color: "text-muted-foreground",
+      color: "text-primary",
     });
     stats.push({
-      label: "Pendientes de Aprobación",
-      value: arqPendingCount ?? "—",
-      icon: Send,
+      label: "Procesado Parcial",
+      value: parcialCount ?? "—",
+      icon: Clock,
       color: "text-warning",
     });
     stats.push({
-      label: "En Proceso",
-      value: inProgressCount ?? "—",
-      icon: Clock,
-      color: "text-primary",
+      label: "Procesado Total",
+      value: totalCount ?? "—",
+      icon: CheckCircle,
+      color: "text-green-600",
     });
   } else if (role !== "proveedor") {
     stats.push({
-      label: "Requerimientos Pendientes",
-      value: pendingApprovalCount ?? "—",
+      label: "Pendientes",
+      value: pendienteCount ?? "—",
       icon: Inbox,
       color: "text-primary",
     });

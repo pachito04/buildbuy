@@ -22,11 +22,10 @@ import {
 } from "lucide-react";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft: { label: "Borrador", variant: "secondary" },
-  approved: { label: "Aprobado", variant: "default" },
-  in_pool: { label: "En Pool", variant: "outline" },
-  rfq_direct: { label: "Solicitud Directa", variant: "outline" },
-  rejected: { label: "Rechazado", variant: "destructive" },
+  pendiente: { label: "Pendiente", variant: "outline" },
+  procesado_parcial: { label: "Procesado parcial", variant: "outline" },
+  procesado_total: { label: "Procesado total", variant: "default" },
+  rechazado: { label: "Rechazado", variant: "destructive" },
   open: { label: "Abierto", variant: "default" },
   closed: { label: "Cerrado", variant: "secondary" },
   quoting: { label: "Cotizando", variant: "outline" },

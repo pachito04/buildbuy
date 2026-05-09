@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider, RequireAuth, useAuth } from "./hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -11,8 +11,6 @@ import { AwardCartProvider } from "@/contexts/AwardCartContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Pedidos from "./pages/Pedidos";
-import PedidosObra from "./pages/PedidosObra";
-import PedidoDetallePage from "./pages/PedidoDetallePage";
 import Pools from "./pages/Pools";
 import RFQs from "./pages/RFQs";
 import Cotizaciones from "./pages/Cotizaciones";
@@ -75,10 +73,9 @@ const App = () => (
             />
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/pedidos" element={<Pedidos />} />
-              <Route path="/pedidos/:requestId" element={<PedidoDetallePage />} />
-              <Route path="/pedidos/obra/:obraId" element={<PedidosObra />} />
-              <Route path="/pedidos/obra/:obraId/:requestId" element={<PedidoDetallePage />} />
+              <Route path="/requerimientos" element={<Pedidos />} />
+              <Route path="/obras/:obraId/requerimientos" element={<Pedidos />} />
+              <Route path="/pedidos" element={<Navigate to="/requerimientos" replace />} />
               <Route path="/inventario" element={<Inventario />} />
               <Route path="/pools" element={<Pools />} />
               <Route path="/rfqs" element={<RFQs />} />

@@ -1172,6 +1172,44 @@ export type Database = {
           },
         ]
       }
+      requerimiento_evento: {
+        Row: {
+          id: string
+          request_id: string
+          created_at: string
+          created_by: string | null
+          tipo: string
+          descripcion: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          created_at?: string
+          created_by?: string | null
+          tipo: string
+          descripcion?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          created_at?: string
+          created_by?: string | null
+          tipo?: string
+          descripcion?: string | null
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "requerimiento_evento_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       request_items: {
         Row: {
           created_at: string
@@ -1181,6 +1219,8 @@ export type Database = {
           material_id: string | null
           observations: string | null
           quantity: number
+          quantity_ordered: number
+          quantity_received: number
           request_id: string
           status: string
           unit: string
@@ -1193,6 +1233,8 @@ export type Database = {
           material_id?: string | null
           observations?: string | null
           quantity: number
+          quantity_ordered?: number
+          quantity_received?: number
           request_id: string
           status?: string
           unit: string
@@ -1205,6 +1247,8 @@ export type Database = {
           material_id?: string | null
           observations?: string | null
           quantity?: number
+          quantity_ordered?: number
+          quantity_received?: number
           request_id?: string
           status?: string
           unit?: string
@@ -1234,14 +1278,18 @@ export type Database = {
           created_by: string | null
           desired_date: string | null
           id: string
+          motivo_rechazo: string | null
+          nota_rechazo: string | null
           observations: string | null
           project_id: string | null
           raw_message: string | null
+          rechazado_at: string | null
+          rechazado_by: string | null
           request_number: number
           requires_review: boolean
           status: Database["public"]["Enums"]["request_status"]
           updated_at: string
-          urgency: string | null
+          urgente: boolean
           whatsapp_message_id: string | null
         }
         Insert: {
@@ -1251,14 +1299,18 @@ export type Database = {
           created_by?: string | null
           desired_date?: string | null
           id?: string
+          motivo_rechazo?: string | null
+          nota_rechazo?: string | null
           observations?: string | null
           project_id?: string | null
           raw_message?: string | null
+          rechazado_at?: string | null
+          rechazado_by?: string | null
           request_number?: number
           requires_review?: boolean
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
-          urgency?: string | null
+          urgente?: boolean
           whatsapp_message_id?: string | null
         }
         Update: {
@@ -1268,14 +1320,18 @@ export type Database = {
           created_by?: string | null
           desired_date?: string | null
           id?: string
+          motivo_rechazo?: string | null
+          nota_rechazo?: string | null
           observations?: string | null
           project_id?: string | null
           raw_message?: string | null
+          rechazado_at?: string | null
+          rechazado_by?: string | null
           request_number?: number
           requires_review?: boolean
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
-          urgency?: string | null
+          urgente?: boolean
           whatsapp_message_id?: string | null
         }
         Relationships: [
@@ -1681,12 +1737,10 @@ export type Database = {
         | "entregado"
         | "cancelado"
       request_status:
-        | "draft"
-        | "approved"
-        | "in_pool"
-        | "rfq_direct"
-        | "rejected"
-        | "inventario"
+        | "pendiente"
+        | "procesado_parcial"
+        | "procesado_total"
+        | "rechazado"
       rfq_status: "draft" | "sent" | "responded" | "closed"
     }
     CompositeTypes: {
@@ -1852,12 +1906,10 @@ export const Constants = {
         "cancelado",
       ],
       request_status: [
-        "draft",
-        "approved",
-        "in_pool",
-        "rfq_direct",
-        "rejected",
-        "inventario",
+        "pendiente",
+        "procesado_parcial",
+        "procesado_total",
+        "rechazado",
       ],
       rfq_status: ["draft", "sent", "responded", "closed"],
     },

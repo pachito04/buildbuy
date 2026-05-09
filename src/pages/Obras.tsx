@@ -23,7 +23,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Building2, Search, MapPin, User } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Search, MapPin, User, Inbox } from "lucide-react";
+import { Link } from "react-router-dom";
 import { PROVINCIAS, PROVINCIA_NAMES } from "@/data/argentina-geo";
 
 type Obra = {
@@ -338,7 +339,13 @@ export default function Obras() {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to={`/obras/${o.id}/requerimientos`}>
+                        <Inbox className="h-4 w-4 mr-1" />
+                        Requerimientos
+                      </Link>
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(o)}>
                       <Pencil className="h-4 w-4" />
                     </Button>

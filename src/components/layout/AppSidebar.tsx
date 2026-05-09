@@ -33,7 +33,7 @@ const allRoles: AppRole[] = ["arquitecto", "compras", "proveedor", "admin"];
 
 const navItems: NavItem[] = [
   { to: "/dashboard",    label: "Dashboard",        icon: LayoutDashboard, roles: allRoles },
-  { to: "/pedidos",      label: "Requerimientos",    icon: Inbox,           roles: ["arquitecto", "compras", "admin"] },
+  { to: "/requerimientos", label: "Requerimientos",  icon: Inbox,           roles: ["arquitecto", "compras", "admin"] },
   { to: "/rfqs",         label: "Solicitudes",       icon: FileText,        roles: ["compras", "admin"] },
   { to: "/cotizaciones", label: "Cotizaciones",      icon: BarChart3,       roles: ["compras", "proveedor", "admin"] },
   { to: "/pools",        label: "Pools de Compra",   icon: Layers,          roles: ["compras", "admin"] },
@@ -74,7 +74,9 @@ export function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {visibleItems.map((item) => {
-          const isActive = location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+          const isActive = location.pathname === item.to ||
+            location.pathname.startsWith(item.to + "/") ||
+            (item.to === '/requerimientos' && location.pathname.includes('/requerimientos'));
           return (
             <NavLink
               key={item.to}
@@ -87,9 +89,7 @@ export function AppSidebar() {
               )}
             >
               <item.icon className="h-4 w-4 shrink-0" />
-              {item.to === "/pedidos" && (role === "compras" || role === "admin")
-                ? "Requerimientos"
-                : item.label}
+              {item.label}
             </NavLink>
           );
         })}
