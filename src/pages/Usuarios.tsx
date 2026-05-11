@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Users, ShieldAlert, Link2, Copy, Check, Plus, Pencil, HardHat } from "lucide-react";
 
-type AppRole = "arquitecto" | "compras" | "proveedor" | "admin";
+type AppRole = "arquitecto" | "compras" | "proveedor" | "deposito" | "admin";
 
 interface UserRow {
   id: string;
@@ -49,6 +49,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   arquitecto: "Arquitecto",
   compras: "Compras",
   proveedor: "Proveedor",
+  deposito: "Depósito",
   admin: "Administrador",
 };
 
@@ -56,6 +57,7 @@ const ROLE_COLORS: Record<AppRole, string> = {
   arquitecto: "bg-blue-100 text-blue-800 border-blue-200",
   compras: "bg-emerald-100 text-emerald-800 border-emerald-200",
   proveedor: "bg-violet-100 text-violet-800 border-violet-200",
+  deposito: "bg-amber-100 text-amber-800 border-amber-200",
   admin: "bg-orange-100 text-orange-800 border-orange-200",
 };
 
@@ -533,6 +535,7 @@ export default function Usuarios() {
                           <SelectItem value="arquitecto">Arquitecto</SelectItem>
                           <SelectItem value="compras">Compras</SelectItem>
                           <SelectItem value="proveedor">Proveedor</SelectItem>
+                          <SelectItem value="deposito">Depósito</SelectItem>
                           <SelectItem value="admin">Administrador</SelectItem>
                         </SelectContent>
                       </Select>
@@ -674,6 +677,7 @@ export default function Usuarios() {
                   <SelectItem value="arquitecto">Arquitecto — carga requerimientos</SelectItem>
                   <SelectItem value="compras">Compras — gestiona pedidos y OCs</SelectItem>
                   <SelectItem value="proveedor">Proveedor — cotiza órdenes</SelectItem>
+                  <SelectItem value="deposito">Depósito — despacho y recepción</SelectItem>
                   <SelectItem value="admin">Administrador — acceso completo</SelectItem>
                 </SelectContent>
               </Select>
