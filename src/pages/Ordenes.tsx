@@ -191,6 +191,11 @@ export default function Ordenes() {
                   <Badge variant={poStatusLabels[po.status]?.variant || "secondary"}>
                     {poStatusLabels[po.status]?.label || po.status}
                   </Badge>
+                  {po.destination && (
+                    <Badge variant="outline" className={po.destination === "deposito" ? "text-violet-700 border-violet-300 bg-violet-50" : "text-emerald-700 border-emerald-300 bg-emerald-50"}>
+                      {po.destination === "deposito" ? "Depósito" : "Obra"}
+                    </Badge>
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground">{new Date(po.created_at).toLocaleDateString("es-AR")}</span>
               </CardHeader>
@@ -228,10 +233,15 @@ export default function Ordenes() {
 
           {detailPO && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <Badge variant={poStatusLabels[(detailPO as any).status]?.variant || "secondary"}>
                   {poStatusLabels[(detailPO as any).status]?.label || (detailPO as any).status}
                 </Badge>
+                {(detailPO as any).destination && (
+                  <Badge variant="outline" className={(detailPO as any).destination === "deposito" ? "text-violet-700 border-violet-300 bg-violet-50" : "text-emerald-700 border-emerald-300 bg-emerald-50"}>
+                    Destino: {(detailPO as any).destination === "deposito" ? "Depósito" : "Obra"}
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground">
                   Creada: {new Date((detailPO as any).created_at).toLocaleDateString("es-AR")}
                 </span>

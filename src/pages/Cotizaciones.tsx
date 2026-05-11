@@ -26,6 +26,7 @@ export default function Cotizaciones() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<"comparativas" | "carrito">("comparativas");
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [destinations, setDestinations] = useState<Record<string, string>>({});
 
   // --- Proveedor state ---
   const [provTab, setProvTab] = useState<"vigentes" | "enviadas" | "historicas">("vigentes");
@@ -251,7 +252,7 @@ export default function Cotizaciones() {
 
   // --- Compras/Admin: generate OC from cart ---
   const generateOC = useMutation({
-    mutationFn: async (providerId: string) => {
+    mutationFn: async ({ providerId, destination }: { providerId: string; destination: string }) => {
       setGeneratingFor(providerId);
       const providerItems = cart.items.filter((i) => i.provider_id === providerId);
       if (!providerItems.length) throw new Error("No hay productos para este proveedor");
@@ -267,6 +268,7 @@ export default function Cotizaciones() {
           rfq_id: providerItems[0].rfq_id,
           total_amount: totalAmount,
           created_by: user?.id,
+          destination,
         })
         .select()
         .single();
@@ -829,14 +831,31 @@ export default function Cotizaciones() {
                         </tfoot>
                       </table>
                     </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => generateOC.mutate(group.provider_id)}
-                      disabled={generatingFor === group.provider_id}
-                    >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      {generatingFor === group.provider_id ? "Generando OC..." : "Generar Orden de Compra"}
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                      <div className="flex items-center gap-2 flex-1">
+                        <Label className="text-xs whitespace-nowrap text-muted-foreground">Destino:</Label>
+                        <Select
+                          value={destinations[group.provider_id] || "obra"}
+                          onValueChange={(v) => setDestinations((prev) => ({ ...prev, [group.provider_id]: v }))}
+                        >
+                          <SelectTrigger className="h-9 w-[140px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="obra">Obra</SelectItem>
+                            <SelectItem value="deposito">Depósito</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        className="flex-1"
+                        onClick={() => generateOC.mutate({ providerId: group.provider_id, destination: destinations[group.provider_id] || "obra" })}
+                        disabled={generatingFor === group.provider_id}
+                      >
+                        <ShoppingCart className="h-4 w-4 mr-2" />
+                        {generatingFor === group.provider_id ? "Generando OC..." : "Generar Orden de Compra"}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

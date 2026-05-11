@@ -15,6 +15,8 @@ import {
   LogOut,
   Warehouse,
   Users,
+  Truck,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +31,7 @@ type NavItem = {
   roles: AppRole[]; // which roles can see this item
 };
 
-const allRoles: AppRole[] = ["arquitecto", "compras", "proveedor", "admin"];
+const allRoles: AppRole[] = ["arquitecto", "compras", "proveedor", "admin", "deposito"];
 
 const navItems: NavItem[] = [
   { to: "/dashboard",    label: "Dashboard",        icon: LayoutDashboard, roles: allRoles },
@@ -40,7 +42,9 @@ const navItems: NavItem[] = [
   { to: "/ordenes",      label: "Órdenes de Compra", icon: ShoppingCart,    roles: ["compras", "proveedor", "admin"] },
   { to: "/historial",    label: "Reportes",          icon: History,         roles: ["compras", "admin"] },
   { to: "/trazabilidad", label: "Trazabilidad",      icon: GitBranch,       roles: ["compras", "admin"] },
-  { to: "/inventario",   label: "Inventario",        icon: Warehouse,       roles: ["compras", "admin"] },
+  { to: "/deposito/solicitudes", label: "Solicitudes Despacho", icon: ClipboardList, roles: ["deposito", "admin"] },
+  { to: "/deposito/recepciones", label: "Recepciones",          icon: Truck,         roles: ["deposito", "admin"] },
+  { to: "/inventario",   label: "Inventario",        icon: Warehouse,       roles: ["compras", "deposito", "admin"] },
   { to: "/materiales",   label: "Materiales",        icon: Package,         roles: ["compras", "admin"] },
   { to: "/obras",        label: "Obras",             icon: Building2,       roles: ["compras", "admin"] },
   { to: "/arquitectos",  label: "Arquitectos",       icon: HardHat,        roles: ["compras", "admin"] },
@@ -48,7 +52,12 @@ const navItems: NavItem[] = [
   { to: "/usuarios",     label: "Usuarios",          icon: Users,           roles: ["admin"] },
 ];
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function AppSidebar({ mobileOpen, onMobileClose }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { viewRole: role, loading } = useViewRole();
@@ -58,20 +67,16 @@ export function AppSidebar() {
     navigate("/login");
   };
 
-  // Don't show any nav items while loading — prevents flash of all items before role resolves
   const visibleItems = loading
     ? []
     : navItems.filter((item) => !role || item.roles.includes(role as AppRole));
 
-  return (
-    <aside className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-      {/* Logo */}
+  const sidebarContent = (
+    <>
       <div className="flex items-center justify-center px-6 py-5 border-b border-sidebar-border">
         <img src={logoBuildBuy} alt="BuildBuy" className="h-10 w-auto" />
       </div>
 
-
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {visibleItems.map((item) => {
           const isActive = location.pathname === item.to ||
@@ -81,8 +86,9 @@ export function AppSidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={onMobileClose}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px]",
                 isActive
                   ? "bg-sidebar-accent text-primary"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -95,16 +101,34 @@ export function AppSidebar() {
         })}
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-sidebar-border p-3">
         <button
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors min-h-[44px]"
         >
           <LogOut className="h-4 w-4" />
           Cerrar Sesión
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border shrink-0">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={onMobileClose} />
+          <aside className="relative z-10 flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border animate-in slide-in-from-left duration-200">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

@@ -440,6 +440,64 @@ export type Database = {
           },
         ]
       }
+      oc_rejections: {
+        Row: {
+          id: string
+          company_id: string
+          purchase_order_id: string
+          purchase_order_item_id: string
+          material_id: string | null
+          quantity_rejected: number
+          reason: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          purchase_order_id: string
+          purchase_order_item_id: string
+          material_id?: string | null
+          quantity_rejected: number
+          reason: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          purchase_order_id?: string
+          purchase_order_item_id?: string
+          material_id?: string | null
+          quantity_rejected?: number
+          reason?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oc_rejections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oc_rejections_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oc_rejections_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pool_companies: {
         Row: {
           company_id: string
@@ -922,6 +980,7 @@ export type Database = {
           company_id: string
           created_at: string
           created_by: string | null
+          destination: string
           id: string
           notes: string | null
           payment_terms: string | null
@@ -938,6 +997,7 @@ export type Database = {
           company_id: string
           created_at?: string
           created_by?: string | null
+          destination?: string
           id?: string
           notes?: string | null
           payment_terms?: string | null
@@ -954,6 +1014,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           created_by?: string | null
+          destination?: string
           id?: string
           notes?: string | null
           payment_terms?: string | null
@@ -1186,6 +1247,7 @@ export type Database = {
           material_id: string
           observations: string | null
           quantity: number
+          quantity_delivered: number
           remito_id: string
           request_item_id: string | null
         }
@@ -1196,6 +1258,7 @@ export type Database = {
           material_id: string
           observations?: string | null
           quantity: number
+          quantity_delivered?: number
           remito_id: string
           request_item_id?: string | null
         }
@@ -1206,6 +1269,7 @@ export type Database = {
           material_id?: string
           observations?: string | null
           quantity?: number
+          quantity_delivered?: number
           remito_id?: string
           request_item_id?: string | null
         }

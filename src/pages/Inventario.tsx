@@ -24,6 +24,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Package, ArrowDownCircle, ArrowUpCircle, AlertTriangle, ShoppingCart, Trash2, X } from "lucide-react";
 import { useBasket } from "@/contexts/BasketContext";
+import { useViewRole } from "@/hooks/useViewRole";
+import { availableStock, isLowStock } from "@/lib/deposito-utils";
 
 type InventoryItem = {
   id: string;
@@ -60,6 +62,8 @@ export default function Inventario() {
   const { toast } = useToast();
   const basket = useBasket();
   const { user } = useAuth();
+  const { viewRole } = useViewRole();
+  const showBasket = viewRole === "compras" || viewRole === "admin";
   const qc = useQueryClient();
 
   // Get company_id from profile
@@ -199,7 +203,7 @@ export default function Inventario() {
   });
 
   const lowStockItems = (inventory ?? []).filter(
-    (i) => Number(i.quantity) <= Number(i.min_stock) && Number(i.min_stock) > 0
+    (i) => isLowStock(i) && Number(i.min_stock) > 0
   );
 
   return (
@@ -318,8 +322,8 @@ export default function Inventario() {
             <div className="flex flex-wrap gap-2">
               {lowStockItems.map((item) => (
                 <Badge key={item.id} variant="outline" className="text-xs">
-                  {item.materials?.name}: {Number(item.quantity)}{" "}
-                  {item.materials?.unit}
+                  {item.materials?.name}: {Number(item.quantity) - Number(item.reserved)}{" "}
+                  {item.materials?.unit} disponible
                 </Badge>
               ))}
             </div>
@@ -345,8 +349,10 @@ export default function Inventario() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {inventory.map((item) => {
+            const available = Number(item.quantity) - Number(item.reserved);
+            const hasReserved = Number(item.reserved) > 0;
             const isLow =
-              Number(item.quantity) <= Number(item.min_stock) &&
+              available <= Number(item.min_stock) &&
               Number(item.min_stock) > 0;
             return (
               <Card key={item.id} className={`flex flex-col ${isLow ? "border-warning/50" : ""}`}>
@@ -366,12 +372,17 @@ export default function Inventario() {
                 <CardContent className="space-y-3 mt-auto">
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold font-display">
-                      {Number(item.quantity).toLocaleString("es-AR")}
+                      {available.toLocaleString("es-AR")}
                     </span>
                     <span className="text-sm text-muted-foreground">
                       {item.materials?.unit}
                     </span>
                   </div>
+                  {hasReserved && (
+                    <p className="text-xs text-amber-600">
+                      {Number(item.reserved)} {item.materials?.unit} reservado(s) para despacho
+                    </p>
+                  )}
                   <div className="flex gap-3 text-xs text-muted-foreground">
                     {Number(item.min_stock) > 0 && (
                       <span>
@@ -416,18 +427,20 @@ export default function Inventario() {
                   >
                     Ver movimientos
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="w-full text-xs"
-                    onClick={() => {
-                      setBasketDialogItem(item);
-                      setBasketQty("1");
-                    }}
-                  >
-                    <ShoppingCart className="h-3 w-3 mr-1" />
-                    Agregar a cesta
-                  </Button>
+                  {showBasket && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full text-xs"
+                      onClick={() => {
+                        setBasketDialogItem(item);
+                        setBasketQty("1");
+                      }}
+                    >
+                      <ShoppingCart className="h-3 w-3 mr-1" />
+                      Agregar a cesta
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -471,7 +484,7 @@ export default function Inventario() {
               />
               {entryType === "out" && selectedItem && (
                 <p className="text-xs text-muted-foreground">
-                  Disponible: {Number(selectedItem.quantity)}{" "}
+                  Disponible: {Number(selectedItem.quantity) - Number(selectedItem.reserved)}{" "}
                   {selectedItem.materials?.unit}
                 </p>
               )}
@@ -546,7 +559,7 @@ export default function Inventario() {
       </Dialog>
 
       {/* Floating basket indicator */}
-      {basket.totalItems > 0 && (
+      {showBasket && basket.totalItems > 0 && (
         <div className="fixed bottom-6 right-6 z-50">
           <Button
             size="lg"

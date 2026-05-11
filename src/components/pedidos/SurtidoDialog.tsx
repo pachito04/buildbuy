@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Warehouse } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
+import { availableStock, reservationCalc } from "@/lib/deposito-utils";
 
 interface SurtidoDialogProps {
   requestId: string | null;
@@ -47,27 +48,33 @@ export function SurtidoDialog({
 
       const { data: inv } = await supabase
         .from("inventory")
-        .select("material_id, quantity")
+        .select("material_id, quantity, reserved")
         .in("material_id", materialIds);
 
-      const stockMap: Record<string, number> = {};
+      const stockMap: Record<string, { quantity: number; reserved: number }> = {};
       inv?.forEach((row: any) => {
-        stockMap[row.material_id] = Number(row.quantity);
+        stockMap[row.material_id] = {
+          quantity: Number(row.quantity),
+          reserved: Number(row.reserved),
+        };
       });
 
       return (reqItems ?? []).map((item: any) => {
-        const stock = item.material_id ? (stockMap[item.material_id] ?? 0) : 0;
+        const inv = item.material_id ? stockMap[item.material_id] : null;
+        const invRow = { quantity: inv?.quantity ?? 0, reserved: inv?.reserved ?? 0, min_stock: 0 };
+        const available = availableStock(invRow);
         const requested = Number(item.quantity) || 0;
-        const toFulfill = Math.min(requested, stock);
-        const remaining = requested - toFulfill;
+        const calc = reservationCalc(requested, available);
         return {
           ...item,
-          stock,
+          stockTotal: invRow.quantity,
+          stockReserved: invRow.reserved,
+          available,
           requested,
-          toFulfill,
-          remaining,
-          hasStock: toFulfill > 0,
-          needsRfq: remaining > 0,
+          toFulfill: calc.toReserve,
+          remaining: calc.remaining,
+          hasStock: calc.hasStock,
+          needsRfq: calc.needsRfq,
         };
       });
     },
@@ -85,28 +92,55 @@ export function SurtidoDialog({
       const itemsToFulfill = surtidoStock.filter((i: any) => i.hasStock);
       const itemsForRfq = surtidoStock.filter((i: any) => i.needsRfq);
 
+      // Reserve stock (do NOT deduct quantity)
       for (const item of itemsToFulfill) {
-        const { error: mvErr } = await supabase
-          .from("inventory_movements")
-          .insert({
-            company_id: companyId,
-            material_id: item.material_id,
-            movement_type: "salida",
-            quantity: item.toFulfill,
-            reason: `Surtido pedido #${requestNumber}`,
-            request_id: requestId,
-            created_by: user.id,
-          });
-        if (mvErr) throw mvErr;
-
-        const newQty = item.stock - item.toFulfill;
+        const newReserved = item.stockReserved + item.toFulfill;
         const { error: invErr } = await supabase
           .from("inventory")
-          .update({ quantity: newQty })
+          .update({ reserved: newReserved })
           .eq("material_id", item.material_id);
         if (invErr) throw invErr;
       }
 
+      // Create remito borrador for Depósito
+      const { data: project } = await supabase
+        .from("requests")
+        .select("projects:project_id(name, address)")
+        .eq("id", requestId)
+        .single();
+
+      const destination = (project as any)?.projects?.address
+        || (project as any)?.projects?.name
+        || projectName
+        || "Obra";
+
+      const { data: remito, error: remErr } = await supabase
+        .from("remitos")
+        .insert({
+          company_id: companyId,
+          request_id: requestId,
+          status: "borrador" as any,
+          destination,
+          observations: `Surtido de inventario — Pedido #${requestNumber}`,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+      if (remErr) throw remErr;
+
+      // Create remito items
+      const remitoItems = itemsToFulfill.map((item: any) => ({
+        remito_id: (remito as any).id,
+        material_id: item.material_id,
+        quantity: item.toFulfill,
+        request_item_id: item.id,
+      }));
+      if (remitoItems.length > 0) {
+        const { error: riErr } = await supabase.from("remito_items").insert(remitoItems);
+        if (riErr) throw riErr;
+      }
+
+      // RFQ for shortfall items (unchanged logic)
       let rfqCreated = false;
       if (itemsForRfq.length > 0) {
         const { data: rfq, error: rfqErr } = await supabase
@@ -135,39 +169,32 @@ export function SurtidoDialog({
         rfqCreated = true;
       }
 
-      const newStatus = allFullyStocked ? "recibido" : "en_curso";
+      // Update request status
       const { error: stErr } = await supabase
         .from("requests")
-        .update({ status: newStatus as any })
+        .update({ status: "en_curso" as any })
         .eq("id", requestId);
       if (stErr) throw stErr;
 
+      // Log event
       try {
         await supabase.from("requerimiento_evento").insert({
           request_id: requestId,
           tipo: "surtido",
           descripcion: allFullyStocked
-            ? "Surtido completo de inventario"
-            : `Surtido parcial — ${itemsToFulfill.length} ítem(s) de inventario, ${itemsForRfq.length} a cotización`,
+            ? "Reserva completa de inventario — pendiente despacho por Depósito"
+            : `Reserva parcial — ${itemsToFulfill.length} ítem(s) reservado(s), ${itemsForRfq.length} a cotización`,
           created_by: user.id,
         });
       } catch {}
 
+      // Notify architect
       if (createdBy) {
         const pName = projectName || "Sin obra";
-        let msg: string;
-        let detail: string;
-
-        if (allFullyStocked) {
-          msg = `Pedido #${requestNumber} surtido de inventario`;
-          detail = `Tu pedido #${requestNumber} de ${pName} fue surtido de inventario.`;
-        } else {
-          const surtidos = itemsToFulfill
-            .map((i: any) => `${i.description} (${i.toFulfill} ${i.unit})`)
-            .join(", ");
-          msg = `Pedido #${requestNumber} parcialmente surtido`;
-          detail = `Tu pedido #${requestNumber} de ${pName} fue parcialmente surtido de inventario en los materiales: ${surtidos}. El resto fue enviado a proveedores.`;
-        }
+        const msg = `Pedido #${requestNumber} — stock reservado`;
+        const detail = allFullyStocked
+          ? `Tu pedido #${requestNumber} de ${pName} tiene stock reservado en depósito. Pendiente de despacho.`
+          : `Tu pedido #${requestNumber} de ${pName} fue parcialmente reservado de inventario. Los faltantes fueron enviados a cotización.`;
 
         await supabase.from("notificaciones").insert({
           company_id: companyId,
@@ -186,10 +213,11 @@ export function SurtidoDialog({
       qc.invalidateQueries({ queryKey: ["request-events"] });
       qc.invalidateQueries({ queryKey: ["inventory"] });
       qc.invalidateQueries({ queryKey: ["rfqs"] });
+      qc.invalidateQueries({ queryKey: ["remitos"] });
       onClose();
       const msg = result?.rfqCreated
-        ? "Inventario descontado y solicitud de cotización generada para los faltantes."
-        : "Inventario descontado exitosamente.";
+        ? "Stock reservado — solicitud de despacho enviada al Depósito. Se generó cotización para los faltantes."
+        : "Stock reservado — solicitud de despacho enviada al Depósito.";
       toast.success(msg);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -200,17 +228,17 @@ export function SurtidoDialog({
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">
-            Surtir de Inventario — Pedido #{requestNumber}
+            Reservar de Inventario — Pedido #{requestNumber}
           </DialogTitle>
         </DialogHeader>
         {surtidoStock && (
           <div className="space-y-4">
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-amber-800">
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm">
+              <AlertCircle className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-blue-800">
                 {allFullyStocked
-                  ? "Todos los materiales serán surtidos de inventario."
-                  : "Solo se surtirán de inventario los ítems con stock disponible. Para el resto se generará una solicitud de cotización."}
+                  ? "Se reservará stock y se generará una solicitud de despacho al Depósito. El stock se descontará cuando Depósito confirme el despacho físico."
+                  : "Se reservará el stock disponible y se generará solicitud de despacho al Depósito. Los faltantes irán a cotización."}
               </p>
             </div>
 
@@ -220,8 +248,8 @@ export function SurtidoDialog({
                   <tr>
                     <th className="text-left px-3 py-2">Material</th>
                     <th className="text-right px-3 py-2">Solicitado</th>
-                    <th className="text-right px-3 py-2">En stock</th>
-                    <th className="text-right px-3 py-2">A surtir</th>
+                    <th className="text-right px-3 py-2">Disponible</th>
+                    <th className="text-right px-3 py-2">A reservar</th>
                     <th className="text-center px-3 py-2">Estado</th>
                   </tr>
                 </thead>
@@ -236,7 +264,7 @@ export function SurtidoDialog({
                         {item.requested} {item.unit}
                       </td>
                       <td className="text-right px-3 py-2 font-mono">
-                        {item.stock} {item.unit}
+                        {item.available} {item.unit}
                       </td>
                       <td className="text-right px-3 py-2 font-mono font-medium">
                         {item.toFulfill} {item.unit}
@@ -249,7 +277,7 @@ export function SurtidoDialog({
                           >
                             {item.hasStock
                               ? `Faltante: ${item.remaining}`
-                              : "Sin stock → Solicitud"}
+                              : "Sin stock → Cotización"}
                           </Badge>
                         ) : (
                           <Badge className="text-[10px] bg-green-600">
@@ -287,7 +315,7 @@ export function SurtidoDialog({
               disabled={surtidoMutation.isPending || !hasAnyStock}
             >
               <Warehouse className="h-4 w-4 mr-2" />
-              {surtidoMutation.isPending ? "Procesando..." : "Confirmar Surtido"}
+              {surtidoMutation.isPending ? "Reservando..." : "Reservar y solicitar despacho"}
             </Button>
           </div>
         )}

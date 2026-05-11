@@ -27,6 +27,8 @@ import Proveedores from "./pages/Proveedores";
 import Usuarios from "./pages/Usuarios";
 import Onboarding from "./pages/Onboarding";
 import RegistroProveedor from "./pages/RegistroProveedor";
+import SolicitudesDeposito from "./pages/deposito/SolicitudesDeposito";
+import RecepcionesDeposito from "./pages/deposito/RecepcionesDeposito";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +92,8 @@ const App = () => (
               <Route path="/obras" element={<Obras />} />
               <Route path="/obras/:obraId" element={<ObraDetail />} />
               <Route path="/proveedores" element={<Proveedores />} />
+              <Route path="/deposito/solicitudes" element={<SolicitudesDeposito />} />
+              <Route path="/deposito/recepciones" element={<RecepcionesDeposito />} />
               <Route path="/usuarios" element={<Usuarios />} />
             </Route>
             <Route path="*" element={<NotFound />} />

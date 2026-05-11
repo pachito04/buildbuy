@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { NotificationBell } from "./NotificationBell";
 import { ViewRoleProvider, useViewRole } from "@/hooks/useViewRole";
@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, Clock, LogOut } from "lucide-react";
+import { Eye, Clock, LogOut, Menu } from "lucide-react";
 import { useIdleTimeout } from "@/hooks/useIdleTimeout";
 import {
   Dialog,
@@ -25,6 +25,7 @@ const roleOptions: { value: AppRole; label: string }[] = [
   { value: "arquitecto", label: "Arquitecto" },
   { value: "compras", label: "Compras" },
   { value: "proveedor", label: "Proveedor" },
+  { value: "deposito", label: "Depósito" },
   { value: "admin", label: "Administrador" },
 ];
 
@@ -54,11 +55,20 @@ function AdminRoleSwitcher() {
   );
 }
 
-function Header() {
+function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
   return (
-    <header className="h-12 flex items-center justify-end gap-3 border-b border-border px-6 bg-background shrink-0">
-      <NotificationBell />
-      <AdminRoleSwitcher />
+    <header className="h-12 flex items-center justify-between gap-3 border-b border-border px-4 sm:px-6 bg-background shrink-0">
+      <button
+        onClick={onMenuToggle}
+        className="md:hidden flex items-center justify-center h-9 w-9 rounded-lg hover:bg-muted transition-colors"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      <div className="flex-1" />
+      <div className="flex items-center gap-3">
+        <NotificationBell />
+        <AdminRoleSwitcher />
+      </div>
     </header>
   );
 }
@@ -109,6 +119,7 @@ function IdleWarningDialog() {
 function AppLayoutInner() {
   const { viewRole, companyId, loading } = useViewRole();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && companyId === null) {
@@ -118,9 +129,9 @@ function AppLayoutInner() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AppSidebar />
+      <AppSidebar mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        <Header onMenuToggle={() => setMobileMenuOpen(true)} />
         <main className="flex-1 overflow-y-auto">
           {loading ? null : !companyId ? null : !viewRole ? <NoRoleScreen /> : <Outlet />}
         </main>

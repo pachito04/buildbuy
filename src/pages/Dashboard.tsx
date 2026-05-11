@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Inbox, Layers, FileText, ShoppingCart, Clock, CheckCircle } from "lucide-react";
+import { Inbox, Layers, FileText, ShoppingCart, Clock, CheckCircle, Truck, PackageCheck, AlertTriangle, Warehouse, ClipboardList } from "lucide-react";
 
 const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
   pendiente:           { label: "Pendiente",             variant: "outline"     },
@@ -172,10 +172,79 @@ export default function Dashboard() {
     },
   });
 
+  // --- Deposito stats ---
+  const { data: depositoSolicitudes } = useQuery({
+    queryKey: ["dashboard-deposito-solicitudes"],
+    enabled: role === "deposito" || role === "admin",
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("remitos")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["borrador", "confirmado"]);
+      return count || 0;
+    },
+  });
+
+  const { data: depositoEnTransito } = useQuery({
+    queryKey: ["dashboard-deposito-transito"],
+    enabled: role === "deposito" || role === "admin",
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("remitos")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "en_transito");
+      return count || 0;
+    },
+  });
+
+  const { data: depositoRecepciones } = useQuery({
+    queryKey: ["dashboard-deposito-recepciones"],
+    enabled: role === "deposito" || role === "admin",
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("purchase_orders")
+        .select("id, purchase_order_items(quantity, quantity_received)")
+        .eq("destination", "deposito")
+        .eq("status", "accepted");
+      return (data ?? []).filter((po: any) =>
+        (po.purchase_order_items ?? []).some(
+          (i: any) => Number(i.quantity) > Number(i.quantity_received)
+        )
+      ).length;
+    },
+  });
+
+  const { data: depositoLowStock } = useQuery({
+    queryKey: ["dashboard-deposito-lowstock"],
+    enabled: role === "deposito" || role === "admin",
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("inventory")
+        .select("quantity, reserved, min_stock");
+      return (data ?? []).filter(
+        (i: any) => (Number(i.quantity) - Number(i.reserved)) <= Number(i.min_stock)
+      ).length;
+    },
+  });
+
+  const { data: recentRemitos } = useQuery({
+    queryKey: ["dashboard-deposito-recent"],
+    enabled: role === "deposito",
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("remitos")
+        .select("id, status, destination, updated_at, requests:request_id(request_number, projects:project_id(name))")
+        .order("updated_at", { ascending: false })
+        .limit(5);
+      return data ?? [];
+    },
+  });
+
   const roleLabels: Record<string, string> = {
     arquitecto: "Panel de Arquitecto",
     compras:    "Panel de Compras",
     proveedor:  "Panel de Proveedor",
+    deposito:   "Panel de Depósito",
     admin:      "Panel de Administrador",
   };
 
@@ -198,6 +267,31 @@ export default function Dashboard() {
       value: totalCount ?? "—",
       icon: CheckCircle,
       color: "text-green-600",
+    });
+  } else if (role === "deposito") {
+    stats.push({
+      label: "Solicitudes Pendientes",
+      value: depositoSolicitudes ?? "—",
+      icon: ClipboardList,
+      color: "text-primary",
+    });
+    stats.push({
+      label: "En Tránsito",
+      value: depositoEnTransito ?? "—",
+      icon: Truck,
+      color: "text-blue-600",
+    });
+    stats.push({
+      label: "Recepciones Pendientes",
+      value: depositoRecepciones ?? "—",
+      icon: PackageCheck,
+      color: "text-amber-600",
+    });
+    stats.push({
+      label: "Stock Bajo",
+      value: depositoLowStock ?? "—",
+      icon: AlertTriangle,
+      color: "text-red-600",
     });
   } else if (role !== "proveedor") {
     stats.push({
@@ -252,6 +346,7 @@ export default function Dashboard() {
           {role === "arquitecto" && "Gestiona tus requerimientos de obra"}
           {role === "compras" && "Resumen general de compras"}
           {role === "proveedor" && "Tus cotizaciones y órdenes de compra"}
+          {role === "deposito" && "Control de despachos y recepciones"}
           {role === "admin" && "Vista completa del sistema"}
           {!role && "Cargando..."}
         </p>
@@ -277,7 +372,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {role !== "proveedor" && (
+      {role !== "proveedor" && role !== "deposito" && (
         <Card>
           <CardHeader>
             <CardTitle className="font-display text-lg">Actividad Reciente</CardTitle>
@@ -341,6 +436,72 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {role === "deposito" && (
+        <>
+          {(depositoLowStock ?? 0) > 0 && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm">
+              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+              <p className="text-red-800">
+                Hay <strong>{depositoLowStock}</strong> material(es) con stock disponible por debajo del mínimo.
+              </p>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-lg">Remitos Recientes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!recentRemitos?.length ? (
+                <p className="text-muted-foreground text-sm">No hay remitos recientes.</p>
+              ) : (
+                <div className="space-y-3">
+                  {recentRemitos.map((r: any) => {
+                    const remitoStatusLabels: Record<string, { label: string; className: string }> = {
+                      borrador: { label: "Pendiente", className: "bg-amber-100 text-amber-800 border-amber-300" },
+                      confirmado: { label: "En preparación", className: "bg-blue-100 text-blue-800 border-blue-300" },
+                      en_transito: { label: "Despachado", className: "bg-green-100 text-green-800 border-green-300" },
+                      entregado: { label: "Entregado", className: "bg-gray-100 text-gray-600 border-gray-300" },
+                    };
+                    const sl = remitoStatusLabels[r.status] ?? { label: r.status, className: "" };
+                    return (
+                      <div key={r.id} className="flex items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {r.requests?.request_number
+                              ? `Pedido #${r.requests.request_number}`
+                              : `Remito ${r.id.slice(0, 8)}`}
+                            {r.requests?.projects?.name && ` — ${r.requests.projects.name}`}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className={`text-xs h-4 px-1.5 ${sl.className}`}>
+                              {sl.label}
+                            </Badge>
+                            {r.destination && (
+                              <span className="text-xs text-muted-foreground">
+                                → {r.destination}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {new Date(r.updated_at).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
