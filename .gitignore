@@ -44,3 +44,9 @@ venv/
 .claude/sessions/
 .claude/shell-snapshots/
 .vercel
+
+# Local-only skills and scratch
+.agent/
+.agents/
+_zips/
+

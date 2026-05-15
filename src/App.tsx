@@ -30,6 +30,7 @@ import RegistroProveedor from "./pages/RegistroProveedor";
 import SolicitudesDeposito from "./pages/deposito/SolicitudesDeposito";
 import RecepcionesDeposito from "./pages/deposito/RecepcionesDeposito";
 import NotFound from "./pages/NotFound";
+import DesignPreview from "./design-preview/DesignPreview";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
           <AwardCartProvider>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
+            <Route path="/design-preview" element={<DesignPreview />} />
             <Route path="/login" element={<Login />} />
             <Route path="/registro-proveedor" element={<RegistroProveedor />} />
             <Route
