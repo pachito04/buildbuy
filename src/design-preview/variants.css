@@ -425,3 +425,218 @@
 @keyframes bb-reveal {
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Demo shell: sidebar, banner, paywall  — token-driven (no per-variant code)
+   ───────────────────────────────────────────────────────────── */
+.bb-demo-layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100dvh - 130px); }
+.bb-demo-sidebar {
+  background: var(--bb-bg-elev);
+  border-right: 1px solid var(--bb-bg-line);
+  padding: 24px 16px;
+  position: sticky;
+  top: 130px;
+  align-self: start;
+  max-height: calc(100dvh - 130px);
+  overflow-y: auto;
+}
+.bb-preview--brutalist .bb-demo-sidebar {
+  background: var(--bb-fg);
+  color: var(--bb-bg);
+  border-right: 1.5px solid var(--bb-fg);
+}
+.bb-demo-sidebar-section {
+  font-family: var(--bb-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--bb-fg-soft);
+  padding: 16px 12px 8px;
+  font-weight: 500;
+}
+.bb-preview--brutalist .bb-demo-sidebar-section { color: rgba(255,255,255,0.45); }
+.bb-demo-nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: var(--bb-radius-sm);
+  cursor: pointer;
+  color: var(--bb-fg-muted);
+  transition: all 180ms;
+  position: relative;
+}
+.bb-preview--brutalist .bb-demo-nav-item { border-radius: 0; color: rgba(255,255,255,0.7); font-family: var(--bb-font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; }
+.bb-demo-nav-item:hover { background: var(--bb-bg-line); color: var(--bb-fg); }
+.bb-preview--brutalist .bb-demo-nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.bb-demo-nav-item.is-active { background: var(--bb-fg); color: #fff; font-weight: 500; }
+.bb-preview--brutalist .bb-demo-nav-item.is-active { background: var(--bb-accent); color: #fff; }
+.bb-preview--editorial .bb-demo-nav-item.is-active { background: var(--bb-accent); color: #fff; }
+.bb-demo-nav-item .bb-lock {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: var(--bb-accent-soft);
+  color: var(--bb-accent);
+  font-family: var(--bb-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.bb-preview--brutalist .bb-demo-nav-item .bb-lock { border-radius: 0; background: transparent; border: 1px solid var(--bb-accent); padding: 1px 5px; }
+
+.bb-demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 24px;
+  background: linear-gradient(90deg, var(--bb-accent-soft), transparent);
+  border-bottom: 1px solid var(--bb-bg-line);
+  font-size: 13px;
+  color: var(--bb-fg);
+}
+.bb-preview--brutalist .bb-demo-banner {
+  background: var(--bb-fg);
+  color: var(--bb-bg);
+  border-bottom: 1.5px solid var(--bb-fg);
+  font-family: var(--bb-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.bb-demo-banner-dot {
+  width: 8px; height: 8px;
+  border-radius: 9999px;
+  background: var(--bb-accent);
+  animation: bb-pulse 1.6s ease-in-out infinite;
+}
+@keyframes bb-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.bb-demo-content { padding: 24px; }
+
+/* PlanGate paywall */
+.bb-plangate {
+  position: relative;
+  border: 1px dashed var(--bb-accent);
+  background: var(--bb-accent-soft);
+  border-radius: var(--bb-radius);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.bb-preview--brutalist .bb-plangate { border: 1.5px solid var(--bb-accent); background: var(--bb-bg-elev); border-radius: 0; }
+.bb-plangate-tag {
+  font-family: var(--bb-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  padding: 4px 10px;
+  background: var(--bb-accent);
+  color: #fff;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bb-preview--brutalist .bb-plangate-tag { border-radius: 0; }
+.bb-plangate-blur {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--bb-radius);
+  pointer-events: none;
+}
+.bb-preview--brutalist .bb-plangate-blur { border-radius: 0; }
+.bb-plangate-blur > * { filter: blur(6px); opacity: 0.5; }
+.bb-plangate-blur::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--bb-bg) 100%);
+}
+
+/* Comparison table for Planes */
+.bb-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bb-card);
+  border: 1px solid var(--bb-card-line);
+  border-radius: var(--bb-radius-lg);
+  overflow: hidden;
+}
+.bb-preview--brutalist .bb-compare-table { border-radius: 0; border-width: 1.5px; border-color: var(--bb-fg); }
+.bb-compare-table th,
+.bb-compare-table td {
+  text-align: left;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--bb-bg-line);
+  font-size: 14px;
+}
+.bb-preview--brutalist .bb-compare-table th,
+.bb-preview--brutalist .bb-compare-table td { border-bottom: 1px solid var(--bb-bg-line); }
+.bb-compare-table thead th {
+  background: var(--bb-bg-elev);
+  font-family: var(--bb-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--bb-fg-muted);
+  font-weight: 500;
+}
+.bb-preview--brutalist .bb-compare-table thead th { background: var(--bb-fg); color: var(--bb-bg); }
+.bb-compare-table .col-bb { width: 18%; text-align: center; }
+.bb-compare-table .col-bbplus { width: 22%; text-align: center; background: rgba(229, 93, 31, 0.04); }
+.bb-preview--brutalist .bb-compare-table .col-bbplus { background: var(--bb-bg-elev); }
+.bb-compare-table .col-bbplus.head { background: var(--bb-fg); color: var(--bb-bg); }
+.bb-preview--brutalist .bb-compare-table .col-bbplus.head { background: var(--bb-accent); color: #fff; }
+.bb-check { color: var(--bb-success); font-weight: 700; font-size: 18px; }
+.bb-cross { color: var(--bb-fg-soft); font-size: 18px; }
+.bb-addon { color: var(--bb-accent); font-family: var(--bb-font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
+
+/* Onboarding coachmark */
+.bb-coachmark {
+  position: fixed;
+  z-index: 90;
+  background: var(--bb-fg);
+  color: var(--bb-bg);
+  padding: 16px 20px;
+  border-radius: var(--bb-radius);
+  max-width: 320px;
+  box-shadow: 0 20px 40px -16px rgba(0,0,0,0.3);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.bb-preview--brutalist .bb-coachmark { border-radius: 0; border: 1.5px solid var(--bb-accent); }
+.bb-coachmark-tag {
+  font-family: var(--bb-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--bb-accent);
+  display: block;
+  margin-bottom: 6px;
+}
+.bb-coachmark-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; font-family: var(--bb-font-display); }
+.bb-coachmark-actions { margin-top: 12px; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.bb-coachmark-step { font-family: var(--bb-font-mono); font-size: 10px; color: rgba(255,255,255,0.5); letter-spacing: 0.16em; text-transform: uppercase; }
+.bb-coachmark-btn {
+  background: var(--bb-accent); color: #fff; border: none;
+  padding: 6px 14px; border-radius: var(--bb-radius-sm);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.bb-coachmark-btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); }
+.bb-preview--brutalist .bb-coachmark-btn { border-radius: 0; }
+
+/* Sections shared for landing (cómo funciona, roles, casos, FAQ, footer) */
+.bb-landing-section { padding: 96px 24px; position: relative; z-index: 2; }
+.bb-preview--brutalist .bb-landing-section { padding: 0 0; }
+.bb-landing-section-inner { max-width: 1240px; margin: 0 auto; }
+.bb-section-eyebrow { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 32px; }
+.bb-preview--brutalist .bb-section-eyebrow { border-bottom: 1.5px solid var(--bb-fg); padding: 16px 0; margin-bottom: 0; }
+.bb-section-title { font-size: clamp(36px, 5vw, 72px); max-width: 18ch; margin-bottom: 24px; }
+.bb-preview--brutalist .bb-section-title { padding: 60px 0 24px; text-transform: uppercase; }
+.bb-preview--editorial .bb-section-title { font-style: italic; }
+

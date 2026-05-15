@@ -42,6 +42,72 @@ export const seedKanban = {
   ],
 };
 
+export const seedCotizaciones = [
+  { id: 'c1', rfq: 'RFQ-0184', obra: 'Caballito 2400', items: 8, proveedores: 4, mejor: 'Loma Negra · AR$ 2.84M', vence: 'en 2 días', ahorro: 12 },
+  { id: 'c2', rfq: 'RFQ-0185', obra: 'Galpón Tigre', items: 5, proveedores: 6, mejor: 'Acindar · AR$ 1.92M', vence: 'hoy', ahorro: 8 },
+  { id: 'c3', rfq: 'RFQ-0186', obra: 'Pilar Lote 87', items: 12, proveedores: 3, mejor: 'IPS · AR$ 4.12M', vence: 'en 5 días', ahorro: 18 },
+];
+
+export const seedComoFunciona = [
+  { paso: '01', titulo: 'Requerimiento', desc: 'El arquitecto genera el pedido desde la obra. Materiales, cantidades, fecha deseada.', actor: 'Arquitecto' },
+  { paso: '02', titulo: 'Cotización', desc: 'Compras lanza la RFQ a proveedores. Cada proveedor cotiza, BB consolida.', actor: 'Compras' },
+  { paso: '03', titulo: 'Adjudicación', desc: 'Comparativa lado a lado por ítem. Adjudicación parcial o split entre proveedores.', actor: 'Compras' },
+  { paso: '04', titulo: 'Despacho', desc: 'OC emitida, depósito reserva stock o recibe entrega. Remito digital trazado.', actor: 'Depósito' },
+];
+
+export const seedRoles = [
+  { rol: 'Arquitecto', desc: 'Carga el cómputo de obra, genera requerimientos, sigue avance.', detalle: 'Cómputo · Mis requerimientos · Avance' },
+  { rol: 'Compras', desc: 'Recibe requerimientos, lanza cotizaciones, adjudica y emite OC.', detalle: 'Kanban · RFQs · Comparativa · OC' },
+  { rol: 'Proveedor', desc: 'Recibe RFQs por mail. Carga cotizaciones desde su panel.', detalle: 'Solicitudes · Mis cotizaciones · Histórico' },
+  { rol: 'Depósito', desc: 'Despacho a obra, recepción de OC. Stock real y reservado.', detalle: 'Despacho · Recepción · Inventario' },
+  { rol: 'Admin', desc: 'Configura empresa, usuarios, materiales y proveedores.', detalle: 'Usuarios · Catálogos · Reportes' },
+];
+
+export const seedCasos = [
+  { cliente: 'Estudio Vivanco', sector: 'Vivienda multifamiliar AMBA', obras: 12, metric: '–47% tiempo cotización', quote: 'Antes coordinábamos 6 obras por WhatsApp. Hoy entramos a BB y vemos todo en una pantalla.' },
+  { cliente: 'Korman Hnos.', sector: 'Logística e industria', obras: 4, metric: '+18% ahorro promedio', quote: 'La comparativa lado-a-lado nos ahorra discusiones internas. El que pone el precio gana.' },
+  { cliente: 'Grupo Lanusse', sector: 'Corporativo', obras: 23, metric: '×3.2 velocidad de cierre OC', quote: 'BB+ nos dio dashboards consolidados de toda la cadena. Decisiones que tardaban una semana, hoy son del día.' },
+];
+
+export const seedFaq = [
+  { q: '¿Necesitamos cambiar nuestro ERP?', a: 'No. BuildBuy convive con tu ERP, contable y planillas. BB+ ofrece integraciones a medida (Tango, Bejerman, Holistor, custom) para sincronizar OC y proveedores.' },
+  { q: '¿Cuánto tarda el onboarding?', a: 'BB: una semana para subir catálogo, usuarios y primeras obras. BB+: incluye implementación dedicada con customer success y migración de datos legacy.' },
+  { q: '¿Los proveedores tienen que pagar algo?', a: 'No. Los proveedores reciben RFQs por mail y entran al panel a cotizar sin costo. Vos pagás solo por tu lado.' },
+  { q: '¿Mis datos están seguros?', a: 'BB: backups diarios, hosting en Argentina, cifrado en tránsito y en reposo. BB+: SLA dedicado, ambiente single-tenant opcional, auditoría de accesos.' },
+];
+
+export const seedPlanFeatures = [
+  { categoria: 'Usuarios y obras', items: [
+    { feature: 'Usuarios incluidos', bb: 'Hasta 25', bbplus: 'Ilimitados' },
+    { feature: 'Obras simultáneas', bb: 'Hasta 50', bbplus: 'Ilimitadas' },
+    { feature: 'Permisos por rol', bb: true, bbplus: true },
+    { feature: 'Sub-empresas / grupos', bb: false, bbplus: true },
+  ]},
+  { categoria: 'Circuito de compras', items: [
+    { feature: 'Requerimientos · RFQs · OCs ilimitadas', bb: true, bbplus: true },
+    { feature: 'Kanban + comparativa', bb: true, bbplus: true },
+    { feature: 'Pools de compra entre obras', bb: true, bbplus: true },
+    { feature: 'Aprobaciones multi-nivel', bb: false, bbplus: true },
+  ]},
+  { categoria: 'Inventario y depósito', items: [
+    { feature: 'Stock + reserva', bb: true, bbplus: true },
+    { feature: 'Múltiples depósitos', bb: 'Hasta 3', bbplus: 'Ilimitados' },
+    { feature: 'Trazabilidad por lote', bb: false, bbplus: true },
+  ]},
+  { categoria: 'Data & analytics', items: [
+    { feature: 'Reportes estándar', bb: true, bbplus: true },
+    { feature: 'Custom dashboards', bb: false, bbplus: true },
+    { feature: 'Data intelligence sobre proveedores', bb: false, bbplus: true },
+    { feature: 'Exports avanzados + API', bb: false, bbplus: true },
+  ]},
+  { categoria: 'Soporte e integración', items: [
+    { feature: 'Onboarding asistido', bb: true, bbplus: true },
+    { feature: 'Customer success dedicado', bb: false, bbplus: true },
+    { feature: 'Integraciones a medida (ERP / contable)', bb: 'addon', bbplus: true },
+    { feature: 'SLA con respuesta < 4h', bb: false, bbplus: true },
+  ]},
+];
+
 export const seedLanding = {
   heroEyebrow: 'Plataforma de compras para constructoras',
   heroTitle: 'Comprar materiales\ndeja de ser\nun cuello de botella.',
