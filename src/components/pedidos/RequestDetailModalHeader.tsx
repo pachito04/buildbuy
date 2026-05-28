@@ -8,7 +8,7 @@ import {
 } from "@/lib/kanban-types";
 import { isUrgente } from "@/hooks/useUrgencyThreshold";
 
-interface RequestDrawerHeaderProps {
+interface RequestDetailModalHeaderProps {
   request: RequestDetail;
   thresholdDays: number;
   role: string | null;
@@ -44,7 +44,7 @@ function formatRequestNumber(num: number): string {
   return `REQ-${num.toString().padStart(4, "0")}`;
 }
 
-export function RequestDrawerHeader({ request, thresholdDays, role }: RequestDrawerHeaderProps) {
+export function RequestDetailModalHeader({ request, thresholdDays, role }: RequestDetailModalHeaderProps) {
   const isArquitecto = role === 'arquitecto';
   const archLabel = isArquitecto
     ? getArchitectLabel(request.status, request.request_items ?? [])

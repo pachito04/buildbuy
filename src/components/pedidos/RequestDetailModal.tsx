@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RequestDrawerHeader } from "./RequestDrawerHeader";
+import { RequestDetailModalHeader } from "./RequestDetailModalHeader";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { useViewRole } from "@/hooks/useViewRole";
 import { useUrgencyThreshold } from "@/hooks/useUrgencyThreshold";
@@ -31,7 +31,7 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-interface RequestDrawerProps {
+interface RequestDetailModalProps {
   requestId: string | null;
   onClose: () => void;
   onReject: (requestId: string, requestNumber: number) => void;
@@ -49,13 +49,13 @@ interface RequestDrawerProps {
   ) => void;
 }
 
-export function RequestDrawer({
+export function RequestDetailModal({
   requestId,
   onClose,
   onReject,
   onSurtir,
   onSolicitudDirecta,
-}: RequestDrawerProps) {
+}: RequestDetailModalProps) {
   const { viewRole: role } = useViewRole();
   const thresholdDays = useUrgencyThreshold();
 
@@ -196,7 +196,7 @@ export function RequestDrawer({
           <>
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto" style={{ padding: "14px 18px" }}>
-              <RequestDrawerHeader request={request} thresholdDays={thresholdDays} role={role} />
+              <RequestDetailModalHeader request={request} thresholdDays={thresholdDays} role={role} />
 
               {/* Items */}
               <div className="mt-4 pt-4 border-t">

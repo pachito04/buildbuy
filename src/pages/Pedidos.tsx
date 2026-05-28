@@ -19,7 +19,7 @@ import { useRequestsQuery } from "@/hooks/useRequestsQuery";
 import { useStatusTransition } from "@/hooks/useStatusTransition";
 import { useRejectionMutation } from "@/hooks/useRejectionMutation";
 import { KanbanBoard } from "@/components/pedidos/KanbanBoard";
-import { RequestDrawer } from "@/components/pedidos/RequestDrawer";
+import { RequestDetailModal } from "@/components/pedidos/RequestDetailModal";
 import { RejectionModal } from "@/components/pedidos/RejectionModal";
 import { CreateRequestDialog } from "@/components/pedidos/CreateRequestDialog";
 import { SurtidoDialog } from "@/components/pedidos/SurtidoDialog";
@@ -104,7 +104,7 @@ export default function Pedidos() {
     setSearchParams({ req: requestId });
   };
 
-  const handleDrawerClose = () => {
+  const handleDetailModalClose = () => {
     setSearchParams({}, { replace: true });
   };
 
@@ -206,9 +206,9 @@ export default function Pedidos() {
         }}
       />
 
-      <RequestDrawer
+      <RequestDetailModal
         requestId={reqId}
-        onClose={handleDrawerClose}
+        onClose={handleDetailModalClose}
         onReject={handleRejectRequest}
         onSurtir={handleSurtir}
         onSolicitudDirecta={handleSolicitudDirecta}
