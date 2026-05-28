@@ -7,13 +7,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RequestDrawerHeader } from "./RequestDrawerHeader";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { useViewRole } from "@/hooks/useViewRole";
+import { useUrgencyThreshold } from "@/hooks/useUrgencyThreshold";
 import { Warehouse, FileText, X } from "lucide-react";
 import {
   ITEM_SUB_STATE_COLORS,
+  ARCHITECT_ITEM_LABELS,
+  isItemReceivable,
   type RequestDetail,
   type TimelineEvent,
   type ItemSubState,
 } from "@/lib/kanban-types";
+import { ItemRecepcionForm } from "./ItemRecepcionForm";
 
 const STATUS_STRIP_COLORS: Record<string, string> = {
   pendiente: "#C96A00",
@@ -53,6 +57,7 @@ export function RequestDrawer({
   onSolicitudDirecta,
 }: RequestDrawerProps) {
   const { viewRole: role } = useViewRole();
+  const thresholdDays = useUrgencyThreshold();
 
   const { data: request, isLoading: loadingDetail } = useQuery({
     queryKey: ["request-detail", requestId],
@@ -191,7 +196,7 @@ export function RequestDrawer({
           <>
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto" style={{ padding: "14px 18px" }}>
-              <RequestDrawerHeader request={request} />
+              <RequestDrawerHeader request={request} thresholdDays={thresholdDays} role={role} />
 
               {/* Items */}
               <div className="mt-4 pt-4 border-t">
@@ -205,30 +210,50 @@ export function RequestDrawer({
                   {request.request_items.map((item) => {
                     const subState = item.status as ItemSubState;
                     const colors = ITEM_SUB_STATE_COLORS[subState];
+                    const isArq = role === 'arquitecto';
+                    const receivable = isArq && isItemReceivable(
+                      subState,
+                      Number(item.quantity_received),
+                      Number(item.quantity),
+                    );
+                    const hasPartialQty = Number(item.quantity_received) > 0 && subState !== 'recibido';
                     return (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between p-3"
+                        className="p-3"
                         style={{
                           backgroundColor: "#FAFAF8",
                           border: "1px solid #F0EDE8",
                           borderRadius: 10,
                         }}
                       >
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm">
-                            {capitalize(
-                              item.materials?.name ?? item.description
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.quantity}{" "}
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm">
+                              {capitalize(
+                                item.materials?.name ?? item.description
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantity}{" "}
+                              {item.materials?.unit ?? item.unit}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs shrink-0 ml-2">
+                            {isArq
+                              ? ARCHITECT_ITEM_LABELS[subState] ?? subState
+                              : colors?.label ?? subState}
+                          </Badge>
+                        </div>
+                        {isArq && hasPartialQty && (
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            Recibido: {item.quantity_received} de {item.quantity}{" "}
                             {item.materials?.unit ?? item.unit}
                           </p>
-                        </div>
-                        <Badge variant="outline" className="text-xs shrink-0 ml-2">
-                          {colors?.label ?? subState}
-                        </Badge>
+                        )}
+                        {receivable && (
+                          <ItemRecepcionForm requestId={request.id} item={item} />
+                        )}
                       </div>
                     );
                   })}

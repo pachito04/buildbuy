@@ -17,10 +17,12 @@ import { KanbanColumn } from "./KanbanColumn";
 import { KanbanCard } from "./KanbanCard";
 import {
   KANBAN_COLUMNS,
+  ARCHITECT_COLUMN_TITLES,
   getTransitionType,
   type RequestStatus,
   type RequestWithItems,
 } from "@/lib/kanban-types";
+import { isUrgente } from "@/hooks/useUrgencyThreshold";
 
 interface KanbanBoardProps {
   requests: RequestWithItems[];
@@ -30,6 +32,8 @@ interface KanbanBoardProps {
   onCardClick: (requestId: string) => void;
   onStatusChange: (requestId: string, newStatus: RequestStatus) => void;
   onRejectRequest: (requestId: string, requestNumber: number) => void;
+  thresholdDays: number;
+  role: string | null;
   filters: {
     searchQuery: string;
     urgenteOnly: boolean;
@@ -44,6 +48,8 @@ export function KanbanBoard({
   onCardClick,
   onStatusChange,
   onRejectRequest,
+  thresholdDays,
+  role,
   filters,
 }: KanbanBoardProps) {
   const [activeRequest, setActiveRequest] = useState<RequestWithItems | null>(null);
@@ -57,7 +63,7 @@ export function KanbanBoard({
   const filtered = useMemo(() => {
     let result = requests;
     if (filters.urgenteOnly) {
-      result = result.filter(r => r.urgente);
+      result = result.filter(r => isUrgente(r.desired_date, thresholdDays));
     }
     if (filters.searchQuery) {
       const q = filters.searchQuery.toLowerCase();
@@ -67,7 +73,7 @@ export function KanbanBoard({
       );
     }
     return result;
-  }, [requests, filters]);
+  }, [requests, filters, thresholdDays]);
 
   const columns = useMemo(() => {
     const grouped: Record<RequestStatus, RequestWithItems[]> = {
@@ -158,10 +164,12 @@ export function KanbanBoard({
           <KanbanColumn
             key={col.status}
             status={col.status}
-            title={col.title}
+            title={role === 'arquitecto' ? ARCHITECT_COLUMN_TITLES[col.status] : col.title}
             headerColor={col.headerColor}
             cards={columns[col.status]}
             onCardClick={onCardClick}
+            thresholdDays={thresholdDays}
+            role={role}
           />
         ))}
       </div>
@@ -170,14 +178,14 @@ export function KanbanBoard({
         <div className="flex gap-4">
           {KANBAN_COLUMNS.map(col => (
             <span key={col.status}>
-              {col.title}: {columns[col.status].length}
+              {role === 'arquitecto' ? ARCHITECT_COLUMN_TITLES[col.status] : col.title}: {columns[col.status].length}
             </span>
           ))}
         </div>
       </div>
       <DragOverlay>
         {activeRequest && (
-          <KanbanCard request={activeRequest} onClick={() => {}} isDragOverlay />
+          <KanbanCard request={activeRequest} onClick={() => {}} isDragOverlay thresholdDays={thresholdDays} role={role} />
         )}
       </DragOverlay>
     </DndContext>

@@ -14,6 +14,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useViewRole } from "@/hooks/useViewRole";
+import { useUrgencyThreshold } from "@/hooks/useUrgencyThreshold";
 import { useRequestsQuery } from "@/hooks/useRequestsQuery";
 import { useStatusTransition } from "@/hooks/useStatusTransition";
 import { useRejectionMutation } from "@/hooks/useRejectionMutation";
@@ -46,7 +47,8 @@ export default function Pedidos() {
   const [searchParams, setSearchParams] = useSearchParams();
   const reqId = searchParams.get('req');
 
-  const { companyId } = useViewRole();
+  const { companyId, viewRole: role } = useViewRole();
+  const thresholdDays = useUrgencyThreshold();
 
   const [filters, setFilters] = useState<KanbanFilters>(() => {
     const saved = loadFilters();
@@ -196,6 +198,8 @@ export default function Pedidos() {
         onCardClick={handleCardClick}
         onStatusChange={handleStatusChange}
         onRejectRequest={handleRejectRequest}
+        thresholdDays={thresholdDays}
+        role={role}
         filters={{
           searchQuery: filters.searchQuery,
           urgenteOnly: filters.urgenteOnly,

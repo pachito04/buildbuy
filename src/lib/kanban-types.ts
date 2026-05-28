@@ -23,6 +23,49 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   rechazado: 'Rechazado',
 };
 
+export type ArchitectLabel =
+  | 'Pendiente de aprobación'
+  | 'Aprobado'
+  | 'Rechazado'
+  | 'Pendiente de entrega'
+  | 'Entregado parcial'
+  | 'Entregado completo';
+
+export function getArchitectLabel(
+  status: RequestStatus,
+  items: readonly { status: string }[],
+): ArchitectLabel {
+  if (status === 'pendiente') return 'Pendiente de aprobación';
+  if (status === 'rechazado') return 'Rechazado';
+  if (status === 'recibido') return 'Entregado completo';
+
+  const hasRecibido = items.some(i => i.status === 'recibido' || i.status === 'parcial');
+  const hasEnOc = items.some(i => i.status === 'en_oc');
+
+  if (hasRecibido) return 'Entregado parcial';
+  if (hasEnOc) return 'Pendiente de entrega';
+  return 'Aprobado';
+}
+
+export const ARCHITECT_BADGE_VARIANTS: Record<
+  ArchitectLabel,
+  { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }
+> = {
+  'Pendiente de aprobación': { variant: 'outline' },
+  'Aprobado':                { variant: 'outline', className: 'bg-blue-100 text-blue-800 border-blue-300' },
+  'Rechazado':               { variant: 'destructive' },
+  'Pendiente de entrega':    { variant: 'outline', className: 'bg-amber-100 text-amber-800 border-amber-300' },
+  'Entregado parcial':       { variant: 'outline', className: 'bg-orange-100 text-orange-800 border-orange-300' },
+  'Entregado completo':      { variant: 'default', className: 'bg-green-600 text-white border-green-600 hover:bg-green-600' },
+};
+
+export const ARCHITECT_COLUMN_TITLES: Record<RequestStatus, string> = {
+  pendiente: 'Pendiente de aprobación',
+  en_curso: 'En proceso',
+  recibido: 'Entregado completo',
+  rechazado: 'Rechazado',
+};
+
 export const STATUS_BADGE_VARIANTS: Record<
   RequestStatus,
   { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }
@@ -38,6 +81,13 @@ export const ITEM_SUB_STATE_COLORS: Record<ItemSubState, { bg: string; label: st
   en_oc:     { bg: 'bg-blue-500',  label: 'En OC' },
   parcial:   { bg: 'bg-amber-500', label: 'Parcial' },
   recibido:  { bg: 'bg-green-500', label: 'Recibido' },
+};
+
+export const ARCHITECT_ITEM_LABELS: Record<ItemSubState, string> = {
+  sin_pedir: 'Pendiente',
+  en_oc:     'En compra',
+  parcial:   'Entrega parcial',
+  recibido:  'Entregado',
 };
 
 export interface KanbanColumnConfig {
@@ -94,7 +144,6 @@ export interface RequestWithItems {
   raw_message: string | null;
   observations: string | null;
   desired_date: string | null;
-  urgente: boolean;
   motivo_rechazo: string | null;
   nota_rechazo: string | null;
   rechazado_at: string | null;
@@ -119,6 +168,10 @@ export interface TimelineEvent {
   metadata: Record<string, unknown> | null;
   created_at: string;
   actor_name: string;
+}
+
+export function isItemReceivable(status: ItemSubState, qtyReceived: number, qty: number): boolean {
+  return (status === 'en_oc' || status === 'parcial') && qtyReceived < qty;
 }
 
 export const REJECTION_REASONS = [

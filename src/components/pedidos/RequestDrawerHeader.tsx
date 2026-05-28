@@ -2,21 +2,30 @@ import { Badge } from "@/components/ui/badge";
 import {
   STATUS_BADGE_VARIANTS,
   STATUS_LABELS,
+  ARCHITECT_BADGE_VARIANTS,
+  getArchitectLabel,
   type RequestDetail,
 } from "@/lib/kanban-types";
+import { isUrgente } from "@/hooks/useUrgencyThreshold";
 
 interface RequestDrawerHeaderProps {
   request: RequestDetail;
+  thresholdDays: number;
+  role: string | null;
 }
 
 function formatDate(iso: string | null): string {
   if (!iso) return "Sin fecha";
   const d = new Date(iso);
-  return d.toLocaleDateString("es-AR", {
+  const date = d.toLocaleDateString("es-AR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  if (!hasTime) return date;
+  const time = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  return `${date} ${time}`;
 }
 
 function getAtraso(dateStr: string | null, status: string): number | null {
@@ -35,8 +44,14 @@ function formatRequestNumber(num: number): string {
   return `REQ-${num.toString().padStart(4, "0")}`;
 }
 
-export function RequestDrawerHeader({ request }: RequestDrawerHeaderProps) {
-  const badgeConfig = STATUS_BADGE_VARIANTS[request.status];
+export function RequestDrawerHeader({ request, thresholdDays, role }: RequestDrawerHeaderProps) {
+  const isArquitecto = role === 'arquitecto';
+  const archLabel = isArquitecto
+    ? getArchitectLabel(request.status, request.request_items ?? [])
+    : null;
+  const badgeConfig = isArquitecto
+    ? ARCHITECT_BADGE_VARIANTS[archLabel!]
+    : STATUS_BADGE_VARIANTS[request.status];
   const atraso = getAtraso(request.desired_date, request.status);
 
   return (
@@ -47,9 +62,9 @@ export function RequestDrawerHeader({ request }: RequestDrawerHeaderProps) {
           {formatRequestNumber(request.request_number)}
         </h2>
         <Badge variant={badgeConfig.variant} className={badgeConfig.className}>
-          {STATUS_LABELS[request.status]}
+          {isArquitecto ? archLabel : STATUS_LABELS[request.status]}
         </Badge>
-        {request.urgente && (
+        {isUrgente(request.desired_date, thresholdDays) && (
           <Badge
             variant="outline"
             className="bg-amber-100 text-amber-800 border-amber-300"
@@ -113,7 +128,7 @@ export function RequestDrawerHeader({ request }: RequestDrawerHeaderProps) {
             className="uppercase text-muted-foreground block tracking-wider"
             style={{ fontSize: 10 }}
           >
-            Entrega
+            Entrega deseada
           </span>
           <span style={{ fontSize: 12 }}>
             {formatDate(request.desired_date)}

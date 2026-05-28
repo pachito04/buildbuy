@@ -158,7 +158,7 @@ export default function Dashboard() {
       let query = supabase
         .from("requests")
         .select(
-          "id, status, urgente, raw_message, created_at, updated_at, request_number, projects:project_id(name), architects:architect_id(full_name)"
+          "id, status, raw_message, created_at, updated_at, request_number, desired_date, projects:project_id(name), architects:architect_id(full_name)"
         )
         .order("updated_at", { ascending: false })
         .limit(5);

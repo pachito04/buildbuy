@@ -17,6 +17,7 @@ import {
   Users,
   Truck,
   ClipboardList,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,7 +50,8 @@ const navItems: NavItem[] = [
   { to: "/obras",        label: "Obras",             icon: Building2,       roles: ["compras", "admin"] },
   { to: "/arquitectos",  label: "Arquitectos",       icon: HardHat,        roles: ["compras", "admin"] },
   { to: "/proveedores",  label: "Proveedores",       icon: Building2,       roles: ["compras", "admin"] },
-  { to: "/usuarios",     label: "Usuarios",          icon: Users,           roles: ["admin"] },
+  { to: "/usuarios",       label: "Usuarios",        icon: Users,           roles: ["admin"] },
+  { to: "/configuracion",  label: "Configuración",   icon: Settings,        roles: ["admin"] },
 ];
 
 interface AppSidebarProps {

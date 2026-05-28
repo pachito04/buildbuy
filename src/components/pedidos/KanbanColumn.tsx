@@ -9,9 +9,11 @@ interface KanbanColumnProps {
   headerColor: string;
   cards: RequestWithItems[];
   onCardClick: (requestId: string) => void;
+  thresholdDays: number;
+  role: string | null;
 }
 
-export function KanbanColumn({ status, title, headerColor, cards, onCardClick }: KanbanColumnProps) {
+export function KanbanColumn({ status, title, headerColor, cards, onCardClick, thresholdDays, role }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (
@@ -36,6 +38,8 @@ export function KanbanColumn({ status, title, headerColor, cards, onCardClick }:
               key={card.id}
               request={card}
               onClick={() => onCardClick(card.id)}
+              thresholdDays={thresholdDays}
+              role={role}
             />
           ))
         )}

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import { useUrgencyThreshold, isUrgente } from "@/hooks/useUrgencyThreshold";
 import {
   Select,
   SelectContent,
@@ -38,7 +38,6 @@ const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", u
 export function CreateRequestDialog() {
   const [open, setOpen] = useState(false);
   const [rawMessage, setRawMessage] = useState("");
-  const [urgente, setUrgente] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [architectId, setArchitectId] = useState("");
   const [desiredDate, setDesiredDate] = useState("");
@@ -47,6 +46,7 @@ export function CreateRequestDialog() {
 
   const { user } = useAuth();
   const { viewRole: role, actualRole, companyId } = useViewRole();
+  const thresholdDays = useUrgencyThreshold();
   const qc = useQueryClient();
 
   const { data: myArchitect } = useQuery({
@@ -135,7 +135,6 @@ export function CreateRequestDialog() {
         .insert({
           company_id: companyId,
           raw_message: rawMessage || null,
-          urgente,
           created_by: user?.id,
           project_id: projectId || null,
           architect_id: architectId || null,
@@ -181,7 +180,6 @@ export function CreateRequestDialog() {
 
   function resetForm() {
     setRawMessage("");
-    setUrgente(false);
     setProjectId("");
     if (!myArchitect) setArchitectId("");
     setDesiredDate("");
@@ -325,23 +323,18 @@ export function CreateRequestDialog() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="urgente-create"
-                checked={urgente}
-                onCheckedChange={setUrgente}
-              />
-              <Label htmlFor="urgente-create">Urgente</Label>
-            </div>
-            <div className="space-y-2">
-              <Label>Entrega deseada</Label>
-              <Input
-                type="date"
-                value={desiredDate}
-                onChange={(e) => setDesiredDate(e.target.value)}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Entrega deseada</Label>
+            <Input
+              type="datetime-local"
+              value={desiredDate}
+              onChange={(e) => setDesiredDate(e.target.value)}
+            />
+            {desiredDate && isUrgente(desiredDate, thresholdDays) && (
+              <p className="text-xs text-amber-600 font-medium">
+                ⚠ Este requerimiento se marcará como urgente (≤ {thresholdDays} días)
+              </p>
+            )}
           </div>
 
           <div className="space-y-3">

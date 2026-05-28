@@ -25,6 +25,7 @@ import Obras from "./pages/Obras";
 import ObraDetail from "./pages/ObraDetail";
 import Proveedores from "./pages/Proveedores";
 import Usuarios from "./pages/Usuarios";
+import Configuracion from "./pages/Configuracion";
 import Onboarding from "./pages/Onboarding";
 import RegistroProveedor from "./pages/RegistroProveedor";
 import SolicitudesDeposito from "./pages/deposito/SolicitudesDeposito";
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="/deposito/solicitudes" element={<SolicitudesDeposito />} />
               <Route path="/deposito/recepciones" element={<RecepcionesDeposito />} />
               <Route path="/usuarios" element={<Usuarios />} />
+              <Route path="/configuracion" element={<Configuracion />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

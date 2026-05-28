@@ -97,6 +97,38 @@ export type Database = {
         }
         Relationships: []
       }
+      company_settings: {
+        Row: {
+          id: string
+          company_id: string
+          urgente_threshold_days: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          urgente_threshold_days?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          urgente_threshold_days?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       computo: {
         Row: {
           id: string
@@ -1478,7 +1510,6 @@ export type Database = {
           requires_review: boolean
           status: Database["public"]["Enums"]["request_status"]
           updated_at: string
-          urgente: boolean
           whatsapp_message_id: string | null
         }
         Insert: {
@@ -1499,7 +1530,6 @@ export type Database = {
           requires_review?: boolean
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
-          urgente?: boolean
           whatsapp_message_id?: string | null
         }
         Update: {
@@ -1520,7 +1550,6 @@ export type Database = {
           requires_review?: boolean
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string
-          urgente?: boolean
           whatsapp_message_id?: string | null
         }
         Relationships: [

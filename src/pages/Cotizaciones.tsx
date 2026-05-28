@@ -667,7 +667,14 @@ export default function Cotizaciones() {
                     return (
                       <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        El arquitecto solicitó entrega para el {new Date(desiredDate + "T00:00:00").toLocaleDateString("es-AR")}
+                        El arquitecto solicitó entrega para el {(() => {
+                          const d = new Date(desiredDate);
+                          const date = d.toLocaleDateString("es-AR");
+                          const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+                          return hasTime
+                            ? `${date} a las ${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
+                            : date;
+                        })()}
                       </p>
                     );
                   })()}
