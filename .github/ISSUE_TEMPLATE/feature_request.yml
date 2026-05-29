@@ -1,0 +1,33 @@
+name: Feature request
+description: Pedido de feature o mejora (alimenta el pipeline SDD)
+title: "feat(scope): "
+labels: ["enhancement", "status:needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Esta issue alimenta el pipeline SDD (Discord #reportes → Hermes → SDD → issue).
+        **No se trabaja hasta que un maintainer (Pacho/Fonchi) agregue el label `status:approved`.**
+  - type: textarea
+    id: resumen
+    attributes:
+      label: Resumen
+      description: Qué se pide y por qué (problema → resultado esperado).
+    validations:
+      required: true
+  - type: input
+    id: sdd
+    attributes:
+      label: SDD
+      description: Link al openspec/changes/<change-name> en el brain.
+      placeholder: https://github.com/gachetponzellini/buildbuy-brain/tree/main/openspec/changes/...
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Criterios de éxito
+      description: Cómo sabemos que está hecho.
+  - type: input
+    id: reporte
+    attributes:
+      label: Reporte original
+      description: Autor · fecha · link a Discord #reportes.
