@@ -1,0 +1,30 @@
+name: Bug report
+description: Algo no funciona en la plataforma (genera un SDD liviano)
+title: "fix(scope): "
+labels: ["bug", "status:needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Esta issue alimenta el pipeline SDD. **No se trabaja hasta `status:approved`.**
+  - type: textarea
+    id: que-pasa
+    attributes:
+      label: Qué pasa
+      description: Comportamiento actual vs esperado.
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducir
+  - type: input
+    id: sdd
+    attributes:
+      label: SDD
+      placeholder: https://github.com/gachetponzellini/buildbuy-brain/tree/main/openspec/changes/...
+  - type: input
+    id: reporte
+    attributes:
+      label: Reporte original
+      description: Autor · fecha · link a Discord #reportes.
