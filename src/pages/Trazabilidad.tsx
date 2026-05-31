@@ -19,7 +19,11 @@ import {
   BarChart3,
   ShoppingCart,
   ChevronRight,
+  Activity,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+import { MovimientosProducto } from "@/components/trazabilidad/MovimientosProducto";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pendiente: { label: "Pendiente", variant: "outline" },
@@ -51,6 +55,7 @@ interface TraceChain {
 export default function Trazabilidad() {
   const [search, setSearch] = useState("");
   const [selectedChain, setSelectedChain] = useState<TraceChain | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   // Fetch requests with related data to build chains
   const { data: requests, isLoading } = useQuery({
@@ -186,7 +191,7 @@ export default function Trazabilidad() {
               <Card
                 key={chain.request.id}
                 className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => setSelectedChain(chain)}
+                onClick={() => { setSelectedChain(chain); setExpandedItemId(null); }}
               >
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center gap-3">
@@ -264,7 +269,7 @@ export default function Trazabilidad() {
       )}
 
       {/* Detail dialog */}
-      <Dialog open={!!selectedChain} onOpenChange={(o) => !o && setSelectedChain(null)}>
+      <Dialog open={!!selectedChain} onOpenChange={(o) => { if (!o) { setSelectedChain(null); setExpandedItemId(null); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">Cadena de Trazabilidad</DialogTitle>
@@ -290,10 +295,42 @@ export default function Trazabilidad() {
                   <p className="text-xs"><span className="text-muted-foreground">Arquitecto:</span> {(selectedChain.request as any).architects.full_name}</p>
                 )}
                 {selectedChain.request.request_items?.length > 0 && (
-                  <div className="mt-2 space-y-0.5">
-                    {selectedChain.request.request_items.map((it: any) => (
-                      <p key={it.id} className="text-xs">• {it.description} — {it.quantity} {it.unit}</p>
-                    ))}
+                  <div className="mt-2 space-y-1">
+                    {selectedChain.request.request_items.map((it: any) => {
+                      const isExpanded = expandedItemId === it.id;
+                      return (
+                        <div key={it.id} className="border rounded-md overflow-hidden">
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between px-2 py-1.5 text-xs hover:bg-muted/50 transition-colors text-left gap-2"
+                            onClick={() =>
+                              setExpandedItemId(isExpanded ? null : it.id)
+                            }
+                          >
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <Activity className="h-3 w-3 text-primary shrink-0" />
+                              <span className="truncate">
+                                {it.description} — {it.quantity} {it.unit}
+                              </span>
+                            </span>
+                            {isExpanded ? (
+                              <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" />
+                            ) : (
+                              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                            )}
+                          </button>
+                          {isExpanded && (
+                            <div className="px-2 pb-2 bg-muted/20 border-t">
+                              <p className="text-[11px] text-muted-foreground font-medium pt-2 pb-1.5 flex items-center gap-1">
+                                <Activity className="h-3 w-3" />
+                                Movimientos del ítem
+                              </p>
+                              <MovimientosProducto requestItemId={it.id} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </StepCard>

@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAwardCart } from "@/contexts/AwardCartContext";
 import { ComparativaGrid } from "@/components/cotizaciones/ComparativaGrid";
+import { logMovimiento } from "@/lib/movimiento-utils";
 
 export default function Cotizaciones() {
   const { viewRole: role, companyId } = useViewRole();
@@ -366,6 +367,25 @@ export default function Cotizaciones() {
         .single();
       if (poErr) throw poErr;
 
+      // ---------------------------------------------------------------
+      // Resolve request_item_id per cart item via:
+      //   AwardCartItem.rfq_item_id -> rfq_items.request_item_id
+      // rfq_items.request_item_id is populated when the item was created
+      // from a cotizacion routing in SurtidoDialog (Option B). Free-mode
+      // RFQ items have null there -- those rows get null in purchase_order_items.
+      // ---------------------------------------------------------------
+      const rfqItemIds = providerItems.map((i) => i.rfq_item_id).filter(Boolean);
+      let rfqItemRequestMap: Record<string, string | null> = {};
+      if (rfqItemIds.length) {
+        const { data: rfqItemRows } = await supabase
+          .from("rfq_items")
+          .select("id, request_item_id")
+          .in("id", rfqItemIds);
+        for (const row of rfqItemRows ?? []) {
+          rfqItemRequestMap[row.id] = row.request_item_id ?? null;
+        }
+      }
+
       const poItems = providerItems.map((i) => ({
         purchase_order_id: po.id,
         description: i.description,
@@ -373,9 +393,43 @@ export default function Cotizaciones() {
         unit: i.unit,
         unit_price: i.unit_price,
         quote_item_id: i.quote_item_id,
+        // Populated when the rfq_item has a request origin (cotizacion routing).
+        // Null for free-mode RFQ items -- no dangling reference inserted.
+        request_item_id: rfqItemRequestMap[i.rfq_item_id] ?? null,
       }));
       const { error: itemsErr } = await supabase.from("purchase_order_items").insert(poItems);
       if (itemsErr) throw itemsErr;
+
+      // ---------------------------------------------------------------
+      // Log per-item OC movement (best-effort).
+      //
+      // request_item_id is now resolved above via rfq_items.request_item_id
+      // (Option B link). Items from cotizacion routing carry the link;
+      // free-mode RFQ items have null and are skipped gracefully.
+      //
+      // ---------------------------------------------------------------
+      try {
+        const providerGroup = cartByProvider.find((g) => g.provider_id === providerId);
+        const providerName = providerGroup?.provider_name ?? providerId;
+
+        for (const item of providerItems) {
+          const requestItemId = rfqItemRequestMap[item.rfq_item_id] ?? null;
+          if (!requestItemId) continue; // skip -- no clean attribution (free-mode RFQ)
+          await logMovimiento(supabase, {
+            request_item_id: requestItemId,
+            material_id: null,
+            tipo: "oc_emitida",
+            origen: null,
+            destino: `Proveedor ${providerName}`,
+            cantidad: item.quantity,
+            ref_type: "purchase_order",
+            ref_id: po.id,
+            created_by: user?.id ?? null,
+          });
+        }
+      } catch {
+        // Best-effort -- OC generation must not be blocked by log failures
+      }
 
       cart.removeByProvider(providerId);
     },

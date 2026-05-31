@@ -431,6 +431,70 @@ export type Database = {
           },
         ]
       }
+      movimiento_producto: {
+        Row: {
+          id: string
+          request_item_id: string
+          material_id: string | null
+          tipo: string
+          origen: string | null
+          destino: string | null
+          cantidad: number | null
+          ref_type: string | null
+          ref_id: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          request_item_id: string
+          material_id?: string | null
+          tipo: string
+          origen?: string | null
+          destino?: string | null
+          cantidad?: number | null
+          ref_type?: string | null
+          ref_id?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          request_item_id?: string
+          material_id?: string | null
+          tipo?: string
+          origen?: string | null
+          destino?: string | null
+          cantidad?: number | null
+          ref_type?: string | null
+          ref_id?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_producto_request_item_id_fkey"
+            columns: ["request_item_id"]
+            isOneToOne: false
+            referencedRelation: "request_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_producto_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_producto_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notificaciones: {
         Row: {
           company_id: string
@@ -1587,6 +1651,7 @@ export type Database = {
           material_id: string | null
           observations: string | null
           quantity: number
+          request_item_id: string | null
           rfq_id: string
           specifications: string | null
           unit: string
@@ -1598,6 +1663,7 @@ export type Database = {
           material_id?: string | null
           observations?: string | null
           quantity: number
+          request_item_id?: string | null
           rfq_id: string
           specifications?: string | null
           unit: string
@@ -1609,6 +1675,7 @@ export type Database = {
           material_id?: string | null
           observations?: string | null
           quantity?: number
+          request_item_id?: string | null
           rfq_id?: string
           specifications?: string | null
           unit?: string
@@ -1619,6 +1686,13 @@ export type Database = {
             columns: ["material_id"]
             isOneToOne: false
             referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_items_request_item_id_fkey"
+            columns: ["request_item_id"]
+            isOneToOne: false
+            referencedRelation: "request_items"
             referencedColumns: ["id"]
           },
           {

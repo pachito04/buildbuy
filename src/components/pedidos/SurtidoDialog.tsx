@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { availableStock, reservationCalc } from "@/lib/deposito-utils";
 import { suggestRouting, canProcess, type Routing } from "@/lib/routing-utils";
+import { logMovimiento, movimientoOrigenRequerimiento, routingToDestino } from "@/lib/movimiento-utils";
 
 interface SurtidoDialogProps {
   requestId: string | null;
@@ -248,6 +249,9 @@ export function SurtidoDialog({
           description: item.description,
           quantity: item.remaining > 0 ? item.remaining : item.requested,
           unit: item.unit,
+          // Link back to the originating request_item so generateOC can
+          // resolve request_item_id via quote_items -> rfq_items.request_item_id.
+          request_item_id: item.id,
           ...(item.material_id ? { material_id: item.material_id } : {}),
         }));
         const { error: rfqItemsErr } = await supabase
@@ -302,6 +306,23 @@ export function SurtidoDialog({
         });
       } catch {
         // Non-fatal — event logging should not block the flow
+      }
+
+      // ---------------------------------------------------------------
+      // Log per-item movement (best-effort — must not block the flow)
+      // ---------------------------------------------------------------
+      for (const item of committed) {
+        await logMovimiento(supabase, {
+          request_item_id: item.id,
+          material_id: item.material_id ?? null,
+          tipo: "destino_asignado",
+          origen: movimientoOrigenRequerimiento(requestNumber),
+          destino: routingToDestino(item.routing),
+          cantidad: item.requested,
+          ref_type: "requerimiento",
+          ref_id: requestId,
+          created_by: user.id,
+        });
       }
 
       // ---------------------------------------------------------------

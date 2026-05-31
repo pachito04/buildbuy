@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { logMovimiento } from "@/lib/movimiento-utils";
 
 interface RecepcionParams {
   requestId: string;
@@ -10,6 +11,10 @@ interface RecepcionParams {
   quantityReceived: number;
   newTotalReceived: number;
   totalRequired: number;
+  /** UUID of the material in the materials table (for movimiento_producto). Optional. */
+  materialId?: string | null;
+  /** Physical destination label, e.g. 'Inventario' or 'Obra'. Defaults to 'Obra'. */
+  destinoLabel?: string;
 }
 
 export function useItemRecepcion() {
@@ -42,6 +47,19 @@ export function useItemRecepcion() {
           total_required: totalRequired,
           new_status: newStatus,
         },
+        created_by: user?.id ?? null,
+      });
+
+      // Log movement (best-effort — must not block reception)
+      await logMovimiento(supabase, {
+        request_item_id: itemId,
+        material_id: params.materialId ?? null,
+        tipo: "recepcion",
+        origen: null,
+        destino: params.destinoLabel ?? "Obra",
+        cantidad: params.quantityReceived,
+        ref_type: "remito",
+        ref_id: null,
         created_by: user?.id ?? null,
       });
 
