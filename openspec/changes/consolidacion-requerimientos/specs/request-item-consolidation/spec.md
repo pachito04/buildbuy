@@ -1,112 +1,81 @@
-# Request Item Consolidation Specification
+# Delta for Request Item Consolidation (núcleo)
 
-> ⚠️ **CORRECTION (supersedes inline `destination`/`inventario` language below).**
-> Two **orthogonal** axes were wrongly merged:
-> - **`request_items.routing`** (`inventario | cotizacion | orden_directa | pendiente`) — PROCUREMENT routing, owned by `items-destino-granular`.
-> - **`request_items.delivery_target`** (`deposito | obra`) — DELIVERY location, owned by consolidación (does NOT exist yet).
->
-> Every scenario below that gates on `destination = 'inventario'` is **incorrect** and must read: `routing = 'cotizacion'` (or quotable `pendiente`) **AND** `delivery_target = 'deposito'` **AND** `material_id IS NOT NULL`. `routing = 'inventario'` items are stock-fulfilled, never quoted, never consolidated. Rework these scenarios when consolidación is resumed.
+> Two-axis model: `routing` (procurement, `#1`) is orthogonal to `delivery_target` (delivery location, this change). Consolidation gates on `delivery_target='deposito'`. Reception distribution is deferred to `#8b`.
 
-## Purpose
+## ADDED Requirements
 
-Compras can consolidate eligible request items from multiple obras into a single RFQ grouped by material, with full traceability, urgency propagation, and partial delivery distribution.
+### Requirement: Per-item delivery target
 
-## Requirements
+Each `request_items` row MUST carry a `delivery_target` of `deposito` or `obra`, defaulting to `obra`. The request creation form MUST let the user choose it per item.
 
-### Requirement: Eligibility Rules
+#### Scenario: Column added with default
 
-> **Prerequisite alignment**: `request_items.destination` is owned by `items-destino-granular`. The canonical values are `inventario | cotizacion | orden_directa | pendiente`. For consolidation purposes, items routed to depot/inventory use `destination = 'inventario'` (not `deposito`).
+- GIVEN the migration `016_consolidacion.sql` is applied
+- THEN `request_items.delivery_target` exists, constrained to `deposito | obra`, default `obra`
+- AND existing rows default to `obra`
 
-The system MUST include a request item in the consolidation pool if and only if ALL of the following hold:
-- Parent `requests.status = 'pendiente'`
-- `request_items.status = 'sin_pedir'`
-- `request_items.destination = 'inventario'`
-- `request_items.material_id IS NOT NULL`
+#### Scenario: Selectable at creation
 
-Free-text items (no `material_id`) MUST be excluded and MUST display a badge "No consolidable — sin material vinculado".
+- GIVEN the user adds a product to a new requirement
+- THEN they can set its delivery target to deposito or obra
 
-#### Scenario: Eligible items appear in panel
+### Requirement: Eligible items discovered grouped by material across obras
 
-- GIVEN requests from two different obras each have items with status=sin_pedir, destination=inventario, and a valid material_id
-- WHEN Compras opens the Consolidar tab
-- THEN all eligible items appear grouped by material_id, regardless of obra
+The consolidation panel MUST list consolidation-eligible request items grouped by `material_id`, summing quantities across obras, showing per-source breakdown (requirement number, obra, quantity). An item is eligible when its request `status='pendiente'`, `delivery_target='deposito'`, `routing IN ('pendiente','cotizacion')`, `material_id IS NOT NULL`, and item `status='sin_pedir'`.
 
-#### Scenario: Free-text items excluded
+#### Scenario: Same material across two obras grouped
 
-- GIVEN a request item has destination=inventario and status=sin_pedir but material_id IS NULL
-- WHEN Compras opens the Consolidar tab
-- THEN the item appears with badge "No consolidable — sin material vinculado" and cannot be selected
+- GIVEN two requests from different obras each have an eligible item for the same material (qty 10 and 15)
+- WHEN the panel loads
+- THEN a single consolidated line for that material shows total 25
+- AND its breakdown shows the two sources (req #, obra, 10 and 15)
 
-#### Scenario: Non-inventario items excluded
+#### Scenario: Ineligible items excluded
 
-- GIVEN a request item has destination=cotizacion or destination=pendiente
-- WHEN Compras opens the Consolidar tab
-- THEN the item does NOT appear in the consolidation panel
+- GIVEN items with `delivery_target='obra'`, or `routing='inventario'`, or `material_id IS NULL`, or a non-`pendiente` request
+- WHEN the panel loads
+- THEN those items are NOT offered for consolidation
+- AND free-text items (no material) show a "no consolidable" indication
 
-### Requirement: Consolidated RFQ Creation
+### Requirement: Consolidated RFQ creation with full traceability
 
-The system MUST create an RFQ with `rfq_type = 'consolidated'` from selected items. For each consolidated line, the system MUST insert one `rfq_item_sources` row per source request_item. The system MUST insert one `rfq_requests` row per distinct source request.
+Creating a consolidated RFQ MUST insert an RFQ marked `rfq_type='consolidated'`, one `rfq_items` row per consolidated material line (total quantity), one `rfq_item_sources` row per contributing source (rfq_item ↔ request_item ↔ request, with the source quantity), and one `rfq_requests` row per distinct source request.
 
-#### Scenario: Create consolidated RFQ
+#### Scenario: Sources and requests recorded
 
-- GIVEN Compras selects items from 3 obras sharing the same material_id
-- WHEN Compras confirms RFQ creation
-- THEN one RFQ is created with rfq_type=consolidated
-- AND one rfq_items row exists per distinct material_id
-- AND rfq_item_sources rows link each rfq_item to its source request_item_ids with quantities
-- AND rfq_requests rows link the RFQ to each source request
-
-#### Scenario: Existing RFQ flows unaffected
-
-- GIVEN Compras creates a standard RFQ (manual, basket, direct)
-- WHEN the RFQ is saved
-- THEN rfq_type defaults to its original value and rfq_item_sources is not populated
-
-### Requirement: Urgency Propagation
-
-The system MUST set `rfqs.urgente = true` on the consolidated RFQ if ANY source request has `urgente = true`. The `urgente` field is internal only and MUST NOT be exposed to providers.
-
-Non-urgent source items SHOULD display a notice: "Marcado como urgente por consolidación con Requerimiento #XX" where XX is the urgent request number.
-
-#### Scenario: Urgency propagates from one urgent source
-
-- GIVEN items from 5 requests are consolidated and 1 request has urgente=true
+- GIVEN the user consolidates a material line built from 2 source request_items (from 2 requests)
 - WHEN the consolidated RFQ is created
-- THEN rfqs.urgente = true
-- AND non-urgent items show the urgency notice referencing the urgent request number
+- THEN one `rfq_items` row exists with the summed quantity
+- AND two `rfq_item_sources` rows link it to each source request_item with that source's quantity
+- AND `rfq_requests` rows link the RFQ to both source requests
+- AND the RFQ has `rfq_type='consolidated'`
 
-#### Scenario: No urgency when no source is urgent
+#### Scenario: Traceability sums back to the total
 
-- GIVEN all source requests have urgente=false
+- GIVEN a consolidated `rfq_items` row of quantity 25
+- THEN the sum of its `rfq_item_sources.quantity` equals 25
+
+### Requirement: Urgency propagated from source requirements
+
+A consolidated RFQ MUST be flagged urgent when ANY contributing source request is urgent (computed from its `desired_date` vs the company urgency threshold, via `isUrgente`).
+
+#### Scenario: Any urgent source makes the RFQ urgent
+
+- GIVEN a consolidation where one of two source requests is urgent
 - WHEN the consolidated RFQ is created
-- THEN rfqs.urgente = false
+- THEN it is flagged urgent
 
-### Requirement: Partial Delivery Distribution
+#### Scenario: No urgent source
 
-When an OC quantity is less than total requested, the system MUST distribute available units prioritizing urgent requests first, then by `desired_date ASC` within each urgency group.
+- GIVEN all source requests are within the threshold (not urgent)
+- THEN the consolidated RFQ is not urgent
 
-#### Scenario: Urgent requests fulfilled first
+### Requirement: Existing RFQ flows unaffected
 
-- GIVEN a consolidated rfq_item covers 100 units (50 urgent, 50 non-urgent)
-- WHEN provider delivers 60 units
-- THEN the 50 urgent units are allocated first
-- AND remaining 10 units go to the earliest desired_date among non-urgent items
+The manual, basket, and direct RFQ creation paths MUST continue to work unchanged; consolidation is an additional path.
 
-#### Scenario: Full delivery — no distribution needed
+#### Scenario: Non-consolidated RFQ unchanged
 
-- GIVEN delivered quantity equals total requested quantity
-- WHEN reception is registered
-- THEN each source request_item receives its full requested quantity
-
-### Requirement: Destination Selector on Request Creation
-
-> **Alignment with `items-destino-granular`**: destination is now set in the processing dialog (SurtidoDialog), not at request creation time. Items start as `destination=pendiente` and are assigned during processing. The `CreateRequestDialog` destination selector described below is superseded by the per-item processing flow.
-
-The system MAY surface destination in the request creation dialog for planning purposes, but the authoritative assignment happens in the processing dialog. The default value is `pendiente` (not `obra`).
-
-#### Scenario: Set destination during processing
-
-- GIVEN a user is processing a request with multiple items
-- WHEN the user selects destination=inventario for one item
-- THEN that item is saved with destination=inventario and becomes eligible for consolidation
-- AND items without explicit selection remain destination=pendiente (cannot be processed)
+- GIVEN a user creates an RFQ via the existing manual/basket/direct flow
+- THEN no `rfq_item_sources` / `rfq_requests` rows are required
+- AND `rfq_type` is its normal value (not `consolidated`)

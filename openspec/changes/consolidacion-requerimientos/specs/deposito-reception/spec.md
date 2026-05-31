@@ -1,21 +1,7 @@
-# Delta for Deposito Reception
+# Delta for Deposito Reception — DEFERRED to #8b
 
-## ADDED Requirements
-
-### Requirement: Consolidated OC Traceability
-
-When an OC is generated from a consolidated RFQ, the system MUST populate `purchase_order_items.request_item_id` from `rfq_item_sources` for each line item. The reception flow is unchanged; traceability data is added transparently.
-
-#### Scenario: OC from consolidated RFQ carries request_item_id
-
-- GIVEN an OC is generated from an RFQ with rfq_type=consolidated
-- WHEN `generateOC` runs
-- THEN each `purchase_order_items` row has `request_item_id` set to the corresponding source request_item from `rfq_item_sources`
-- AND the reception panel displays the OC normally with no behavioral change
-
-#### Scenario: OC from standard RFQ unaffected
-
-- GIVEN an OC is generated from an RFQ with rfq_type=open or closed_bid
-- WHEN `generateOC` runs
-- THEN `purchase_order_items.request_item_id` is NULL (no rfq_item_sources lookup performed)
-- AND behavior is identical to pre-consolidation behavior
+> **Deferred.** Consolidated-merchandise reception (distributing received units per obra/requirement, by urgency, with partial deliveries) is **NOT in the núcleo** (`consolidacion-requerimientos`). The núcleo captures the traceability (`rfq_item_sources` / `rfq_requests`) that this distribution will consume.
+>
+> When `#8b` is started, this delta will specify: on reception of a consolidated OC, split the received quantity back to each source `request_item` per `rfq_item_sources`, resolve multi-provider/partial cases, and respect per-source urgency ordering on shortfall — per Reporte 1805 "Recepción de mercadería consolidada".
+>
+> No requirements are active in this change.

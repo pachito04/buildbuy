@@ -15,13 +15,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Send, ShoppingCart, CheckCircle, Layers } from "lucide-react";
+import { Plus, FileText, Send, ShoppingCart, CheckCircle, Layers, GitMerge } from "lucide-react";
 import { useBasket } from "@/contexts/BasketContext";
 import { RfqNuevo } from "@/components/rfqs/RfqNuevo";
 import { RfqCesta } from "@/components/rfqs/RfqCesta";
 import { RfqList } from "@/components/rfqs/RfqList";
+import { ConsolidacionPanel } from "@/components/cotizaciones/ConsolidacionPanel";
 
-type RfqTab = "nuevo" | "cesta" | "pool" | "vigentes" | "historico";
+type RfqTab = "nuevo" | "cesta" | "pool" | "consolidar" | "vigentes" | "historico";
 
 const rfqStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   draft: { label: "Borrador", variant: "secondary" },
@@ -212,6 +213,7 @@ export default function RFQs() {
     { key: "nuevo", label: "Nuevo", icon: Plus },
     { key: "cesta", label: "Cesta", icon: ShoppingCart, badge: basket.totalItems || undefined },
     { key: "pool", label: "Consolidar Pool", icon: Layers },
+    { key: "consolidar", label: "Consolidar", icon: GitMerge },
     { key: "vigentes", label: "Vigentes", badge: vigentes.length || undefined },
     { key: "historico", label: "Histórico", badge: historico.length || undefined },
   ];
@@ -292,6 +294,10 @@ export default function RFQs() {
             })
           )}
         </div>
+      )}
+
+      {activeTab === "consolidar" && (
+        <ConsolidacionPanel companyId={companyId ?? null} />
       )}
 
       {activeTab === "vigentes" && (

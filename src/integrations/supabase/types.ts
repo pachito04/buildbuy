@@ -1498,6 +1498,7 @@ export type Database = {
       request_items: {
         Row: {
           created_at: string
+          delivery_target: 'deposito' | 'obra'
           description: string
           id: string
           match_confidence: string | null
@@ -1513,6 +1514,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_target?: 'deposito' | 'obra'
           description: string
           id?: string
           match_confidence?: string | null
@@ -1528,6 +1530,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_target?: 'deposito' | 'obra'
           description?: string
           id?: string
           match_confidence?: string | null
@@ -1711,6 +1714,55 @@ export type Database = {
           },
         ]
       }
+      rfq_item_sources: {
+        Row: {
+          created_at: string
+          id: string
+          quantity: number
+          request_id: string
+          request_item_id: string
+          rfq_item_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          quantity: number
+          request_id: string
+          request_item_id: string
+          rfq_item_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          quantity?: number
+          request_id?: string
+          request_item_id?: string
+          rfq_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_item_sources_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_item_sources_request_item_id_fkey"
+            columns: ["request_item_id"]
+            isOneToOne: false
+            referencedRelation: "request_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_item_sources_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfq_providers: {
         Row: {
           created_at: string
@@ -1761,6 +1813,42 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_price_comparison"
             referencedColumns: ["rfq_id"]
+          },
+        ]
+      }
+      rfq_requests: {
+        Row: {
+          created_at: string
+          id: string
+          request_id: string
+          rfq_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          request_id: string
+          rfq_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          request_id?: string
+          rfq_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_requests_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_requests_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
           },
         ]
       }

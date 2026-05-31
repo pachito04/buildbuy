@@ -31,9 +31,10 @@ interface ItemRow {
   quantity: string;
   unit: string;
   observations: string;
+  delivery_target: "deposito" | "obra";
 }
 
-const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "", observations: "" };
+const EMPTY_ITEM: ItemRow = { material_id: "", description: "", quantity: "1", unit: "", observations: "", delivery_target: "obra" };
 
 export function CreateRequestDialog() {
   const [open, setOpen] = useState(false);
@@ -153,6 +154,7 @@ export function CreateRequestDialog() {
           quantity: parseFloat(i.quantity) || 1,
           unit: i.unit,
           observations: i.observations || null,
+          delivery_target: i.delivery_target,
         }))
       );
       if (ie) throw ie;
@@ -208,11 +210,11 @@ export function CreateRequestDialog() {
     const mat = allMaterials?.find((m) => m.material_id === material_id);
     const copy = [...items];
     copy[i] = {
+      ...copy[i],
       material_id,
       description: mat?.name ?? "",
       unit: mat?.unit ?? "",
       quantity: copy[i].quantity || "1",
-      observations: copy[i].observations ?? "",
     };
     setItems(copy);
   };
@@ -392,6 +394,25 @@ export function CreateRequestDialog() {
                   <span className="text-sm text-muted-foreground w-10 shrink-0 text-center">
                     {item.unit || "—"}
                   </span>
+
+                  <Select
+                    value={item.delivery_target}
+                    onValueChange={(v: "deposito" | "obra") =>
+                      setItems((prev) =>
+                        prev.map((it, idx) =>
+                          idx === i ? { ...it, delivery_target: v } : it
+                        )
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-28 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="obra">Obra</SelectItem>
+                      <SelectItem value="deposito">Deposito</SelectItem>
+                    </SelectContent>
+                  </Select>
 
                   <Button
                     type="button"

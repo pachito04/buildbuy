@@ -1,95 +1,74 @@
-# Proposal: Consolidación de Requerimientos en Cotización
+# Proposal: Consolidación de Requerimientos (núcleo)
 
-> ⚠️ **CORRECTION (supersedes inline `destination`/`inventario` language below).**
-> An earlier rebase wrongly collapsed two **orthogonal** axes into one column. They are different:
-> - **`request_items.routing`** (`inventario | cotizacion | orden_directa | pendiente`) — PROCUREMENT routing: *how* an item is obtained. **Owned by `items-destino-granular`** (migration `012_request_item_routing.sql`). Orthogonal to consolidación.
-> - **`request_items.delivery_target`** (`deposito | obra`) — DELIVERY location: *where* the goods physically go. This is the axis consolidación cares about ("solo se consolidan requerimientos con destino **depósito**"). **Consolidación owns this column** (its own migration) — it does NOT exist yet.
->
-> Correct eligibility for consolidation = items that need a quote (`routing = 'cotizacion'`, or still `pendiente` and quotable) **AND** `delivery_target = 'deposito'` **AND** `material_id IS NOT NULL`. Note: `routing = 'inventario'` items are fulfilled from stock and never reach an RFQ, so they are **never** consolidation candidates — the old "`destination = 'inventario'`" eligibility was incorrect.
-> Every inline mention of `destination`/`deposito→inventario` below is **stale** and must be reworked to this two-axis model when consolidación is resumed.
+> **Reconciled (supersedes the prior stale draft).** This is the **first-cut / núcleo** of the consolidación module, aligned to the current codebase. Two orthogonal axes are kept separate:
+> - **`request_items.routing`** (`inventario | cotizacion | orden_directa | pendiente`) — procurement, owned by `#1`.
+> - **`request_items.delivery_target`** (`deposito | obra`) — delivery location, **introduced by this change**. Consolidation gates on `delivery_target = 'deposito'`.
+> Deferred to a follow-up (`#8b`): consolidated **reception distribution** (per-obra split by urgency, partial deliveries), **proactive detection** ("este producto está en req #XXX"), and OC-level distribution. This change **captures** the consolidation traceability; `#8b` **consumes** it.
 
 ## Intent
 
-Compras needs to combine eligible request items from multiple obras into a single RFQ to achieve better pricing through volume. Currently, each request generates its own RFQ (1:1), losing purchasing power. This change introduces cross-obra consolidation with full traceability from consolidated RFQ → source request_items, including urgency propagation and partial delivery distribution.
+Compras must be able to combine eligible request items from multiple obras (own company) into a single RFQ to gain volume pricing, instead of one RFQ per request. This núcleo delivers: per-item delivery target, eligible-item discovery grouped by material across obras, consolidated RFQ creation, and full source traceability (`rfq_item_sources` / `rfq_requests`) with urgency propagation.
 
 ## Scope
 
 ### In Scope
-- DB migrations: `rfqs.urgente`, `rfq_item_sources` table, `rfq_requests` table, `rfq_type` enum formalization
-  - NOTE: `request_items.destination` migration is **NOT** in scope here — it is owned by `items-destino-granular` (migration `012_request_item_destination.sql`). This change consumes the column as a prerequisite.
-- Consolidation panel UI as new tab in Cotizaciones (extracted to `ConsolidacionPanel.tsx`)
-- `useConsolidacion.ts` hook for eligible item fetching, grouping, and RFQ creation
-- Pure consolidation logic in `consolidacion-utils.ts` (grouping by material_id, urgency propagation, partial delivery distribution)
-- `destination` selector per item in `CreateRequestDialog.tsx`
-- `generateOC` modification for consolidated RFQ traceability via `rfq_item_sources`
-- Tests for pure consolidation functions (strict TDD)
+- **Migration**: `request_items.delivery_target` (`deposito | obra`, default `obra`, CHECK); `rfq_item_sources` table (consolidated line → source request_item + quantity); `rfq_requests` table (consolidated RFQ → source requests). RLS by company on both tables.
+- **Per-item delivery selector** in `CreateRequestDialog` (deposito/obra), so eligibility works.
+- **Pure logic** `consolidacion-utils.ts` (TDD): `groupEligibleByMaterial`, `consolidatedUrgency` (reusing `isUrgente`), eligibility predicate.
+- **Hook** `useConsolidacion.ts`: fetch eligible items, group by material, create a consolidated RFQ (`rfq_type='consolidated'`) with `rfq_items` + `rfq_item_sources` + `rfq_requests` rows.
+- **UI** `ConsolidacionPanel.tsx`: a "Consolidar" tab showing eligible items grouped by material across obras (with per-source breakdown), selection, and consolidated-RFQ creation.
 
-### Out of Scope
-- Provider-facing urgency indicators (urgente is internal only)
-- Splitting OCs by destination (consolidated items are always deposito)
-- Consolidation of free-text items (no material_id)
-- Auto-consolidation / scheduling
-- Changes to Comparativa flow (works as-is for consolidated RFQs)
+### Out of Scope (deferred to #8b)
+- Consolidated **reception** distribution per obra / by urgency / partial deliveries.
+- `generateOC` distribution of a consolidated line across multiple source request_items (the data is captured in `rfq_item_sources`; consuming it is #8b).
+- **Proactive detection** prompt when editing a requirement.
+- Free-text items (no `material_id`) — excluded from consolidation with a clear badge.
+- Pool de Compras (interempresa) — that's `#9`.
 
 ## Capabilities
 
 ### New Capabilities
-- `request-item-consolidation`: Cross-obra consolidation of request items into a single RFQ with full traceability, urgency propagation, and partial delivery distribution
-
-### Modified Capabilities
-- `deposito-reception`: OCs from consolidated RFQs arrive with `destination=deposito` and carry `request_item_id` traceability — reception flow unchanged but source traceability is now richer
+- `request-item-consolidation`: Compras consolidates eligible deposito-bound request items across obras into one RFQ, with material grouping, urgency propagation, and full source traceability.
 
 ## Approach
 
-1. **Migrations first**: Add `request_items.destination` (default `obra`), `rfqs.urgente`, formalize `rfq_type` enum (`open|closed_bid|consolidated`), create `rfq_item_sources` and `rfq_requests` tables
-2. **Pure logic layer**: `consolidacion-utils.ts` — groupByMaterial, calculateUrgency, distributePartialDelivery (TDD)
-3. **Hook**: `useConsolidacion.ts` — queries eligible items (status `pendiente` requests, `sin_pedir` + `deposito` + has `material_id` items), groups them, creates consolidated RFQ with `rfq_item_sources` + `rfq_requests` records
-4. **UI**: `ConsolidacionPanel.tsx` tab in Cotizaciones — product-grouped view, selection, RFQ creation wizard
-5. **OC traceability**: Modify `generateOC` in Cotizaciones.tsx to lookup `rfq_item_sources` and populate `purchase_order_items.request_item_id`
-6. **Destination selector**: Add per-item `destination` dropdown in `CreateRequestDialog.tsx`
+1. **Migration** — `delivery_target` + `rfq_item_sources` + `rfq_requests`. Hand SQL to the user.
+2. **types.ts** — new column + two tables.
+3. **Pure logic (TDD)** — grouping + urgency + eligibility in `consolidacion-utils.ts`.
+4. **Hook** — `useConsolidacion`: eligible query + consolidated-RFQ mutation (RFQ + items + sources + requests, in order).
+5. **UI** — `ConsolidacionPanel` tab + the `delivery_target` selector in `CreateRequestDialog`.
 
 ## Affected Areas
 
-| Area | Impact | Description |
-|------|--------|-------------|
-| `supabase/migrations/` | New | 3 migrations: urgente col, rfq_item_sources table, rfq_requests table (`request_items.destination` is owned by `items-destino-granular`) |
-| `src/integrations/supabase/types.ts` | Modified | Regenerate after migrations (rfq_type, destination, new tables) |
-| `src/lib/consolidacion-utils.ts` | New | Pure functions: grouping, urgency, distribution |
-| `src/lib/__tests__/consolidacion-utils.test.ts` | New | TDD tests for pure consolidation logic |
-| `src/hooks/useConsolidacion.ts` | New | Data fetching + consolidation mutation |
-| `src/components/cotizaciones/ConsolidacionPanel.tsx` | New | Consolidation UI panel |
-| `src/pages/Cotizaciones.tsx` | Modified | Add Consolidar tab; modify generateOC for traceability |
-| `src/components/pedidos/CreateRequestDialog.tsx` | Modified | Add destination selector per request item |
+| Area | Impact |
+|------|--------|
+| `supabase/migrations/016_consolidacion.sql` | New — `delivery_target` + `rfq_item_sources` + `rfq_requests` |
+| `src/integrations/supabase/types.ts` | Modified — column + 2 tables |
+| `src/lib/consolidacion-utils.ts` (+ tests) | New — pure grouping/urgency/eligibility |
+| `src/hooks/useConsolidacion.ts` | New — eligible query + consolidated RFQ creation |
+| `src/components/cotizaciones/ConsolidacionPanel.tsx` | New — consolidation UI |
+| `src/pages/Cotizaciones.tsx` or `RFQs.tsx` | Modified — mount the "Consolidar" tab |
+| `src/components/pedidos/CreateRequestDialog.tsx` | Modified — per-item `delivery_target` selector |
 
-## Risks
+## Eligibility (reconciled to current statuses)
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
-| `generateOC` traceability adds query complexity | Med | Use single `rfq_item_sources` lookup before insert; batch operations |
-| rfq_type migration on existing data (nulls) | Low | Default existing nulls to `open` in migration |
-| Partial quantity selection UX complexity | Med | Start with full-quantity consolidation; partial as follow-up if needed |
-| Free-text items confusion | Low | Clear UI badge "No consolidable — sin material vinculado" |
+A request item is consolidation-eligible when:
+- its request `status = 'pendiente'` (not yet processed / no active gestión),
+- `delivery_target = 'deposito'`,
+- `routing IN ('pendiente','cotizacion')` (NOT `inventario`/`orden_directa` — inventario is stock-fulfilled and never reaches an RFQ),
+- `material_id IS NOT NULL`,
+- item `status = 'sin_pedir'` (no active OC/reception).
 
 ## Rollback Plan
 
-1. Revert migrations in reverse order (drop `rfq_requests`, drop `rfq_item_sources`, drop `rfqs.urgente`). The `request_items.destination` column is owned by `items-destino-granular` — do NOT drop it here.
-2. Remove ConsolidacionPanel tab from Cotizaciones.tsx
-3. Revert `generateOC` changes (no consolidated RFQ path)
-4. Existing RFQs and OCs are unaffected — new tables/columns are additive only
+- **DB**: additive only — drop `rfq_requests`, `rfq_item_sources`, and `request_items.delivery_target`. No existing data touched.
+- **Code**: the Consolidar tab + hook + selector are additive; reverting the files removes them. Existing RFQ flows (manual, basket, direct) are untouched.
+- **Risk**: medium — new tables + a new RFQ-creation path; mitigated by pure tested logic and additive schema. Consolidated RFQs flow through the existing comparativa/OC path unchanged (distribution deferred).
 
-## Dependencies
+## Review Workload (preliminary)
 
-- **Prerequisite: `items-destino-granular`** — `request_items.destination` is owned by that change. Its migration (`012_request_item_destination.sql`) must be applied before any consolidacion migrations run. The four canonical values are: `inventario | cotizacion | orden_directa | pendiente`. Consolidacion's eligibility criterion uses `destination = 'inventario'` to identify depot-routed items (previously described as `deposito` — align to `inventario`).
-- Supabase migrations must run before UI work
-- `types.ts` regeneration is NOT needed for destination — already done in `items-destino-granular`
-- No external library dependencies
+**> 400 lines** (migration + utils + hook + panel + selector). Chained slices: (1) migration + types + pure utils; (2) hook + ConsolidacionPanel + tab; (3) `delivery_target` selector in CreateRequestDialog. Confirm at tasks.
 
-## Success Criteria
+## Strict TDD
 
-- [ ] Compras can see eligible items grouped by material across obras
-- [ ] Consolidated RFQ creates with correct `rfq_item_sources` and `rfq_requests` records
-- [ ] Urgency propagates: if any source request is urgent, consolidated RFQ is marked urgent
-- [ ] OC generation from consolidated RFQ populates `purchase_order_items.request_item_id` correctly
-- [ ] Free-text items are visually excluded with explanation
-- [ ] Pure consolidation functions have test coverage (strict TDD)
-- [ ] Existing RFQ flows (manual, basket, direct) remain unaffected
+`strict_tdd: true`. `consolidacion-utils.ts` (grouping, urgency, eligibility) is written test-first (`vitest run`). Hook/UI via `tsc --noEmit` + manual checklist.
