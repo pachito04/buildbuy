@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef } from "react";
+import { lineSubtotal, quoteTotal, validateQuote } from "@/lib/quote-pricing";
+import { usePersistedDraft } from "@/hooks/usePersistedDraft";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useViewRole } from "@/hooks/useViewRole";
@@ -6,12 +8,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Send, ShoppingCart, Trash2, FileText, Clock, CheckCircle, History, Calendar } from "lucide-react";
+import { BarChart3, Send, ShoppingCart, Trash2, FileText, Clock, CheckCircle, History, Calendar, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAwardCart } from "@/contexts/AwardCartContext";
 import { ComparativaGrid } from "@/components/cotizaciones/ComparativaGrid";
@@ -34,13 +37,47 @@ export default function Cotizaciones() {
   // --- Proveedor state ---
   const [provTab, setProvTab] = useState<"vigentes" | "enviadas" | "historicas">("vigentes");
   const [quoteDialogOpen, setQuoteDialogOpen] = useState(false);
-  const [quoteRfqId, setQuoteRfqId] = useState("");
-  const [quoteDeliveryDate, setQuoteDeliveryDate] = useState("");
-  const [quotePaymentCondition, setQuotePaymentCondition] = useState("");
-  const [quoteShippingCost, setQuoteShippingCost] = useState("");
-  const [quoteItems, setQuoteItems] = useState<{ rfq_item_id: string; unit_price: string }[]>([]);
   const [detailRfqId, setDetailRfqId] = useState<string | null>(null);
   const [quoteDetailId, setQuoteDetailId] = useState<string | null>(null);
+  const [draftNoticeDismissed, setDraftNoticeDismissed] = useState(false);
+  const [quoteValidationErrors, setQuoteValidationErrors] = useState<Record<string, string>>({});
+
+  // Quote form — persisted draft (one draft per browser; guarded to restore only when same rfqId).
+  interface QuoteDraftItem { rfq_item_id: string; unit_price: string; observations: string }
+  interface QuoteDraft {
+    rfqId: string;
+    items: QuoteDraftItem[];
+    deliveryDate: string;
+    paymentCondition: string;
+    shippingCost: string;
+    generalObservations: string;
+  }
+  const EMPTY_QUOTE_DRAFT: QuoteDraft = {
+    rfqId: "",
+    items: [],
+    deliveryDate: "",
+    paymentCondition: "",
+    shippingCost: "",
+    generalObservations: "",
+  };
+  const { value: quoteDraft, setValue: setQuoteDraft, clear: clearQuoteDraft, hadSavedDraft } =
+    usePersistedDraft<QuoteDraft>("buildbuy-quote-draft", EMPTY_QUOTE_DRAFT);
+
+  // Convenience aliases to avoid touching every reference to the flat state vars below.
+  const quoteRfqId = quoteDraft.rfqId;
+  const quoteDeliveryDate = quoteDraft.deliveryDate;
+  const quotePaymentCondition = quoteDraft.paymentCondition;
+  const quoteShippingCost = quoteDraft.shippingCost;
+  const quoteGeneralObservations = quoteDraft.generalObservations;
+  const quoteItems = quoteDraft.items;
+
+  const setQuoteRfqId = (v: string) => setQuoteDraft((d) => ({ ...d, rfqId: v }));
+  const setQuoteDeliveryDate = (v: string) => setQuoteDraft((d) => ({ ...d, deliveryDate: v }));
+  const setQuotePaymentCondition = (v: string) => setQuoteDraft((d) => ({ ...d, paymentCondition: v }));
+  const setQuoteShippingCost = (v: string) => setQuoteDraft((d) => ({ ...d, shippingCost: v }));
+  const setQuoteGeneralObservations = (v: string) => setQuoteDraft((d) => ({ ...d, generalObservations: v }));
+  const setQuoteItems = (updater: QuoteDraftItem[] | ((prev: QuoteDraftItem[]) => QuoteDraftItem[])) =>
+    setQuoteDraft((d) => ({ ...d, items: typeof updater === "function" ? updater(d.items) : updater }));
 
   // --- Provider record (proveedor) ---
   const { data: myProvider } = useQuery({
@@ -162,8 +199,27 @@ export default function Cotizaciones() {
   const submitQuote = useMutation({
     mutationFn: async () => {
       if (!myProvider) throw new Error("No se encontró tu registro de proveedor");
-      const itemsTotal = quoteItems.reduce((sum, qi) => sum + (parseFloat(qi.unit_price) || 0), 0);
-      const totalPrice = itemsTotal + (parseFloat(quoteShippingCost) || 0);
+      // Run validation — should always pass (button is disabled otherwise), but guard defensively.
+      const errors = validateQuote({
+        items: quoteItems.map((qi) => ({ unit_price: qi.unit_price })),
+        deliveryDate: quoteDeliveryDate,
+        paymentCondition: quotePaymentCondition,
+        shippingCost: quoteShippingCost,
+      });
+      if (Object.keys(errors).length > 0) {
+        setQuoteValidationErrors(errors);
+        throw new Error("Hay campos inválidos. Revisá los errores en el formulario.");
+      }
+      // Source rfq_items to get quantities for the ×quantity total.
+      const activeRfq =
+        provVigentes.find((r: any) => r.id === quoteRfqId) ||
+        (provRfqs ?? []).find((r: any) => r.id === quoteRfqId) ||
+        (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
+      const pricingLines = quoteItems.map((qi) => {
+        const rfqItem = (activeRfq?.rfq_items ?? []).find((it: any) => it.id === qi.rfq_item_id);
+        return { unitPrice: parseFloat(qi.unit_price) || 0, quantity: rfqItem?.quantity ?? 1 };
+      });
+      const totalPrice = quoteTotal(pricingLines, parseFloat(quoteShippingCost) || 0);
       let deliveryDays: number | null = null;
       if (quoteDeliveryDate) {
         const diff = Math.ceil((new Date(quoteDeliveryDate + "T00:00:00").getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
@@ -172,17 +228,35 @@ export default function Cotizaciones() {
       const shippingCost = parseFloat(quoteShippingCost) || 0;
       const { data: quote, error } = await supabase
         .from("quotes")
-        .insert({ rfq_id: quoteRfqId, provider_id: myProvider.id, delivery_days: deliveryDays, conditions: quotePaymentCondition || null, total_price: totalPrice, shipping_cost: shippingCost } as any)
+        .insert({
+          rfq_id: quoteRfqId,
+          provider_id: myProvider.id,
+          delivery_days: deliveryDays,
+          conditions: quotePaymentCondition || null,
+          total_price: totalPrice,
+          shipping_cost: shippingCost,
+          observations: quoteGeneralObservations.trim() || null,
+        } as any)
         .select()
         .single();
       if (error) throw error;
-      const items = quoteItems.filter((qi) => parseFloat(qi.unit_price) > 0).map((qi) => ({ quote_id: quote.id, rfq_item_id: qi.rfq_item_id, unit_price: parseFloat(qi.unit_price) }));
+      const items = quoteItems
+        .filter((qi) => parseFloat(qi.unit_price) > 0)
+        .map((qi) => ({
+          quote_id: quote.id,
+          rfq_item_id: qi.rfq_item_id,
+          unit_price: parseFloat(qi.unit_price),
+          observations: qi.observations.trim() || null,
+        }));
       if (items.length) {
         const { error: ie } = await supabase.from("quote_items").insert(items);
         if (ie) throw ie;
       }
     },
     onSuccess: () => {
+      clearQuoteDraft();
+      setQuoteValidationErrors({});
+      setDraftNoticeDismissed(false);
       qc.invalidateQueries({ queryKey: ["rfqs-proveedor"] });
       qc.invalidateQueries({ queryKey: ["my-quotes"] });
       qc.invalidateQueries({ queryKey: ["quoted-rfqs"] });
@@ -190,15 +264,30 @@ export default function Cotizaciones() {
       setProvTab("enviadas");
       toast({ title: "Cotización enviada", description: "Podés verla en la pestaña Enviadas." });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      console.error("[submitQuote] failed:", e);
+      toast({ title: "Error al enviar cotización", description: e.message, variant: "destructive" });
+    },
   });
 
   const openQuoteDialog = (rfq: any) => {
-    setQuoteRfqId(rfq.id);
-    setQuoteDeliveryDate("");
-    setQuotePaymentCondition("");
-    setQuoteShippingCost("");
-    setQuoteItems((rfq.rfq_items || []).map((i: any) => ({ rfq_item_id: i.id, unit_price: "" })));
+    setQuoteValidationErrors({});
+    setDraftNoticeDismissed(false);
+    // Restore draft only when it was saved for this exact RFQ; start fresh otherwise.
+    if (hadSavedDraft && quoteDraft.rfqId === rfq.id) {
+      // Draft already loaded into quoteDraft — just open the dialog.
+      setQuoteDialogOpen(true);
+      return;
+    }
+    // Fresh state for this RFQ.
+    setQuoteDraft({
+      rfqId: rfq.id,
+      items: (rfq.rfq_items || []).map((i: any) => ({ rfq_item_id: i.id, unit_price: "", observations: "" })),
+      deliveryDate: "",
+      paymentCondition: "",
+      shippingCost: "",
+      generalObservations: "",
+    });
     setQuoteDialogOpen(true);
   };
 
@@ -261,7 +350,7 @@ export default function Cotizaciones() {
       if (!providerItems.length) throw new Error("No hay productos para este proveedor");
       if (!companyId) throw new Error("No se pudo determinar la empresa");
 
-      const totalAmount = providerItems.reduce((sum, i) => sum + i.unit_price, 0);
+      const totalAmount = providerItems.reduce((sum, i) => sum + lineSubtotal(i.unit_price, i.quantity), 0);
 
       const { data: po, error: poErr } = await supabase
         .from("purchase_orders")
@@ -674,41 +763,166 @@ export default function Cotizaciones() {
         </Dialog>
 
         {/* Quote submission dialog */}
-        <Dialog open={quoteDialogOpen} onOpenChange={setQuoteDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <Dialog open={quoteDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            setQuoteValidationErrors({});
+            setDraftNoticeDismissed(false);
+          }
+          setQuoteDialogOpen(open);
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Enviar Cotización</DialogTitle>
             </DialogHeader>
-            <form onSubmit={(e) => { e.preventDefault(); submitQuote.mutate(); }} className="space-y-4">
-              {quoteItems.map((qi, i) => {
-                const rfq = provVigentes.find((r: any) => r.id === quoteRfqId) || provRfqs?.find((r: any) => r.id === quoteRfqId) || (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
-                const rfqItem = rfq?.rfq_items?.find((it: any) => it.id === qi.rfq_item_id);
+
+            {/* Draft recovered notice */}
+            {hadSavedDraft && quoteDraft.rfqId === quoteRfqId && !draftNoticeDismissed && (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                <span>Borrador recuperado. Tus datos anteriores fueron restaurados.</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    className="text-xs underline underline-offset-2 hover:no-underline"
+                    onClick={() => {
+                      clearQuoteDraft();
+                      // Re-initialize with fresh state for this RFQ.
+                      const rfq = provVigentes.find((r: any) => r.id === quoteRfqId) || (provRfqs ?? []).find((r: any) => r.id === quoteRfqId) || (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
+                      setQuoteDraft({
+                        rfqId: quoteRfqId,
+                        items: (rfq?.rfq_items || []).map((i: any) => ({ rfq_item_id: i.id, unit_price: "", observations: "" })),
+                        deliveryDate: "",
+                        paymentCondition: "",
+                        shippingCost: "",
+                        generalObservations: "",
+                      });
+                      setDraftNoticeDismissed(true);
+                    }}
+                  >
+                    Descartar borrador
+                  </button>
+                  <button type="button" onClick={() => setDraftNoticeDismissed(true)} aria-label="Cerrar aviso">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                // Run client-side validation and surface errors before mutating.
+                const errors = validateQuote({
+                  items: quoteItems.map((qi) => ({ unit_price: qi.unit_price })),
+                  deliveryDate: quoteDeliveryDate,
+                  paymentCondition: quotePaymentCondition,
+                  shippingCost: quoteShippingCost,
+                });
+                setQuoteValidationErrors(errors);
+                if (Object.keys(errors).length > 0) return;
+                submitQuote.mutate();
+              }}
+              className="space-y-5"
+            >
+              {/* Per-line items: description, qty/unit, price input, subtotal, per-line observations */}
+              {(() => {
+                const dialogRfq =
+                  provVigentes.find((r: any) => r.id === quoteRfqId) ||
+                  (provRfqs ?? []).find((r: any) => r.id === quoteRfqId) ||
+                  (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
                 return (
-                  <div key={qi.rfq_item_id} className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{rfqItem?.description || "Ítem"}</p>
-                      <p className="text-xs text-muted-foreground">{rfqItem?.quantity} {rfqItem?.unit}</p>
-                    </div>
-                    <div className="w-32">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Precio"
-                        value={qi.unit_price}
-                        onChange={(e) => {
-                          const copy = [...quoteItems];
-                          copy[i] = { ...copy[i], unit_price: e.target.value };
-                          setQuoteItems(copy);
-                        }}
-                      />
+                  <div className="space-y-3">
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-muted px-3 py-2 text-xs font-medium grid grid-cols-[1fr_80px_90px_88px] gap-2">
+                        <span>Material</span>
+                        <span className="text-center">Cant.</span>
+                        <span className="text-right">Precio unit.</span>
+                        <span className="text-right">Subtotal</span>
+                      </div>
+                      {quoteItems.map((qi, i) => {
+                        const rfqItem = dialogRfq?.rfq_items?.find((it: any) => it.id === qi.rfq_item_id);
+                        const subtotal = lineSubtotal(parseFloat(qi.unit_price) || 0, rfqItem?.quantity ?? 1);
+                        const itemError = quoteValidationErrors[`item_${i}`];
+                        return (
+                          <div key={qi.rfq_item_id} className="border-t">
+                            <div className="grid grid-cols-[1fr_80px_90px_88px] gap-2 items-center px-3 py-2">
+                              <div>
+                                <p className="text-sm font-medium leading-tight">{rfqItem?.description || "Ítem"}</p>
+                                <p className="text-xs text-muted-foreground">{rfqItem?.unit || ""}</p>
+                              </div>
+                              <p className="text-center text-sm font-mono">{rfqItem?.quantity ?? "—"}</p>
+                              <div>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  value={qi.unit_price}
+                                  className={itemError ? "border-destructive focus-visible:ring-destructive" : ""}
+                                  onChange={(e) => {
+                                    setQuoteItems((prev) => {
+                                      const copy = [...prev];
+                                      copy[i] = { ...copy[i], unit_price: e.target.value };
+                                      return copy;
+                                    });
+                                    if (quoteValidationErrors[`item_${i}`]) {
+                                      setQuoteValidationErrors((prev) => {
+                                        const next = { ...prev };
+                                        delete next[`item_${i}`];
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <p className="text-right text-sm font-mono font-medium">
+                                ${subtotal.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                            {itemError && (
+                              <p className="px-3 pb-1.5 text-xs text-destructive">{itemError}</p>
+                            )}
+                            {/* Per-line observations */}
+                            <div className="px-3 pb-2">
+                              <Input
+                                type="text"
+                                placeholder="Observación para este ítem (opcional)"
+                                value={qi.observations}
+                                className="text-xs h-8"
+                                onChange={(e) => {
+                                  setQuoteItems((prev) => {
+                                    const copy = [...prev];
+                                    copy[i] = { ...copy[i], observations: e.target.value };
+                                    return copy;
+                                  });
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
-              })}
+              })()}
+
+              {/* Delivery date + payment condition */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label>Fecha de entrega <span className="text-destructive">*</span></Label>
-                  <Input type="date" required value={quoteDeliveryDate} onChange={(e) => setQuoteDeliveryDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={quoteDeliveryDate}
+                    className={quoteValidationErrors.deliveryDate ? "border-destructive focus-visible:ring-destructive" : ""}
+                    onChange={(e) => {
+                      setQuoteDeliveryDate(e.target.value);
+                      if (quoteValidationErrors.deliveryDate) {
+                        setQuoteValidationErrors((prev) => { const next = { ...prev }; delete next.deliveryDate; return next; });
+                      }
+                    }}
+                  />
+                  {quoteValidationErrors.deliveryDate && (
+                    <p className="text-xs text-destructive">{quoteValidationErrors.deliveryDate}</p>
+                  )}
                   {(() => {
                     const rfq = provVigentes.find((r: any) => r.id === quoteRfqId) || provRfqs?.find((r: any) => r.id === quoteRfqId) || (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
                     const desiredDate = (rfq as any)?.requests?.desired_date;
@@ -716,7 +930,7 @@ export default function Cotizaciones() {
                     return (
                       <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        El arquitecto solicitó entrega para el {(() => {
+                        Solicitado para el {(() => {
                           const d = new Date(desiredDate);
                           const date = d.toLocaleDateString("es-AR");
                           const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
@@ -728,10 +942,18 @@ export default function Cotizaciones() {
                     );
                   })()}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label>Condición de pago <span className="text-destructive">*</span></Label>
-                  <Select value={quotePaymentCondition} onValueChange={setQuotePaymentCondition} required>
-                    <SelectTrigger>
+                  <Select
+                    value={quotePaymentCondition}
+                    onValueChange={(v) => {
+                      setQuotePaymentCondition(v);
+                      if (quoteValidationErrors.paymentCondition) {
+                        setQuoteValidationErrors((prev) => { const next = { ...prev }; delete next.paymentCondition; return next; });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className={quoteValidationErrors.paymentCondition ? "border-destructive" : ""}>
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -742,31 +964,88 @@ export default function Cotizaciones() {
                       <SelectItem value="contrato_acopio">Contrato por Acopio</SelectItem>
                     </SelectContent>
                   </Select>
+                  {quoteValidationErrors.paymentCondition && (
+                    <p className="text-xs text-destructive">{quoteValidationErrors.paymentCondition}</p>
+                  )}
                 </div>
               </div>
+
+              {/* Shipping cost + grand total */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label>Importe del envío <span className="text-destructive">*</span></Label>
-                  <Input type="number" step="0.01" min="0" required placeholder="0.00" value={quoteShippingCost} onChange={(e) => setQuoteShippingCost(e.target.value)} />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={quoteShippingCost}
+                    className={quoteValidationErrors.shippingCost ? "border-destructive focus-visible:ring-destructive" : ""}
+                    onChange={(e) => {
+                      setQuoteShippingCost(e.target.value);
+                      if (quoteValidationErrors.shippingCost) {
+                        setQuoteValidationErrors((prev) => { const next = { ...prev }; delete next.shippingCost; return next; });
+                      }
+                    }}
+                  />
+                  {quoteValidationErrors.shippingCost && (
+                    <p className="text-xs text-destructive">{quoteValidationErrors.shippingCost}</p>
+                  )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label>Total</Label>
-                  <Input disabled value={`$${(quoteItems.reduce((s, qi) => s + (parseFloat(qi.unit_price) || 0), 0) + (parseFloat(quoteShippingCost) || 0)).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`} />
+                  <Input
+                    disabled
+                    value={(() => {
+                      const dialogRfq =
+                        provVigentes.find((r: any) => r.id === quoteRfqId) ||
+                        (provRfqs ?? []).find((r: any) => r.id === quoteRfqId) ||
+                        (quotedRfqs ?? []).find((r: any) => r.id === quoteRfqId);
+                      const lines = quoteItems.map((qi) => {
+                        const rfqItem = (dialogRfq?.rfq_items ?? []).find((it: any) => it.id === qi.rfq_item_id);
+                        return { unitPrice: parseFloat(qi.unit_price) || 0, quantity: rfqItem?.quantity ?? 1 };
+                      });
+                      return `$${quoteTotal(lines, parseFloat(quoteShippingCost) || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
+                    })()}
+                  />
                 </div>
               </div>
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={
-                  submitQuote.isPending ||
-                  !quoteDeliveryDate ||
-                  !quotePaymentCondition ||
-                  !quoteShippingCost ||
-                  quoteItems.some((qi) => !qi.unit_price || parseFloat(qi.unit_price) <= 0)
-                }
-              >
-                {submitQuote.isPending ? "Enviando..." : "Enviar Cotización"}
-              </Button>
+
+              {/* General observations */}
+              <div className="space-y-1.5">
+                <Label>Observaciones generales</Label>
+                <Textarea
+                  placeholder="Condiciones adicionales, notas de entrega, etc. (opcional)"
+                  value={quoteGeneralObservations}
+                  className="min-h-[72px] resize-none text-sm"
+                  onChange={(e) => setQuoteGeneralObservations(e.target.value)}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={submitQuote.isPending}
+                  onClick={() => {
+                    clearQuoteDraft();
+                    setQuoteValidationErrors({});
+                    setDraftNoticeDismissed(false);
+                    setQuoteDialogOpen(false);
+                  }}
+                >
+                  Descartar borrador
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  disabled={submitQuote.isPending}
+                >
+                  {submitQuote.isPending ? "Enviando..." : "Enviar Cotización"}
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -894,7 +1173,7 @@ export default function Cotizaciones() {
                           <tr className="border-t bg-muted/30">
                             <td colSpan={3} className="px-3 py-2 text-right font-medium">Total:</td>
                             <td className="text-right px-3 py-2 font-mono font-bold">
-                              ${group.items.reduce((s, i) => s + i.unit_price, 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                              ${group.items.reduce((s, i) => s + lineSubtotal(i.unit_price, i.quantity), 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
                             </td>
                             <td></td>
                           </tr>

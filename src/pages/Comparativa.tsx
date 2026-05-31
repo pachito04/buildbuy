@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { lineSubtotal } from "@/lib/quote-pricing";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,7 +76,7 @@ export default function Comparativa() {
       const { data, error } = await supabase
         .from("quotes")
         .select(
-          "id, provider_id, total_price, delivery_days, conditions, submitted_at, status, providers:provider_id(name, score), quote_items(id, rfq_item_id, unit_price, delivery_days, observations)"
+          "id, provider_id, total_price, delivery_days, conditions, observations, submitted_at, status, providers:provider_id(name, score), quote_items(id, rfq_item_id, unit_price, delivery_days, observations)"
         )
         .eq("rfq_id", rfqId!)
         .in("status", ["pending", "submitted", "awarded"])
@@ -128,6 +129,7 @@ export default function Comparativa() {
             unit_price: Number(qi.unit_price) || 0,
             delivery_days: qi.delivery_days ?? q.delivery_days,
             observations: qi.observations,
+            general_observations: q.observations ?? null,
             inCart: cart.isAwarded(qi.id),
             hasPO,
           });
@@ -465,7 +467,7 @@ function ProductSection({
           const qty = q.inCart
             ? cartItem?.quantity ?? 0
             : getQuantity(q.quote_item_id, item.quantity);
-          const total = q.unit_price * qty;
+          const total = lineSubtotal(q.unit_price, qty);
 
           return (
             <tr
@@ -514,8 +516,22 @@ function ProductSection({
                   minimumFractionDigits: 2,
                 })}
               </td>
-              <td className="px-4 py-2.5 text-muted-foreground max-w-[180px] truncate">
-                {q.observations || "—"}
+              <td className="px-4 py-2.5 max-w-[220px]">
+                {q.observations ? (
+                  <p className="text-xs text-muted-foreground truncate" title={q.observations}>
+                    {q.observations}
+                  </p>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+                {q.general_observations && (
+                  <p
+                    className="text-xs text-muted-foreground/70 italic truncate mt-0.5 border-t border-muted pt-0.5"
+                    title={`Obs. general: ${q.general_observations}`}
+                  >
+                    {q.general_observations}
+                  </p>
+                )}
               </td>
               <td className="px-4 py-2.5 text-right">
                 {q.hasPO ? (

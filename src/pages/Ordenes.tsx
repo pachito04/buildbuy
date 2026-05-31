@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { lineSubtotal } from "@/lib/quote-pricing";
 import { ShoppingCart, CheckCircle, XCircle, Clock, FileText, Package } from "lucide-react";
 
 const poStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -310,7 +311,7 @@ export default function Ordenes() {
                       <tr className="border-t bg-muted/30">
                         <td colSpan={3} className="px-3 py-2 text-right font-medium">Total:</td>
                         <td className="text-right px-3 py-2 font-mono font-bold">
-                          ${detailItems.reduce((s: number, i: any) => s + Number(i.unit_price), 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                          ${detailItems.reduce((s: number, i: any) => s + lineSubtotal(Number(i.unit_price), Number(i.quantity)), 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
                     </tfoot>
