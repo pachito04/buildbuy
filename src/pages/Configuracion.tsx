@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, Settings, Save } from "lucide-react";
+import { ShieldAlert, Settings, Save, ShoppingBasket } from "lucide-react";
+import { PoolEmpresasPanel } from "@/components/configuracion/PoolEmpresasPanel";
+import { PoolMateriasPanel } from "@/components/configuracion/PoolMateriasPanel";
 
 export default function Configuracion() {
   const { actualRole, companyId } = useViewRole();
@@ -135,6 +137,23 @@ export default function Configuracion() {
           )}
         </CardContent>
       </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Pool de Compras — admin-only                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <div>
+        <h2
+          className="font-semibold text-lg tracking-tight flex items-center gap-2 mb-4"
+          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+        >
+          <ShoppingBasket className="h-5 w-5 text-primary" />
+          Pool de Compras
+        </h2>
+        <div className="space-y-4 max-w-2xl">
+          <PoolEmpresasPanel />
+          <PoolMateriasPanel />
+        </div>
+      </div>
     </div>
   );
 }

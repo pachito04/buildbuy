@@ -97,6 +97,54 @@ export type Database = {
         }
         Relationships: []
       }
+      company_links: {
+        Row: {
+          id: string
+          requester_company_id: string
+          target_company_id: string
+          status: 'pending' | 'active' | 'disabled'
+          requested_by: string | null
+          accepted_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          requester_company_id: string
+          target_company_id: string
+          status?: 'pending' | 'active' | 'disabled'
+          requested_by?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          requester_company_id?: string
+          target_company_id?: string
+          status?: 'pending' | 'active' | 'disabled'
+          requested_by?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_links_requester_company_id_fkey"
+            columns: ["requester_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_links_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_settings: {
         Row: {
           id: string
@@ -427,6 +475,61 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_mappings: {
+        Row: {
+          id: string
+          company_link_id: string
+          material_a_id: string
+          material_b_id: string
+          confirmed_by_requester: boolean
+          confirmed_by_target: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_link_id: string
+          material_a_id: string
+          material_b_id: string
+          confirmed_by_requester?: boolean
+          confirmed_by_target?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_link_id?: string
+          material_a_id?: string
+          material_b_id?: string
+          confirmed_by_requester?: boolean
+          confirmed_by_target?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_mappings_company_link_id_fkey"
+            columns: ["company_link_id"]
+            isOneToOne: false
+            referencedRelation: "company_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_mappings_material_a_id_fkey"
+            columns: ["material_a_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_mappings_material_b_id_fkey"
+            columns: ["material_b_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
             referencedColumns: ["id"]
           },
         ]
