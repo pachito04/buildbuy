@@ -5,9 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAwardCart } from "@/contexts/AwardCartContext";
 import { useToast } from "@/hooks/use-toast";
+import { useViewRole } from "@/hooks/useViewRole";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { EditarEncabezadoDialog } from "@/components/comparativa/EditarEncabezadoDialog";
+import { HistorialModificaciones } from "@/components/comparativa/HistorialModificaciones";
+import { isoToDatetimeLocal } from "@/lib/rfq-header-utils";
 import {
   ArrowLeft,
   Search,
@@ -19,6 +23,7 @@ import {
   ArrowUp,
   FileText,
   X,
+  Pencil,
 } from "lucide-react";
 
 export default function Comparativa() {
@@ -26,8 +31,12 @@ export default function Comparativa() {
   const navigate = useNavigate();
   const cart = useAwardCart();
   const { toast } = useToast();
+  const { viewRole } = useViewRole();
   const [search, setSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [editOpen, setEditOpen] = useState(false);
+
+  const canEdit = viewRole === "compras" || viewRole === "admin";
 
   const { data: rfq } = useQuery({
     queryKey: ["comparativa-rfq", rfqId],
@@ -36,7 +45,7 @@ export default function Comparativa() {
       const { data, error } = await supabase
         .from("rfqs")
         .select(
-          "id, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, requests:request_id(request_number), purchase_pools:pool_id(name)"
+          "id, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, descripcion, price_terms, payment_terms, requests:request_id(request_number), purchase_pools:pool_id(name)"
         )
         .eq("id", rfqId!)
         .single();
@@ -289,20 +298,40 @@ export default function Comparativa() {
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={() => navigate("/cotizaciones")}
-          className="shrink-0 flex items-center gap-2"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          Carrito
-          {cart.totalItems > 0 && (
-            <Badge className="text-xs px-1.5 py-0 bg-primary">
-              {cart.totalItems}
-            </Badge>
+        <div className="flex items-center gap-2 shrink-0">
+          {canEdit && rfqId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1.5"
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Editar encabezado
+            </Button>
           )}
-        </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/cotizaciones")}
+            className="flex items-center gap-2"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            Carrito
+            {cart.totalItems > 0 && (
+              <Badge className="text-xs px-1.5 py-0 bg-primary">
+                {cart.totalItems}
+              </Badge>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* Historial de modificaciones — visible below header when rfq is loaded */}
+      {rfqId && (
+        <div className="-mt-2">
+          <HistorialModificaciones rfqId={rfqId} />
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -374,6 +403,23 @@ export default function Comparativa() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Edit header dialog — only mounted for compras/admin */}
+      {canEdit && rfqId && rfq && (
+        <EditarEncabezadoDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          rfqId={rfqId}
+          current={{
+            // Normalize the stored TIMESTAMPTZ to the datetime-local shape so the
+            // input renders it and an untouched save produces no spurious diff.
+            closing_datetime: isoToDatetimeLocal((rfq as any).closing_datetime),
+            descripcion: (rfq as any).descripcion ?? "",
+            price_terms: (rfq as any).price_terms ?? "",
+            payment_terms: (rfq as any).payment_terms ?? "",
+          }}
+        />
       )}
     </div>
   );

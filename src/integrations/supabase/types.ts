@@ -1690,6 +1690,44 @@ export type Database = {
           },
         ]
       }
+      rfq_change_log: {
+        Row: {
+          id: string
+          rfq_id: string
+          field: string
+          old_value: string | null
+          new_value: string | null
+          changed_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          rfq_id: string
+          field: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          rfq_id?: string
+          field?: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_change_log_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfqs: {
         Row: {
           categoria: string | null
