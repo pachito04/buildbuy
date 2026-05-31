@@ -16,8 +16,23 @@ import {
   type RequestDetail,
   type TimelineEvent,
   type ItemSubState,
+  type ItemRouting,
 } from "@/lib/kanban-types";
 import { ItemRecepcionForm } from "./ItemRecepcionForm";
+
+const ROUTING_LABELS: Record<ItemRouting, string> = {
+  inventario: "Inventario",
+  cotizacion: "Cotización",
+  orden_directa: "Orden directa",
+  pendiente: "Sin destino",
+};
+
+const ROUTING_BADGE_CLASSES: Record<ItemRouting, string> = {
+  inventario: "bg-green-100 text-green-800 border-green-300",
+  cotizacion: "bg-amber-100 text-amber-800 border-amber-300",
+  orden_directa: "bg-blue-100 text-blue-800 border-blue-300",
+  pendiente: "bg-gray-100 text-gray-500 border-gray-200",
+};
 
 const STATUS_STRIP_COLORS: Record<string, string> = {
   pendiente: "#C96A00",
@@ -227,7 +242,7 @@ export function RequestDetailModal({
                           borderRadius: 10,
                         }}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-sm">
                               {capitalize(
@@ -239,11 +254,21 @@ export function RequestDetailModal({
                               {item.materials?.unit ?? item.unit}
                             </p>
                           </div>
-                          <Badge variant="outline" className="text-xs shrink-0 ml-2">
-                            {isArq
-                              ? ARCHITECT_ITEM_LABELS[subState] ?? subState
-                              : colors?.label ?? subState}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              {isArq
+                                ? ARCHITECT_ITEM_LABELS[subState] ?? subState
+                                : colors?.label ?? subState}
+                            </Badge>
+                            {item.routing && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${ROUTING_BADGE_CLASSES[item.routing as ItemRouting] ?? ""}`}
+                              >
+                                {ROUTING_LABELS[item.routing as ItemRouting] ?? item.routing}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         {isArq && hasPartialQty && (
                           <p className="text-xs text-muted-foreground mt-1.5">

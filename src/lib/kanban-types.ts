@@ -114,6 +114,9 @@ export function getTransitionType(from: RequestStatus, to: RequestStatus): Trans
   return 'ALLOW';
 }
 
+// Procurement routing: how the item is obtained. Orthogonal to delivery location.
+export type ItemRouting = 'inventario' | 'cotizacion' | 'orden_directa' | 'pendiente';
+
 export interface RequestItem {
   id: string;
   request_id: string;
@@ -122,6 +125,7 @@ export interface RequestItem {
   quantity: number;
   unit: string;
   status: ItemSubState;
+  routing: ItemRouting;
   observations: string | null;
   quantity_received: number;
   quantity_ordered: number;

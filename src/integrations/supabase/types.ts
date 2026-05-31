@@ -1443,6 +1443,7 @@ export type Database = {
           quantity_ordered: number
           quantity_received: number
           request_id: string
+          routing: 'inventario' | 'cotizacion' | 'orden_directa' | 'pendiente'
           status: string
           unit: string
         }
@@ -1457,6 +1458,7 @@ export type Database = {
           quantity_ordered?: number
           quantity_received?: number
           request_id: string
+          routing?: 'inventario' | 'cotizacion' | 'orden_directa' | 'pendiente'
           status?: string
           unit: string
         }
@@ -1471,6 +1473,7 @@ export type Database = {
           quantity_ordered?: number
           quantity_received?: number
           request_id?: string
+          routing?: 'inventario' | 'cotizacion' | 'orden_directa' | 'pendiente'
           status?: string
           unit?: string
         }

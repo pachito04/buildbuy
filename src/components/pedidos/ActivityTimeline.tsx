@@ -8,6 +8,7 @@ const EVENT_LABELS: Record<string, string> = {
   recibido: "Recibido",
   rechazado: "Rechazado",
   item_actualizado: "Item actualizado",
+  procesado: "Requerimiento procesado",
   nota: "Nota",
 };
 
