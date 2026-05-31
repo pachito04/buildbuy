@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,8 @@ import { RequestDetailModalHeader } from "./RequestDetailModalHeader";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { useViewRole } from "@/hooks/useViewRole";
 import { useUrgencyThreshold } from "@/hooks/useUrgencyThreshold";
-import { Warehouse, FileText, X } from "lucide-react";
+import { useConsolidationMatches } from "@/hooks/useConsolidationMatches";
+import { Warehouse, FileText, X, GitMerge } from "lucide-react";
 import {
   ITEM_SUB_STATE_COLORS,
   ARCHITECT_ITEM_LABELS,
@@ -73,6 +75,9 @@ export function RequestDetailModal({
 }: RequestDetailModalProps) {
   const { viewRole: role } = useViewRole();
   const thresholdDays = useUrgencyThreshold();
+  const navigate = useNavigate();
+  const { matches } = useConsolidationMatches(requestId);
+  const [hintDismissed, setHintDismissed] = useState(false);
 
   const { data: request, isLoading: loadingDetail } = useQuery({
     queryKey: ["request-detail", requestId],
@@ -133,6 +138,8 @@ export function RequestDetailModal({
 
   useEffect(() => {
     if (!requestId) return;
+    // Reset hint dismiss state whenever a different request is opened
+    setHintDismissed(false);
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -221,6 +228,45 @@ export function RequestDetailModal({
                 >
                   Ítems ({request.request_items.length})
                 </h3>
+
+                {/* Consolidation hint — compras/admin only, when matches exist and not dismissed */}
+                {canProcess && !hintDismissed && matches.length > 0 && (
+                  <div
+                    className="mb-3 flex items-start gap-2 rounded-lg px-3 py-2.5"
+                    style={{
+                      backgroundColor: "#FFFBEB",
+                      border: "1px solid #FDE68A",
+                    }}
+                  >
+                    <GitMerge className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-amber-800 leading-snug">
+                        {matches.length === 1 && matches[0].otherRequests.length === 1
+                          ? `"${matches[0].description}" también aparece en el requerimiento #${matches[0].otherRequests[0].request_number}.`
+                          : matches.length === 1
+                          ? `"${matches[0].description}" aparece en ${matches[0].otherRequests.length} otros requerimientos (${matches[0].otherRequests.map((r) => `#${r.request_number}`).join(", ")}).`
+                          : `${matches.length} materiales aparecen en otros requerimientos pendientes.`}
+                      </p>
+                      <button
+                        onClick={() => {
+                          onClose();
+                          navigate("/rfqs");
+                        }}
+                        className="mt-1 text-xs font-medium text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors"
+                      >
+                        Ver pestaña Consolidar
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setHintDismissed(true)}
+                      className="shrink-0 rounded p-0.5 text-amber-500 hover:text-amber-800 hover:bg-amber-100 transition-colors"
+                      aria-label="Cerrar sugerencia"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {request.request_items.map((item) => {
                     const subState = item.status as ItemSubState;
