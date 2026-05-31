@@ -1585,6 +1585,7 @@ export type Database = {
           description: string
           id: string
           material_id: string | null
+          observations: string | null
           quantity: number
           rfq_id: string
           specifications: string | null
@@ -1595,6 +1596,7 @@ export type Database = {
           description: string
           id?: string
           material_id?: string | null
+          observations?: string | null
           quantity: number
           rfq_id: string
           specifications?: string | null
@@ -1605,6 +1607,7 @@ export type Database = {
           description?: string
           id?: string
           material_id?: string | null
+          observations?: string | null
           quantity?: number
           rfq_id?: string
           specifications?: string | null
@@ -1689,46 +1692,55 @@ export type Database = {
       }
       rfqs: {
         Row: {
+          categoria: string | null
           closing_datetime: string | null
           company_id: string
           created_at: string
           created_by: string | null
           deadline: string | null
           delivery_location: string | null
+          descripcion: string | null
           id: string
           observations: string | null
           payment_terms: string | null
           pool_id: string | null
+          price_terms: string | null
           request_id: string | null
           status: Database["public"]["Enums"]["rfq_status"]
           updated_at: string
         }
         Insert: {
+          categoria?: string | null
           closing_datetime?: string | null
           company_id: string
           created_at?: string
           created_by?: string | null
           deadline?: string | null
           delivery_location?: string | null
+          descripcion?: string | null
           id?: string
           observations?: string | null
           payment_terms?: string | null
           pool_id?: string | null
+          price_terms?: string | null
           request_id?: string | null
           status?: Database["public"]["Enums"]["rfq_status"]
           updated_at?: string
         }
         Update: {
+          categoria?: string | null
           closing_datetime?: string | null
           company_id?: string
           created_at?: string
           created_by?: string | null
           deadline?: string | null
           delivery_location?: string | null
+          descripcion?: string | null
           id?: string
           observations?: string | null
           payment_terms?: string | null
           pool_id?: string | null
+          price_terms?: string | null
           request_id?: string | null
           status?: Database["public"]["Enums"]["rfq_status"]
           updated_at?: string

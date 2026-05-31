@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useViewRole } from "@/hooks/useViewRole";
@@ -27,6 +27,9 @@ export default function Cotizaciones() {
   const [tab, setTab] = useState<"comparativas" | "carrito">("comparativas");
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [destinations, setDestinations] = useState<Record<string, string>>({});
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  // Ref keeps the batch flag synchronously readable inside mutation callbacks
+  const batchGeneratingRef = useRef(false);
 
   // --- Proveedor state ---
   const [provTab, setProvTab] = useState<"vigentes" | "enviadas" | "historicas">("vigentes");
@@ -290,11 +293,17 @@ export default function Cotizaciones() {
     onSuccess: () => {
       setGeneratingFor(null);
       qc.invalidateQueries({ queryKey: ["purchase-orders"] });
-      toast({ title: "Orden de compra generada", description: "La OC fue creada y enviada al proveedor." });
+      // Suppress individual toast when called from the batch handler
+      if (!batchGeneratingRef.current) {
+        toast({ title: "Orden de compra generada", description: "La OC fue creada y enviada al proveedor." });
+      }
     },
     onError: (e: Error) => {
       setGeneratingFor(null);
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      // Suppress individual toast when called from the batch handler
+      if (!batchGeneratingRef.current) {
+        toast({ title: "Error", description: e.message, variant: "destructive" });
+      }
     },
   });
 
@@ -311,6 +320,46 @@ export default function Cotizaciones() {
     }
     return Array.from(map.entries()).map(([id, g]) => ({ provider_id: id, ...g }));
   }, [cart.items]);
+
+  // --- Batch generate OC for all pending provider groups ---
+  const handleBatchGenerate = async () => {
+    if (batchGenerating || cartByProvider.length === 0) return;
+    batchGeneratingRef.current = true;
+    setBatchGenerating(true);
+    let successCount = 0;
+    let failureCount = 0;
+    for (const group of cartByProvider) {
+      try {
+        await generateOC.mutateAsync({
+          providerId: group.provider_id,
+          destination: destinations[group.provider_id] || "obra",
+        });
+        successCount++;
+      } catch {
+        failureCount++;
+      }
+    }
+    batchGeneratingRef.current = false;
+    setBatchGenerating(false);
+    if (failureCount === 0) {
+      toast({
+        title: `${successCount} ${successCount === 1 ? "orden generada" : "órdenes generadas"}`,
+        description: "Todas las órdenes de compra fueron creadas exitosamente.",
+      });
+    } else if (successCount === 0) {
+      toast({
+        title: "Error al generar órdenes",
+        description: `${failureCount} ${failureCount === 1 ? "orden" : "órdenes"} con error. Revisá los datos del carrito.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: `${successCount} ${successCount === 1 ? "orden generada" : "órdenes generadas"}, ${failureCount} con error`,
+        description: "Algunas órdenes no pudieron crearse. Revisá los grupos con error.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // =====================================================
   // PROVEEDOR VIEW
@@ -787,6 +836,20 @@ export default function Cotizaciones() {
             </Card>
           ) : (
             <div className="space-y-4">
+              {cartByProvider.length >= 1 && (
+                <div className="flex justify-end">
+                  <Button
+                    variant="default"
+                    onClick={handleBatchGenerate}
+                    disabled={batchGenerating || !!generatingFor}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {batchGenerating
+                      ? "Generando órdenes..."
+                      : `Generar todas las órdenes de compra (${cartByProvider.length})`}
+                  </Button>
+                </div>
+              )}
               {cartByProvider.map((group) => (
                 <Card key={group.provider_id}>
                   <CardHeader className="pb-2">
