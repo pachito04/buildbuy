@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePoolFlow } from "@/hooks/usePoolFlow";
 import { AddMyRequirementsDialog } from "./AddMyRequirementsDialog";
 import { PoolConsolidatedView } from "./PoolConsolidatedView";
+import { PoolAwardPanel } from "./PoolAwardPanel";
 import {
   PackagePlus,
   Layers,
@@ -82,6 +83,10 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
   const poolState = pool.pool_state ?? "borrador";
   const isBorrador = poolState === "borrador";
   const isConfirmado = poolState === "confirmado";
+  const isAwardPhase =
+    poolState === "en_comparativa" ||
+    poolState === "adjudicado" ||
+    poolState === "cerrado";
 
   // Requests already contributed by the viewer to this pool.
   const alreadyAddedRequestIds = (pool.pool_requests ?? []).map(
@@ -146,6 +151,26 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
       });
     }
   };
+
+  // Award phase (en_comparativa / adjudicado / cerrado) — delegate entirely to
+  // PoolAwardPanel which owns its own usePoolAward hook. The pre-award states
+  // (borrador / confirmado) keep the existing consolidated view + flow actions.
+  if (isAwardPhase) {
+    const memberCompanyIds = (pool.pool_companies ?? []).map(
+      (pc) => pc.company_id
+    );
+    return (
+      <PoolAwardPanel
+        poolId={pool.id}
+        poolState={
+          poolState as "en_comparativa" | "adjudicado" | "cerrado"
+        }
+        companyNames={companyNames}
+        companyId={companyId!}
+        memberCompanyIds={memberCompanyIds}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 pt-2 border-t">

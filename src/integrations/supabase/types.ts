@@ -1323,6 +1323,7 @@ export type Database = {
           pool_state: string
           status: Database["public"]["Enums"]["pool_status"]
           updated_at: string
+          winning_quote_id: string | null
         }
         Insert: {
           company_id: string
@@ -1336,6 +1337,7 @@ export type Database = {
           pool_state?: string
           status?: Database["public"]["Enums"]["pool_status"]
           updated_at?: string
+          winning_quote_id?: string | null
         }
         Update: {
           company_id?: string
@@ -1349,6 +1351,7 @@ export type Database = {
           pool_state?: string
           status?: Database["public"]["Enums"]["pool_status"]
           updated_at?: string
+          winning_quote_id?: string | null
         }
         Relationships: [
           {
