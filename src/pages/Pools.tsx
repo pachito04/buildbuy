@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewRole } from "@/hooks/useViewRole";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Plus } from "lucide-react";
@@ -14,6 +15,7 @@ export default function Pools() {
   const [createOpen, setCreateOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { companyId } = useViewRole();
   const qc = useQueryClient();
 
   const { data: pools, isLoading } = useQuery({
@@ -21,7 +23,9 @@ export default function Pools() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_pools")
-        .select("*, pool_requests(*, requests:request_id(*, request_items(*))), pool_companies(*, companies:company_id(name))")
+        .select(
+          "*, pool_state, pool_requests(request_id), pool_companies(*, companies:company_id(name))"
+        )
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -34,7 +38,7 @@ export default function Pools() {
       const { data, error } = await supabase
         .from("requests")
         .select("*, request_items(*)")
-        .eq("status", "approved")
+        .eq("status", "pendiente")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -44,7 +48,10 @@ export default function Pools() {
   const { data: companies } = useQuery({
     queryKey: ["companies"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("id, name").order("name");
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name")
+        .order("name");
       if (error) throw error;
       return data;
     },
@@ -53,42 +60,72 @@ export default function Pools() {
   const { data: profile } = useQuery({
     queryKey: ["profile-company"],
     queryFn: async () => {
-      const { data: { user: u } } = await supabase.auth.getUser();
+      const {
+        data: { user: u },
+      } = await supabase.auth.getUser();
       if (!u) return null;
-      const { data } = await supabase.from("profiles").select("company_id").eq("id", u.id).single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("company_id")
+        .eq("id", u.id)
+        .single();
       return data;
     },
   });
 
+  // Use companyId from useViewRole (already reactive to auth state).
+  // Fall back to the profile query for the createPool mutation which needs the company_id at mutation time.
+  const effectiveCompanyId = companyId ?? profile?.company_id ?? null;
+
   const createPool = useMutation({
-    mutationFn: async ({ name, deadline, notes, isShared, invitedCompanyIds }: {
-      name: string; deadline: string; notes: string; isShared: boolean; invitedCompanyIds: string[];
+    mutationFn: async ({
+      name,
+      deadline,
+      notes,
+      isShared,
+      invitedCompanyIds,
+    }: {
+      name: string;
+      deadline: string;
+      notes: string;
+      isShared: boolean;
+      invitedCompanyIds: string[];
     }) => {
-      const { data: pool, error } = await supabase.from("purchase_pools").insert({
-        name,
-        deadline: deadline || null,
-        notes: notes || null,
-        created_by: user?.id,
-        company_id: profile?.company_id || null,
-        is_shared: isShared,
-      } as any).select().single();
+      const { data: pool, error } = await supabase
+        .from("purchase_pools")
+        .insert({
+          name,
+          deadline: deadline || null,
+          notes: notes || null,
+          created_by: user?.id,
+          company_id: effectiveCompanyId || null,
+          is_shared: isShared,
+        } as any)
+        .select()
+        .single();
       if (error) throw error;
 
-      // Add creator's company
-      if (profile?.company_id) {
+      // Add creator's company to pool_companies.
+      if (effectiveCompanyId) {
         await supabase.from("pool_companies").insert({
           pool_id: (pool as any).id,
-          company_id: profile.company_id,
+          company_id: effectiveCompanyId,
         });
       }
 
-      // Add invited companies
+      // Add invited companies.
       if (isShared && invitedCompanyIds.length > 0) {
         const inserts = invitedCompanyIds
-          .filter((cid) => cid !== profile?.company_id)
-          .map((cid) => ({ pool_id: (pool as any).id, company_id: cid, status: "invited" }));
+          .filter((cid) => cid !== effectiveCompanyId)
+          .map((cid) => ({
+            pool_id: (pool as any).id,
+            company_id: cid,
+            status: "invited",
+          }));
         if (inserts.length > 0) {
-          const { error: e2 } = await supabase.from("pool_companies").insert(inserts);
+          const { error: e2 } = await supabase
+            .from("pool_companies")
+            .insert(inserts);
           if (e2) throw e2;
         }
       }
@@ -98,16 +135,27 @@ export default function Pools() {
       setCreateOpen(false);
       toast({ title: "Pool creado" });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const addRequests = useMutation({
-    mutationFn: async ({ poolId, requestIds }: { poolId: string; requestIds: string[] }) => {
-      const inserts = requestIds.map((rid) => ({ pool_id: poolId, request_id: rid }));
+    mutationFn: async ({
+      poolId,
+      requestIds,
+    }: {
+      poolId: string;
+      requestIds: string[];
+    }) => {
+      const inserts = requestIds.map((rid) => ({
+        pool_id: poolId,
+        request_id: rid,
+      }));
       const { error } = await supabase.from("pool_requests").insert(inserts);
       if (error) throw error;
-      const { error: e2 } = await supabase.from("requests").update({ status: "in_pool" }).in("id", requestIds);
-      if (e2) throw e2;
+      // NOTE: intentionally NOT writing requests.status='in_pool'.
+      // Pool membership is tracked by pool_requests rows, not a request status field.
+      // 'in_pool' is absent from the request_status enum and would cause a DB error (AD-6).
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pools"] });
@@ -115,12 +163,16 @@ export default function Pools() {
       qc.invalidateQueries({ queryKey: ["requests"] });
       toast({ title: "Pedidos agregados al pool" });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const updatePoolStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("purchase_pools").update({ status: status as any }).eq("id", id);
+      const { error } = await supabase
+        .from("purchase_pools")
+        .update({ status: status as any })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -130,21 +182,31 @@ export default function Pools() {
   });
 
   const inviteCompany = useMutation({
-    mutationFn: async ({ poolId, companyId }: { poolId: string; companyId: string }) => {
+    mutationFn: async ({
+      poolId,
+      companyId: cid,
+    }: {
+      poolId: string;
+      companyId: string;
+    }) => {
       const { error } = await supabase.from("pool_companies").insert({
         pool_id: poolId,
-        company_id: companyId,
+        company_id: cid,
         status: "invited",
       });
       if (error) throw error;
-      // Mark pool as shared
-      await supabase.from("purchase_pools").update({ is_shared: true } as any).eq("id", poolId);
+      // Mark pool as shared.
+      await supabase
+        .from("purchase_pools")
+        .update({ is_shared: true } as any)
+        .eq("id", poolId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pools"] });
       toast({ title: "Empresa invitada al pool" });
     },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -152,15 +214,20 @@ export default function Pools() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold">Pools de Compra</h1>
-          <p className="text-muted-foreground text-sm mt-1">Consolidación de pedidos por volumen — propios o inter-empresa</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Consolidación de pedidos por volumen — propios o inter-empresa
+          </p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Crear Pool</Button>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Crear Pool
+            </Button>
           </DialogTrigger>
           <CreatePoolDialog
             companies={companies || []}
-            userCompanyId={profile?.company_id || null}
+            userCompanyId={effectiveCompanyId}
             isPending={createPool.isPending}
             onSubmit={(data) => createPool.mutate(data)}
           />
@@ -168,12 +235,16 @@ export default function Pools() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
       ) : !pools?.length ? (
         <Card>
           <CardContent className="text-center py-12 text-muted-foreground">
             <p className="text-sm">No hay pools creados.</p>
-            <p className="text-xs mt-1">Crea un pool para consolidar pedidos y cotizar en volumen.</p>
+            <p className="text-xs mt-1">
+              Crea un pool para consolidar pedidos y cotizar en volumen.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -184,10 +255,16 @@ export default function Pools() {
               pool={pool}
               approvedRequests={approvedRequests || []}
               companies={companies || []}
-              userCompanyId={profile?.company_id || null}
-              onAddRequests={(poolId, requestIds) => addRequests.mutate({ poolId, requestIds })}
-              onUpdateStatus={(id, status) => updatePoolStatus.mutate({ id, status })}
-              onInviteCompany={(poolId, companyId) => inviteCompany.mutate({ poolId, companyId })}
+              userCompanyId={effectiveCompanyId}
+              onAddRequests={(poolId, requestIds) =>
+                addRequests.mutate({ poolId, requestIds })
+              }
+              onUpdateStatus={(id, status) =>
+                updatePoolStatus.mutate({ id, status })
+              }
+              onInviteCompany={(poolId, cid) =>
+                inviteCompany.mutate({ poolId, companyId: cid })
+              }
               addRequestsPending={addRequests.isPending}
             />
           ))}

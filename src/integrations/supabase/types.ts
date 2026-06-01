@@ -739,6 +739,45 @@ export type Database = {
           },
         ]
       }
+      pool_item_contributions: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          pool_item_id: string
+          quantity: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          pool_item_id: string
+          quantity: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          pool_item_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pool_item_contributions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_item_contributions_pool_item_id_fkey"
+            columns: ["pool_item_id"]
+            isOneToOne: false
+            referencedRelation: "pool_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pool_items: {
         Row: {
           created_at: string
@@ -1281,6 +1320,7 @@ export type Database = {
           is_shared: boolean
           name: string
           observations: string | null
+          pool_state: string
           status: Database["public"]["Enums"]["pool_status"]
           updated_at: string
         }
@@ -1293,6 +1333,7 @@ export type Database = {
           is_shared?: boolean
           name: string
           observations?: string | null
+          pool_state?: string
           status?: Database["public"]["Enums"]["pool_status"]
           updated_at?: string
         }
@@ -1305,6 +1346,7 @@ export type Database = {
           is_shared?: boolean
           name?: string
           observations?: string | null
+          pool_state?: string
           status?: Database["public"]["Enums"]["pool_status"]
           updated_at?: string
         }

@@ -18,8 +18,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Layers, Plus, ArrowRight, Building2, Users } from "lucide-react";
+import { PoolStateBadge } from "./PoolStateBadge";
+import { PoolFlowPanel } from "./PoolFlowPanel";
 
-const poolStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const poolStatusLabels: Record<
+  string,
+  {
+    label: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+  }
+> = {
   open: { label: "Abierto", variant: "default" },
   closed: { label: "Cerrado", variant: "secondary" },
   quoting: { label: "Cotizando", variant: "outline" },
@@ -55,27 +63,28 @@ export function PoolCard({
 
   const poolReqs = (pool.pool_requests as any[]) || [];
   const poolCompanies = (pool.pool_companies as any[]) || [];
-  const allItems: any[] = poolReqs.flatMap((pr: any) => pr.requests?.request_items || []);
 
-  // Consolidate items
-  const consolidated = allItems.reduce(
-    (acc: Record<string, { description: string; quantity: number; unit: string }>, item: any) => {
-      const key = `${item.description.toLowerCase()}_${item.unit}`;
-      if (!acc[key]) acc[key] = { description: item.description, quantity: 0, unit: item.unit };
-      acc[key].quantity += Number(item.quantity);
-      return acc;
-    },
-    {}
+  const existingCompanyIds = poolCompanies.map(
+    (pc: any) => pc.company_id || pc.companies?.id
   );
-
-  const existingCompanyIds = poolCompanies.map((pc: any) => pc.company_id || pc.companies?.id);
   const availableCompanies = companies.filter(
     (c) => !existingCompanyIds.includes(c.id) && c.id !== userCompanyId
   );
 
   const toggleReq = (id: string) => {
-    setSelectedReqs((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
+    setSelectedReqs((prev) =>
+      prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
+    );
   };
+
+  // Build a map of company_id → name for the contribution breakdown.
+  const companyNames = new Map(companies.map((c) => [c.id, c.name]));
+
+  // Determine if this pool is a shared (inter-empresa) pool.
+  const isShared = pool.is_shared;
+
+  // pool_state drives the new flow; pool.status is the legacy status field.
+  const poolState: string = pool.pool_state ?? "borrador";
 
   return (
     <Card>
@@ -83,10 +92,20 @@ export function PoolCard({
         <div className="flex items-center gap-3 flex-wrap">
           <Layers className="h-5 w-5 text-primary" />
           <CardTitle className="text-base font-display">{pool.name}</CardTitle>
-          <Badge variant={poolStatusLabels[pool.status]?.variant || "secondary"}>
+
+          {/* Legacy pool.status badge */}
+          <Badge
+            variant={
+              poolStatusLabels[pool.status]?.variant || "secondary"
+            }
+          >
             {poolStatusLabels[pool.status]?.label || pool.status}
           </Badge>
-          {pool.is_shared && (
+
+          {/* New pool_state badge */}
+          <PoolStateBadge state={poolState} />
+
+          {isShared && (
             <Badge variant="outline" className="gap-1">
               <Users className="h-3 w-3" />
               Inter-Empresa
@@ -95,12 +114,15 @@ export function PoolCard({
         </div>
         <span className="text-xs text-muted-foreground">
           {pool.deadline
-            ? `Límite: ${new Date(pool.deadline).toLocaleDateString("es-MX")}`
+            ? `Límite: ${new Date(pool.deadline).toLocaleDateString("es-AR")}`
             : "Sin fecha límite"}
         </span>
       </CardHeader>
+
       <CardContent className="space-y-4">
-        {pool.notes && <p className="text-sm text-muted-foreground">{pool.notes}</p>}
+        {pool.notes && (
+          <p className="text-sm text-muted-foreground">{pool.notes}</p>
+        )}
 
         {/* Participating companies */}
         {poolCompanies.length > 0 && (
@@ -112,102 +134,99 @@ export function PoolCard({
                 {pc.status === "invited" && (
                   <span className="text-muted-foreground">(invitada)</span>
                 )}
+                {pc.status === "active" && (
+                  <span className="text-emerald-600">(activa)</span>
+                )}
               </Badge>
             ))}
           </div>
         )}
 
-        <div className="text-sm text-muted-foreground">{poolReqs.length} pedido(s) en este pool</div>
+        <div className="text-sm text-muted-foreground">
+          {poolReqs.length} pedido(s) en este pool
+        </div>
 
-        {/* Consolidated items table */}
-        {Object.values(consolidated).length > 0 && (
-          <div className="border rounded-lg overflow-hidden">
-            <div className="bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
-              Ítems Consolidados
-            </div>
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-3 py-1.5">Ítem</th>
-                  <th className="text-right px-3 py-1.5">Total</th>
-                  <th className="text-left px-3 py-1.5">Unidad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.values(consolidated).map((item: any, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="px-3 py-1.5">{item.description}</td>
-                    <td className="text-right px-3 py-1.5 font-medium">{item.quantity}</td>
-                    <td className="px-3 py-1.5">{item.unit}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Pool-flow panel (consolidated view + flow actions) */}
+        <PoolFlowPanel
+          pool={{
+            id: pool.id,
+            pool_state: poolState,
+            pool_companies: poolCompanies,
+            pool_requests: poolReqs,
+          }}
+          companyId={userCompanyId}
+          companyNames={companyNames}
+        />
 
-        {/* Actions */}
-        <div className="flex gap-2 flex-wrap">
+        {/* Legacy invite + status actions */}
+        <div className="flex gap-2 flex-wrap pt-1 border-t">
           {pool.status === "open" && (
             <>
-              {/* Add requests */}
-              <Dialog
-                open={addReqOpen}
-                onOpenChange={(o) => {
-                  setAddReqOpen(o);
-                  if (!o) setSelectedReqs([]);
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Plus className="h-3 w-3 mr-1" />
-                    Agregar Pedidos
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Agregar Pedidos al Pool</DialogTitle>
-                  </DialogHeader>
-                  {!approvedRequests.length ? (
-                    <p className="text-sm text-muted-foreground py-4">
-                      No hay pedidos aprobados disponibles.
-                    </p>
-                  ) : (
-                    <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-                      {approvedRequests.map((r) => (
-                        <div key={r.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                          <Checkbox
-                            checked={selectedReqs.includes(r.id)}
-                            onCheckedChange={() => toggleReq(r.id)}
-                          />
-                          <div>
-                            <p className="text-sm font-medium">#{r.id.slice(0, 8)}</p>
-                            {r.raw_message && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {r.raw_message}
+              {/* Legacy: add approved requests (kept for non-inter-empresa pools) */}
+              {!isShared && (
+                <Dialog
+                  open={addReqOpen}
+                  onOpenChange={(o) => {
+                    setAddReqOpen(o);
+                    if (!o) setSelectedReqs([]);
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Plus className="h-3 w-3 mr-1" />
+                      Agregar Pedidos
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Agregar Pedidos al Pool</DialogTitle>
+                    </DialogHeader>
+                    {!approvedRequests.length ? (
+                      <p className="text-sm text-muted-foreground py-4">
+                        No hay pedidos aprobados disponibles.
+                      </p>
+                    ) : (
+                      <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+                        {approvedRequests.map((r) => (
+                          <div
+                            key={r.id}
+                            className="flex items-start gap-3 p-3 border rounded-lg"
+                          >
+                            <Checkbox
+                              checked={selectedReqs.includes(r.id)}
+                              onCheckedChange={() => toggleReq(r.id)}
+                            />
+                            <div>
+                              <p className="text-sm font-medium">
+                                #{r.id.slice(0, 8)}
                               </p>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              {r.request_items?.length || 0} ítems
-                            </p>
+                              {r.raw_message && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {r.raw_message}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                {r.request_items?.length || 0} ítems
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <Button
-                    disabled={!selectedReqs.length || addRequestsPending}
-                    onClick={() => {
-                      onAddRequests(pool.id, selectedReqs);
-                      setAddReqOpen(false);
-                      setSelectedReqs([]);
-                    }}
-                    className="w-full"
-                  >
-                    Agregar {selectedReqs.length} pedido(s)
-                  </Button>
-                </DialogContent>
-              </Dialog>
+                        ))}
+                      </div>
+                    )}
+                    <Button
+                      disabled={!selectedReqs.length || addRequestsPending}
+                      onClick={() => {
+                        onAddRequests(pool.id, selectedReqs);
+                        setAddReqOpen(false);
+                        setSelectedReqs([]);
+                      }}
+                      className="w-full"
+                    >
+                      Agregar {selectedReqs.length} pedido(s)
+                    </Button>
+                  </DialogContent>
+                </Dialog>
+              )}
 
               {/* Invite company */}
               <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
@@ -227,7 +246,10 @@ export function PoolCard({
                     </p>
                   ) : (
                     <div className="space-y-4">
-                      <Select value={inviteCompanyId} onValueChange={setInviteCompanyId}>
+                      <Select
+                        value={inviteCompanyId}
+                        onValueChange={setInviteCompanyId}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Seleccionar empresa..." />
                         </SelectTrigger>
