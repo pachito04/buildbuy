@@ -30,6 +30,7 @@ import Onboarding from "./pages/Onboarding";
 import RegistroProveedor from "./pages/RegistroProveedor";
 import SolicitudesDeposito from "./pages/deposito/SolicitudesDeposito";
 import RecepcionesDeposito from "./pages/deposito/RecepcionesDeposito";
+import ListaPreciosProveedor from "./pages/ListaPreciosProveedor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="/proveedores" element={<Proveedores />} />
               <Route path="/deposito/solicitudes" element={<SolicitudesDeposito />} />
               <Route path="/deposito/recepciones" element={<RecepcionesDeposito />} />
+              <Route path="/lista-precios" element={<ListaPreciosProveedor />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
