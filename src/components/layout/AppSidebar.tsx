@@ -18,6 +18,9 @@ import {
   Truck,
   ClipboardList,
   Settings,
+  ReceiptText,
+  Wallet,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +53,10 @@ const navItems: NavItem[] = [
   { to: "/obras",        label: "Obras",             icon: Building2,       roles: ["compras", "admin"] },
   { to: "/arquitectos",  label: "Arquitectos",       icon: HardHat,        roles: ["compras", "admin"] },
   { to: "/proveedores",  label: "Proveedores",       icon: Building2,       roles: ["compras", "admin"] },
+  { to: "/lista-precios",       label: "Lista de Precios",    icon: Wallet,       roles: ["proveedor", "compras", "admin"] },
+  { to: "/retiros",             label: "Registro de Retiros", icon: ReceiptText,  roles: ["compras", "admin"] },
+  { to: "/cuenta-corriente",    label: "Cuenta Corriente",    icon: CreditCard,   roles: ["compras", "admin"] },
+  { to: "/reporte-consumos",    label: "Reporte de Consumos", icon: BarChart3,    roles: ["compras", "admin"] },
   { to: "/usuarios",       label: "Usuarios",        icon: Users,           roles: ["admin"] },
   { to: "/configuracion",  label: "Configuración",   icon: Settings,        roles: ["admin"] },
 ];
