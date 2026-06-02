@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useViewRole } from '@/hooks/useViewRole';
 import { useAuth } from '@/hooks/useAuth';
+import { useOwnProviderId } from '@/hooks/useOwnProviderId';
 import { usePreciosProveedor, preciosKey, type PrecioWithMaterial } from '@/hooks/usePreciosProveedor';
 import { resolvePrecioVigente, hasVigenciaOverlap } from '@/lib/precio-vigencia';
 import { PreciosUploader, type ParsedPrecioRow } from '@/components/precios/PreciosUploader';
@@ -122,21 +123,9 @@ export default function ListaPreciosProveedor() {
   });
 
   // Resolve own provider_id when logged in as proveedor
-  const { data: ownProviderId } = useQuery({
-    queryKey: ['own-provider-id', user?.id],
-    enabled: isProvider && !!user?.id,
-    queryFn: async (): Promise<string | null> => {
-      const { data } = await supabase
-        .from('provider_users')
-        .select('provider_id')
-        .eq('user_id', user!.id)
-        .eq('active', true)
-        .maybeSingle();
-      return data?.provider_id ?? null;
-    },
-  });
+  const ownProviderId = useOwnProviderId();
 
-  const effectiveProviderId = isProvider ? ownProviderId ?? null : selectedProviderId;
+  const effectiveProviderId = isProvider ? ownProviderId : selectedProviderId;
 
   // ---- Materials for the dropdown -------------------------------------------
 
