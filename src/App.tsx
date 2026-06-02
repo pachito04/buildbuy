@@ -34,6 +34,7 @@ import ListaPreciosProveedor from "./pages/ListaPreciosProveedor";
 import RegistroRetiro from "./pages/RegistroRetiro";
 import CuentaCorriente from "./pages/CuentaCorriente";
 import ReporteConsumos from "./pages/ReporteConsumos";
+import MiCuentaCorriente from "./pages/MiCuentaCorriente";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -103,6 +104,7 @@ const App = () => (
               <Route path="/retiros" element={<RegistroRetiro />} />
               <Route path="/cuenta-corriente" element={<CuentaCorriente />} />
               <Route path="/reporte-consumos" element={<ReporteConsumos />} />
+              <Route path="/mi-cuenta-corriente" element={<MiCuentaCorriente />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>

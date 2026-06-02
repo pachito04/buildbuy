@@ -150,6 +150,7 @@ export type Database = {
           id: string
           company_id: string
           urgente_threshold_days: number
+          saldo_limite_proveedor: number | null
           created_at: string
           updated_at: string
         }
@@ -157,6 +158,7 @@ export type Database = {
           id?: string
           company_id: string
           urgente_threshold_days?: number
+          saldo_limite_proveedor?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -164,6 +166,7 @@ export type Database = {
           id?: string
           company_id?: string
           urgente_threshold_days?: number
+          saldo_limite_proveedor?: number | null
           created_at?: string
           updated_at?: string
         }

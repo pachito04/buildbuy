@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
+import { providersOverLimit } from "@/lib/consumos";
+import type { ProviderSaldo } from "@/lib/consumos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Inbox, Layers, FileText, ShoppingCart, Clock, CheckCircle, Truck, PackageCheck, AlertTriangle, Warehouse, ClipboardList } from "lucide-react";
@@ -227,6 +229,69 @@ export default function Dashboard() {
     },
   });
 
+  // --- Saldo over-limit alert (compras/admin) ---
+
+  const isComprasOrAdmin = role === "compras" || role === "admin";
+  const { companyId } = useViewRole();
+
+  const { data: saldoLimite } = useQuery({
+    queryKey: ["company-settings-limite", companyId],
+    enabled: isComprasOrAdmin && !!companyId,
+    queryFn: async (): Promise<number | null> => {
+      const { data } = await supabase
+        .from("company_settings")
+        .select("saldo_limite_proveedor")
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      return data?.saldo_limite_proveedor ?? null;
+    },
+  });
+
+  const { data: providerSaldos } = useQuery({
+    queryKey: ["provider-saldos-dashboard", companyId],
+    enabled: isComprasOrAdmin && saldoLimite !== undefined && saldoLimite !== null,
+    queryFn: async (): Promise<ProviderSaldo[]> => {
+      // Aggregate net saldo per provider from movimiento_cuenta_corriente
+      const { data, error } = await supabase
+        .from("movimiento_cuenta_corriente")
+        .select("provider_id, tipo, monto");
+      if (error) throw error;
+
+      const saldoMap = new Map<string, number>();
+      for (const mov of data ?? []) {
+        const current = saldoMap.get(mov.provider_id) ?? 0;
+        saldoMap.set(
+          mov.provider_id,
+          mov.tipo === "debito" ? current + mov.monto : current - mov.monto
+        );
+      }
+      return Array.from(saldoMap.entries()).map(([provider_id, saldo]) => ({
+        provider_id,
+        saldo,
+      }));
+    },
+  });
+
+  const { data: allProviders } = useQuery({
+    queryKey: ["providers-list-dashboard"],
+    enabled: isComprasOrAdmin,
+    queryFn: async (): Promise<{ id: string; name: string }[]> => {
+      const { data, error } = await supabase
+        .from("providers")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  const overLimitProviders =
+    saldoLimite != null && providerSaldos
+      ? providersOverLimit(providerSaldos, saldoLimite)
+      : [];
+
+  const providerNameMap = new Map((allProviders ?? []).map((p) => [p.id, p.name]));
+
   const { data: recentRemitos } = useQuery({
     queryKey: ["dashboard-deposito-recent"],
     enabled: role === "deposito",
@@ -434,6 +499,48 @@ export default function Dashboard() {
                 })}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Over-limit saldo alert — compras/admin only */}
+      {isComprasOrAdmin && saldoLimite != null && overLimitProviders.length > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-red-800 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              Proveedores con saldo sobre el límite configurado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-red-700 mb-3">
+              Los siguientes proveedores superan el límite de{" "}
+              <strong>
+                {saldoLimite.toLocaleString("es-AR", {
+                  style: "currency",
+                  currency: "ARS",
+                  minimumFractionDigits: 2,
+                })}
+              </strong>{" "}
+              configurado para la cuenta corriente.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {overLimitProviders.map((p) => (
+                <Badge
+                  key={p.provider_id}
+                  variant="outline"
+                  className="text-xs border-red-300 bg-white text-red-800"
+                >
+                  {providerNameMap.get(p.provider_id) ?? p.provider_id}
+                  {" — "}
+                  {p.saldo.toLocaleString("es-AR", {
+                    style: "currency",
+                    currency: "ARS",
+                    minimumFractionDigits: 2,
+                  })}
+                </Badge>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

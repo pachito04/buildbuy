@@ -57,6 +57,7 @@ const navItems: NavItem[] = [
   { to: "/retiros",             label: "Registro de Retiros", icon: ReceiptText,  roles: ["compras", "admin"] },
   { to: "/cuenta-corriente",    label: "Cuenta Corriente",    icon: CreditCard,   roles: ["compras", "admin"] },
   { to: "/reporte-consumos",    label: "Reporte de Consumos", icon: BarChart3,    roles: ["compras", "admin"] },
+  { to: "/mi-cuenta-corriente", label: "Mi Cuenta Corriente", icon: CreditCard,   roles: ["proveedor"] },
   { to: "/usuarios",       label: "Usuarios",        icon: Users,           roles: ["admin"] },
   { to: "/configuracion",  label: "Configuración",   icon: Settings,        roles: ["admin"] },
 ];

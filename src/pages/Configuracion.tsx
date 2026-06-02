@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, Settings, Save, ShoppingBasket } from "lucide-react";
+import { ShieldAlert, Settings, Save, ShoppingBasket, DollarSign } from "lucide-react";
 import { PoolEmpresasPanel } from "@/components/configuracion/PoolEmpresasPanel";
 import { PoolMateriasPanel } from "@/components/configuracion/PoolMateriasPanel";
 
@@ -30,12 +30,18 @@ export default function Configuracion() {
   });
 
   const [thresholdDays, setThresholdDays] = useState<string>("7");
+  const [saldoLimite, setSaldoLimite] = useState<string>("");
 
   useEffect(() => {
     if (settings?.urgente_threshold_days != null) {
       setThresholdDays(String(settings.urgente_threshold_days));
     }
-  }, [settings?.urgente_threshold_days]);
+    if (settings?.saldo_limite_proveedor != null) {
+      setSaldoLimite(String(settings.saldo_limite_proveedor));
+    } else {
+      setSaldoLimite("");
+    }
+  }, [settings?.urgente_threshold_days, settings?.saldo_limite_proveedor]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -43,16 +49,22 @@ export default function Configuracion() {
       const value = parseInt(thresholdDays, 10);
       if (isNaN(value) || value < 1) throw new Error("El umbral debe ser al menos 1 día");
 
+      const limiteRaw = saldoLimite.trim();
+      const limiteValue = limiteRaw === "" ? null : parseFloat(limiteRaw);
+      if (limiteValue !== null && (isNaN(limiteValue) || limiteValue < 0)) {
+        throw new Error("El límite de saldo debe ser un número positivo o dejarse vacío (sin límite).");
+      }
+
       if (settings?.id) {
         const { error } = await supabase
           .from("company_settings")
-          .update({ urgente_threshold_days: value })
+          .update({ urgente_threshold_days: value, saldo_limite_proveedor: limiteValue })
           .eq("id", settings.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("company_settings")
-          .insert({ company_id: companyId, urgente_threshold_days: value });
+          .insert({ company_id: companyId, urgente_threshold_days: value, saldo_limite_proveedor: limiteValue });
         if (error) throw error;
       }
     },
@@ -122,6 +134,57 @@ export default function Configuracion() {
                   Un requerimiento se marca como <strong>urgente</strong> cuando
                   faltan {thresholdDays || "…"} días o menos para la fecha de
                   entrega deseada.
+                </p>
+              </div>
+
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending}
+                className="gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {saveMutation.isPending ? "Guardando..." : "Guardar"}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Cuenta Corriente — límite de saldo por proveedor                    */}
+      {/* ------------------------------------------------------------------ */}
+      <Card className="shadow-sm max-w-lg">
+        <CardHeader className="px-6 py-4 border-b bg-muted/20">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-primary" />
+            Cuenta Corriente
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Configurá alertas de saldo para proveedores
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin h-6 w-6 border-4 border-primary border-t-transparent rounded-full" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="saldo-limite">Límite de saldo por proveedor (ARS)</Label>
+                <Input
+                  id="saldo-limite"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="Sin límite"
+                  value={saldoLimite}
+                  onChange={(e) => setSaldoLimite(e.target.value)}
+                  className="max-w-[180px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  El dashboard alertará cuando el saldo neto de un proveedor supere este monto.
+                  Dejá vacío para desactivar la alerta.
                 </p>
               </div>
 
