@@ -534,6 +534,80 @@ export type Database = {
           },
         ]
       }
+      movimiento_cuenta_corriente: {
+        Row: {
+          id: string
+          company_id: string
+          provider_id: string
+          tipo: string
+          retiro_id: string | null
+          monto: number
+          fecha: string
+          concepto: string | null
+          medio_pago: string | null
+          referencia: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          provider_id: string
+          tipo: string
+          retiro_id?: string | null
+          monto: number
+          fecha?: string
+          concepto?: string | null
+          medio_pago?: string | null
+          referencia?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          provider_id?: string
+          tipo?: string
+          retiro_id?: string | null
+          monto?: number
+          fecha?: string
+          concepto?: string | null
+          medio_pago?: string | null
+          referencia?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_cuenta_corriente_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_cuenta_corriente_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_cuenta_corriente_retiro_id_fkey"
+            columns: ["retiro_id"]
+            isOneToOne: false
+            referencedRelation: "retiro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_cuenta_corriente_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimiento_producto: {
         Row: {
           id: string
@@ -858,6 +932,74 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      precio_proveedor: {
+        Row: {
+          id: string
+          company_id: string | null
+          provider_id: string
+          material_id: string
+          precio_unitario: number
+          unidad_medida: string | null
+          vigencia_desde: string
+          vigencia_hasta: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id?: string | null
+          provider_id: string
+          material_id: string
+          precio_unitario: number
+          unidad_medida?: string | null
+          vigencia_desde?: string
+          vigencia_hasta?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string | null
+          provider_id?: string
+          material_id?: string
+          precio_unitario?: number
+          unidad_medida?: string | null
+          vigencia_desde?: string
+          vigencia_hasta?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "precio_proveedor_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "precio_proveedor_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "precio_proveedor_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "precio_proveedor_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -2038,6 +2180,152 @@ export type Database = {
           },
         ]
       }
+      retiro: {
+        Row: {
+          id: string
+          company_id: string
+          provider_id: string
+          project_id: string
+          architect_id: string
+          fecha_retiro: string
+          fecha_registro: string
+          observaciones: string | null
+          estado: string
+          anulado_por: string | null
+          fecha_anulacion: string | null
+          motivo_anulacion: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          provider_id: string
+          project_id: string
+          architect_id: string
+          fecha_retiro: string
+          fecha_registro?: string
+          observaciones?: string | null
+          estado?: string
+          anulado_por?: string | null
+          fecha_anulacion?: string | null
+          motivo_anulacion?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          provider_id?: string
+          project_id?: string
+          architect_id?: string
+          fecha_retiro?: string
+          fecha_registro?: string
+          observaciones?: string | null
+          estado?: string
+          anulado_por?: string | null
+          fecha_anulacion?: string | null
+          motivo_anulacion?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retiro_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retiro_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retiro_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retiro_architect_id_fkey"
+            columns: ["architect_id"]
+            isOneToOne: false
+            referencedRelation: "architects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retiro_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retiro_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retiro_item: {
+        Row: {
+          id: string
+          retiro_id: string
+          material_id: string
+          precio_proveedor_id: string | null
+          cantidad: number
+          precio_unitario_aplicado: number
+          subtotal: number
+        }
+        Insert: {
+          id?: string
+          retiro_id: string
+          material_id: string
+          precio_proveedor_id?: string | null
+          cantidad: number
+          precio_unitario_aplicado: number
+          subtotal: number
+        }
+        Update: {
+          id?: string
+          retiro_id?: string
+          material_id?: string
+          precio_proveedor_id?: string | null
+          cantidad?: number
+          precio_unitario_aplicado?: number
+          subtotal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retiro_item_retiro_id_fkey"
+            columns: ["retiro_id"]
+            isOneToOne: false
+            referencedRelation: "retiro"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retiro_item_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retiro_item_precio_proveedor_id_fkey"
+            columns: ["precio_proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "precio_proveedor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfqs: {
         Row: {
           categoria: string | null
@@ -2271,6 +2559,21 @@ export type Database = {
       }
     }
     Functions: {
+      anular_retiro: {
+        Args: { p_retiro_id: string; p_motivo: string }
+        Returns: undefined
+      }
+      registrar_retiro: {
+        Args: {
+          p_provider_id: string
+          p_project_id: string
+          p_architect_id: string
+          p_fecha_retiro: string
+          p_items: Json
+          p_observaciones?: string
+        }
+        Returns: string
+      }
       auth_company_id: { Args: never; Returns: string }
       auth_is_provider: { Args: never; Returns: boolean }
       auth_user_role: {
