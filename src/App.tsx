@@ -32,6 +32,7 @@ import SolicitudesDeposito from "./pages/deposito/SolicitudesDeposito";
 import RecepcionesDeposito from "./pages/deposito/RecepcionesDeposito";
 import ListaPreciosProveedor from "./pages/ListaPreciosProveedor";
 import RegistroRetiro from "./pages/RegistroRetiro";
+import CuentaCorriente from "./pages/CuentaCorriente";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/deposito/recepciones" element={<RecepcionesDeposito />} />
               <Route path="/lista-precios" element={<ListaPreciosProveedor />} />
               <Route path="/retiros" element={<RegistroRetiro />} />
+              <Route path="/cuenta-corriente" element={<CuentaCorriente />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
