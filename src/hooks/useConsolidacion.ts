@@ -25,6 +25,8 @@ export interface UseConsolidacionResult {
   error: Error | null;
   createConsolidatedRfq: (selectedLines: ConsolidatedLine[]) => void;
   isCreating: boolean;
+  /** Last error from createConsolidatedRfq mutation (null when idle or after success). */
+  createError: Error | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,5 +214,6 @@ export function useConsolidacion(companyId: string | null): UseConsolidacionResu
     error: error as Error | null,
     createConsolidatedRfq: createMutation.mutate,
     isCreating: createMutation.isPending,
+    createError: createMutation.error,
   };
 }

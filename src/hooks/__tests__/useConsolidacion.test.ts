@@ -199,7 +199,7 @@ describe('useConsolidacion — createConsolidatedRfq mutation', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Error propagation
+  // Error propagation — generic DB error
   // -------------------------------------------------------------------------
 
   it('propagates error when supabase.rpc returns an error object', async () => {
@@ -224,6 +224,47 @@ describe('useConsolidacion — createConsolidatedRfq mutation', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       '[useConsolidacion] createConsolidatedRfq failed:',
       expect.any(String),
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  // -------------------------------------------------------------------------
+  // Error propagation — race condition (item already consolidated)
+  // -------------------------------------------------------------------------
+
+  it('exposes createError with the RPC message when a race-condition error occurs', async () => {
+    const RACE_MSG =
+      'Uno o más ítems ya fueron incluidos en otra cotización consolidada. Refrescá la pantalla.';
+
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: { message: RACE_MSG, code: 'P0001' },
+    } as any);
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { result } = renderHook(
+      () => useConsolidacion(COMPANY_ID),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    // createError starts null before any mutation
+    expect(result.current.createError).toBeNull();
+
+    await act(async () => {
+      result.current.createConsolidatedRfq([makeLine()]);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    // createError must carry the RPC error message
+    expect(result.current.createError).not.toBeNull();
+    expect(result.current.createError?.message).toBe(RACE_MSG);
+
+    // onError still logs (backward-compatible)
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[useConsolidacion] createConsolidatedRfq failed:',
+      RACE_MSG,
     );
 
     consoleErrorSpy.mockRestore();

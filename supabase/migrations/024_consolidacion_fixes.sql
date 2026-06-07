@@ -41,6 +41,14 @@ ALTER TABLE requerimiento_evento ADD CONSTRAINT chk_evento_tipo
 -- rfqs, rfq_items, rfq_item_sources, rfq_requests; the calling user's policies
 -- apply transparently (same pattern as the client-side inserts it replaces).
 --
+-- Race-condition guard (hard fail, all-or-nothing):
+--   The UPDATE lock uses RETURNING to capture which items were effectively
+--   locked (i.e. were still 'sin_pedir'). If the count of locked items is
+--   less than the count of distinct request_item_id values in the payload,
+--   at least one item was already taken by a concurrent session and we RAISE
+--   EXCEPTION — rolling back the entire transaction. No sources, requests, or
+--   events are ever created for items that were not locked.
+--
 -- p_lines shape:
 --   [
 --     {
@@ -61,10 +69,12 @@ CREATE OR REPLACE FUNCTION create_consolidated_rfq(
 RETURNS uuid
 LANGUAGE plpgsql SECURITY INVOKER AS $$
 DECLARE
-  v_rfq_id      uuid;
-  v_line        jsonb;
-  v_source      jsonb;
-  v_rfq_item_id uuid;
+  v_rfq_id           uuid;
+  v_line             jsonb;
+  v_source           jsonb;
+  v_rfq_item_id      uuid;
+  v_expected_count   int;
+  v_locked_count     int;
 BEGIN
   -- Validate inputs
   IF p_company_id IS NULL THEN
@@ -77,12 +87,40 @@ BEGIN
     RAISE EXCEPTION 'p_lines must contain at least one line';
   END IF;
 
-  -- Step 1: INSERT rfqs
+  -- Step 1: Count distinct request_item_id values expected to be locked.
+  SELECT COUNT(DISTINCT (s->>'request_item_id')::uuid)
+    INTO v_expected_count
+  FROM jsonb_array_elements(p_lines) l,
+       jsonb_array_elements(l->'sources') s;
+
+  -- Step 2: Lock source items atomically — only those still 'sin_pedir'.
+  -- RETURNING captures exactly which items were effectively locked.
+  WITH locked AS (
+    UPDATE request_items
+       SET status = 'en_consolidacion'
+     WHERE id IN (
+       SELECT (s->>'request_item_id')::uuid
+       FROM jsonb_array_elements(p_lines) l,
+            jsonb_array_elements(l->'sources') s
+     )
+       AND status = 'sin_pedir'
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO v_locked_count FROM locked;
+
+  -- Hard fail if any item was already taken by a concurrent session.
+  IF v_locked_count < v_expected_count THEN
+    RAISE EXCEPTION 'Uno o más ítems ya fueron incluidos en otra cotización consolidada. Refrescá la pantalla.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  -- Step 3: INSERT rfqs
   INSERT INTO rfqs (company_id, created_by, status, rfq_type)
     VALUES (p_company_id, p_created_by, 'sent', 'consolidated')
     RETURNING id INTO v_rfq_id;
 
-  -- Steps 2 + 3: INSERT rfq_items and rfq_item_sources, one line at a time
+  -- Steps 4 + 5: INSERT rfq_items and rfq_item_sources, one line at a time.
+  -- Only reached after all locks were successfully acquired.
   FOR v_line IN SELECT * FROM jsonb_array_elements(p_lines)
   LOOP
     INSERT INTO rfq_items (rfq_id, description, quantity, unit, material_id)
@@ -107,25 +145,15 @@ BEGIN
     END LOOP;
   END LOOP;
 
-  -- Step 4: INSERT rfq_requests (one per distinct request_id)
+  -- Step 6: INSERT rfq_requests (one per distinct request_id)
   INSERT INTO rfq_requests (rfq_id, request_id)
   SELECT DISTINCT v_rfq_id,
          (s->>'request_id')::uuid
   FROM jsonb_array_elements(p_lines) l,
        jsonb_array_elements(l->'sources') s;
 
-  -- Step 5: Lock source items (guarded — only items still 'sin_pedir' are updated;
-  -- items already locked by a race condition are silently skipped rather than erroring)
-  UPDATE request_items
-    SET status = 'en_consolidacion'
-   WHERE id IN (
-     SELECT (s->>'request_item_id')::uuid
-     FROM jsonb_array_elements(p_lines) l,
-          jsonb_array_elements(l->'sources') s
-   )
-   AND status = 'sin_pedir';
-
-  -- Step 6: INSERT requerimiento_evento — one per distinct request_id
+  -- Step 7: INSERT requerimiento_evento — one per distinct request_id.
+  -- Deduplication by request_id + tipo='consolidado' is implicit via DISTINCT.
   INSERT INTO requerimiento_evento (request_id, tipo, descripcion, metadata, created_by)
   SELECT DISTINCT
          (s->>'request_id')::uuid,

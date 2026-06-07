@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useConsolidacion } from "@/hooks/useConsolidacion";
 import { ConsolidatedLine } from "@/lib/consolidacion-utils";
 import { useToast } from "@/hooks/use-toast";
@@ -49,11 +49,21 @@ function ConsolidacionSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function ConsolidacionPanel({ companyId }: ConsolidacionPanelProps) {
-  const { lines, urgencyByMaterialId, isLoading, error, createConsolidatedRfq, isCreating } =
+  const { lines, urgencyByMaterialId, isLoading, error, createConsolidatedRfq, isCreating, createError } =
     useConsolidacion(companyId);
 
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Show a toast whenever the mutation fails (e.g. race condition on items already taken).
+  useEffect(() => {
+    if (!createError) return;
+    toast({
+      title: "No se pudo generar la cotización",
+      description: createError.message,
+      variant: "destructive",
+    });
+  }, [createError, toast]);
 
   // ---- Selection helpers --------------------------------------------------
 
