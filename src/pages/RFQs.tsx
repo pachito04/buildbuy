@@ -338,7 +338,7 @@ export default function RFQs() {
                     ? `Pedido #${(detailRfq as any).requests.request_number}`
                     : (detailRfq as any).purchase_pools?.name
                       ? `Pool: ${(detailRfq as any).purchase_pools.name}`
-                      : `SC #${detailRfq.id.slice(0, 8)}`}
+                      : `SC #${(detailRfq as any).rfq_number ?? detailRfq.id.slice(0, 8)}`}
                 </span>
                 <div className="flex items-center gap-2">
                   <Badge variant={rfqStatusLabels[detailRfq.status]?.variant || "secondary"}>

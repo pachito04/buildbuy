@@ -52,7 +52,7 @@ export function RfqList({ rfqs, isLoading, emptyMessage, emptySubMessage, onDeta
                   ? `Pedido #${rfq.requests.request_number}`
                   : rfq.purchase_pools?.name
                     ? `Pool: ${rfq.purchase_pools.name}`
-                    : `SC #${rfq.id.slice(0, 8)}`}
+                    : `SC #${rfq.rfq_number ?? rfq.id.slice(0, 8)}`}
               </CardTitle>
               <Badge variant={rfqStatusLabels[rfq.status]?.variant || "secondary"}>
                 {rfqStatusLabels[rfq.status]?.label || rfq.status}

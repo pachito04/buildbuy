@@ -218,7 +218,7 @@ export default function Trazabilidad() {
                           <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                           <div className="flex items-center gap-1 shrink-0">
                             <FileText className="h-3.5 w-3.5 text-orange-500" />
-                            <span className="text-xs">SC #{chain.rfq.id.slice(0, 6)}</span>
+                            <span className="text-xs">SC #{chain.rfq.rfq_number ?? chain.rfq.id.slice(0, 6)}</span>
                           </div>
                         </>
                       )}

@@ -110,7 +110,7 @@ export default function Cotizaciones() {
 
       const { data: openRfqs } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
+        .select("id, rfq_number, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
         .or("rfq_type.eq.open,rfq_type.is.null")
         .in("status", ["sent", "responded"])
         .order("created_at", { ascending: false });
@@ -119,7 +119,7 @@ export default function Cotizaciones() {
       if (invitedIds.length) {
         const { data } = await supabase
           .from("rfqs")
-          .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
+          .select("id, rfq_number, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
           .eq("rfq_type", "closed_bid")
           .in("id", invitedIds)
           .in("status", ["sent", "responded"])
@@ -164,7 +164,7 @@ export default function Cotizaciones() {
       if (!rfqIds.length) return [];
       const { data, error } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
+        .select("id, rfq_number, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
         .in("id", rfqIds)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -299,7 +299,7 @@ export default function Cotizaciones() {
     queryFn: async () => {
       const { data: rfqs, error } = await supabase
         .from("rfqs")
-        .select("id, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, requests:request_id(request_number, desired_date), purchase_pools:pool_id(name)")
+        .select("id, rfq_number, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, requests:request_id(request_number, desired_date), purchase_pools:pool_id(name)")
         .eq("company_id", companyId!)
         .in("status", ["sent", "responded", "closed"])
         .order("created_at", { ascending: false });
@@ -331,7 +331,7 @@ export default function Cotizaciones() {
           ? `Pedido #${r.requests.request_number}`
           : r.purchase_pools?.name
             ? `Pool: ${r.purchase_pools.name}`
-            : `SC #${r.id.slice(0, 8)}`,
+            : `SC #${r.rfq_number ?? r.id.slice(0, 8)}`,
         created_at: r.created_at,
         closing_datetime: r.closing_datetime,
         description: r.observations,
@@ -525,7 +525,7 @@ export default function Cotizaciones() {
                 ? `Pedido #${rfq.requests.request_number}`
                 : rfq.purchase_pools?.name
                   ? `Pool: ${rfq.purchase_pools.name}`
-                  : `SC #${rfq.id.slice(0, 8)}`}
+                  : `SC #${rfq.rfq_number ?? rfq.id.slice(0, 8)}`}
             </CardTitle>
             <Badge variant={rfq.status === "sent" ? "default" : "outline"}>
               {rfq.status === "sent" ? "Abierto" : "Respondido"}
@@ -557,7 +557,7 @@ export default function Cotizaciones() {
                 ? `Pedido #${rfq.requests.request_number}`
                 : rfq.purchase_pools?.name
                   ? `Pool: ${rfq.purchase_pools.name}`
-                  : `SC #${rfq.id.slice(0, 8)}`}
+                  : `SC #${rfq.rfq_number ?? rfq.id.slice(0, 8)}`}
             </CardTitle>
             {rfq.rfq_type === "closed_bid" && (
               <Badge variant="secondary" className="text-[10px]">Licitación Cerrada</Badge>
@@ -704,7 +704,7 @@ export default function Cotizaciones() {
                       ? `Pedido #${detailRfqData.requests.request_number}`
                       : detailRfqData.purchase_pools?.name
                         ? `Pool: ${detailRfqData.purchase_pools.name}`
-                        : `SC #${detailRfqData.id.slice(0, 8)}`}
+                        : `SC #${detailRfqData.rfq_number ?? detailRfqData.id.slice(0, 8)}`}
                   </span>
                   <Badge variant="default">Abierto</Badge>
                 </div>
@@ -760,7 +760,7 @@ export default function Cotizaciones() {
                       ? `Pedido #${quoteDetailRfq.requests.request_number}`
                       : quoteDetailRfq.purchase_pools?.name
                         ? `Pool: ${quoteDetailRfq.purchase_pools.name}`
-                        : `SC #${quoteDetailRfq.id.slice(0, 8)}`}
+                        : `SC #${quoteDetailRfq.rfq_number ?? quoteDetailRfq.id.slice(0, 8)}`}
                   </span>
                   <Badge variant={quoteStatusLabels[quoteDetailQuote.status]?.variant || "outline"}>
                     {quoteStatusLabels[quoteDetailQuote.status]?.label || quoteDetailQuote.status}

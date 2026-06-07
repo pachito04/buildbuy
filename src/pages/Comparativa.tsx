@@ -45,7 +45,7 @@ export default function Comparativa() {
       const { data, error } = await supabase
         .from("rfqs")
         .select(
-          "id, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, descripcion, price_terms, payment_terms, requests:request_id(request_number), purchase_pools:pool_id(name)"
+          "id, rfq_number, status, created_at, closing_datetime, observations, created_by, request_id, pool_id, descripcion, price_terms, payment_terms, requests:request_id(request_number), purchase_pools:pool_id(name)"
         )
         .eq("id", rfqId!)
         .single();
@@ -244,7 +244,7 @@ export default function Comparativa() {
       ? `Pedido #${(rfq as any).requests.request_number}`
       : (rfq as any).purchase_pools?.name
         ? `Pool: ${(rfq as any).purchase_pools.name}`
-        : `SC #${rfq.id.slice(0, 8)}`
+        : `SC #${(rfq as any).rfq_number ?? rfq.id.slice(0, 8)}`
     : "";
 
   const COL_COUNT = 8;

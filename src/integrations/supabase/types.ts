@@ -2345,6 +2345,7 @@ export type Database = {
           pool_id: string | null
           price_terms: string | null
           request_id: string | null
+          rfq_number: number
           status: Database["public"]["Enums"]["rfq_status"]
           updated_at: string
         }
@@ -2363,6 +2364,7 @@ export type Database = {
           pool_id?: string | null
           price_terms?: string | null
           request_id?: string | null
+          rfq_number?: number
           status?: Database["public"]["Enums"]["rfq_status"]
           updated_at?: string
         }
@@ -2381,6 +2383,7 @@ export type Database = {
           pool_id?: string | null
           price_terms?: string | null
           request_id?: string | null
+          rfq_number?: number
           status?: Database["public"]["Enums"]["rfq_status"]
           updated_at?: string
         }
