@@ -26,7 +26,7 @@ export interface EligibleItem {
   delivery_target: string;
   /** 'inventario' | 'cotizacion' | 'orden_directa' | 'pendiente' */
   routing: string;
-  /** 'sin_pedir' | 'en_oc' | 'parcial' | 'recibido' */
+  /** 'sin_pedir' | 'en_oc' | 'parcial' | 'recibido' | 'en_consolidacion' */
   item_status: string;
 }
 
