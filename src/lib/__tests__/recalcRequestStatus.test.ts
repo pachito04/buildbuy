@@ -100,6 +100,17 @@ describe('recalcRequestStatus', () => {
     expect(mockUpdate).toHaveBeenCalledWith({ status: 'en_curso' });
   });
 
+  it('transitions to en_curso when items include en_consolidacion mixed with sin_pedir (regression guard)', async () => {
+    mockEq.mockResolvedValue({
+      data: [{ status: 'en_consolidacion' }, { status: 'sin_pedir' }],
+      error: null,
+    });
+
+    await recalcRequestStatus('req-1', 'pendiente', 'user-1', 'comp-1', queryClient);
+
+    expect(mockUpdate).toHaveBeenCalledWith({ status: 'en_curso' });
+  });
+
   it('does not update when computed status equals current status', async () => {
     mockEq.mockResolvedValue({
       data: [{ status: 'sin_pedir' }, { status: 'recibido' }],

@@ -205,6 +205,10 @@ describe('isConsolidationEligible', () => {
     expect(isConsolidationEligible(makeItem({ item_status: 'en_oc' }))).toBe(false);
   });
 
+  it('returns false when item_status is en_consolidacion (regression guard — lock must exclude re-consolidation)', () => {
+    expect(isConsolidationEligible(makeItem({ item_status: 'en_consolidacion' }))).toBe(false);
+  });
+
   it('returns true when routing is cotizacion (eligible routing)', () => {
     expect(isConsolidationEligible(makeItem({ routing: 'cotizacion' }))).toBe(true);
   });
