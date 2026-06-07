@@ -146,6 +146,9 @@ export function ConsolidacionPanel({ companyId }: ConsolidacionPanelProps) {
             <span className="font-mono">pendiente</span> o{" "}
             <span className="font-mono">cotizacion</span> aparecerán acá agrupados por material.
           </p>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            Los ítems con entrega en obra no son consolidables: se gestionan por compra directa.
+          </p>
         </CardContent>
       </Card>
     );
@@ -158,6 +161,11 @@ export function ConsolidacionPanel({ companyId }: ConsolidacionPanelProps) {
 
   return (
     <div className="space-y-4">
+      {/* Non-consolidable items notice */}
+      <p className="text-xs text-muted-foreground">
+        Solo se consolidan ítems con entrega en depósito.
+      </p>
+
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
