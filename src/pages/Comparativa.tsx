@@ -70,7 +70,7 @@ export default function Comparativa() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rfq_items")
-        .select("id, description, quantity, unit")
+        .select("id, description, quantity, unit, observations")
         .eq("rfq_id", rfqId!)
         .order("description");
       if (error) throw error;
@@ -326,6 +326,16 @@ export default function Comparativa() {
         </div>
       </div>
 
+      {/* Observación general de la solicitud */}
+      {(rfq as any)?.observations && (
+        <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-sm">
+          <span className="font-medium text-muted-foreground">
+            Observaciones de la solicitud:{" "}
+          </span>
+          <span className="text-foreground">{(rfq as any).observations}</span>
+        </div>
+      )}
+
       {/* Historial de modificaciones — visible below header when rfq is loaded */}
       {rfqId && (
         <div className="-mt-2">
@@ -460,9 +470,19 @@ function ProductSection({
       <tr className="bg-primary/10 border-t-2 border-primary/20">
         <td colSpan={colCount} className="px-4 py-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Package className="h-4 w-4 text-primary" />
-              <span className="font-semibold">{item.description}</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <Package className="h-4 w-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <span className="font-semibold">{item.description}</span>
+                {item.observations && (
+                  <p
+                    className="text-xs text-muted-foreground italic truncate"
+                    title={item.observations}
+                  >
+                    Obs.: {item.observations}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-4 text-xs">
               <span className="text-muted-foreground">
