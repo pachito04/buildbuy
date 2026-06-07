@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { useUrgencyThreshold, isUrgente } from "@/hooks/useUrgencyThreshold";
 import { distributeByUrgency } from "@/lib/distribucion-utils";
+import { getDistinctRequestIds } from "@/lib/recepcion-utils";
+import { recalcRequestStatus } from "@/lib/recalcRequestStatus";
 import { logMovimiento } from "@/lib/movimiento-utils";
 import { toast } from "sonner";
 import {
@@ -34,6 +36,9 @@ interface ItemReception {
   rejected: number;
   reason: string;
 }
+
+/** Map of requestId → current request status (used for recalcRequestStatus). */
+type RequestStatusById = Record<string, string>;
 
 /** A resolved consolidated source for one PO item line. */
 interface ResolvedSource {
@@ -157,7 +162,7 @@ export function RecepcionDialog({ purchaseOrderId, onClose }: RecepcionDialogPro
       const requestIds = [...new Set(sources.map((s: any) => s.request_id))];
       const { data: requests, error: reqErr } = await supabase
         .from("requests")
-        .select("id, request_number, desired_date, project_id")
+        .select("id, request_number, desired_date, project_id, status")
         .in("id", requestIds);
       if (reqErr) throw reqErr;
 
@@ -207,6 +212,11 @@ export function RecepcionDialog({ purchaseOrderId, onClose }: RecepcionDialogPro
         sourcesByRfqItem[src.rfq_item_id].push(src);
       }
 
+      // Build requestStatusById: requestId → status (for recalcRequestStatus after update)
+      const requestStatusById: RequestStatusById = Object.fromEntries(
+        (requests ?? []).map((r: any) => [r.id, r.status ?? "pendiente"]),
+      );
+
       // Build result: poItemId → ResolvedSource[]
       const result: Record<string, ResolvedSource[]> = {};
       for (const item of items) {
@@ -237,9 +247,13 @@ export function RecepcionDialog({ purchaseOrderId, onClose }: RecepcionDialogPro
         });
       }
 
-      return result;
+      return { sources: result, requestStatusById };
     },
   });
+
+  // Unpack the query result into the two maps used downstream.
+  const consolidatedSourcesData = sourcesData?.sources ?? {};
+  const requestStatusById = sourcesData?.requestStatusById ?? {};
 
   // ---------------------------------------------------------------------------
   // Initialize receptions + consolidated state when data lands
@@ -263,11 +277,11 @@ export function RecepcionDialog({ purchaseOrderId, onClose }: RecepcionDialogPro
   }, [items.length, purchaseOrderId]);
 
   useEffect(() => {
-    if (!sourcesData || !items.length) return;
+    if (!consolidatedSourcesData || !items.length) return;
 
     // Apply urgency flag now that urgencyThreshold is known
     const withUrgency: Record<string, ResolvedSource[]> = {};
-    for (const [itemId, srcs] of Object.entries(sourcesData)) {
+    for (const [itemId, srcs] of Object.entries(consolidatedSourcesData)) {
       withUrgency[itemId] = srcs.map((s) => ({
         ...s,
         urgent: isUrgente(s.desiredDate, urgencyThreshold),
@@ -463,6 +477,32 @@ export function RecepcionDialog({ purchaseOrderId, onClose }: RecepcionDialogPro
             });
           }
         }
+      }
+
+      // ------------------------------------------------------------------
+      // Recalc parent request status once per distinct requestId (GAP 3)
+      // Collect all sources that had allocated > 0 across all processed items.
+      // ------------------------------------------------------------------
+
+      const allProcessedSources: Array<{ requestId: string; allocated: number }> = [];
+      for (const item of items) {
+        const srcs = consolidatedSources[item.id];
+        if (!srcs || srcs.length === 0) continue;
+        const rec = receptions[item.id];
+        if (!rec || rec.accepted <= 0) continue;
+        const allocs = sourceAllocations[item.id] ?? {};
+        for (const src of srcs) {
+          const allocated = allocs[src.sourceId] ?? 0;
+          if (allocated > 0) {
+            allProcessedSources.push({ requestId: src.requestId, allocated });
+          }
+        }
+      }
+
+      const distinctReqIds = getDistinctRequestIds(allProcessedSources);
+      for (const reqId of distinctReqIds) {
+        const currentStatus = requestStatusById[reqId] ?? "pendiente";
+        await recalcRequestStatus(reqId, currentStatus, user.id, companyId, qc);
       }
 
       // ------------------------------------------------------------------
