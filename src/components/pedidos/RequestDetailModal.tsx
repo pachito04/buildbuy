@@ -10,7 +10,9 @@ import { ActivityTimeline } from "./ActivityTimeline";
 import { useViewRole } from "@/hooks/useViewRole";
 import { useUrgencyThreshold } from "@/hooks/useUrgencyThreshold";
 import { useConsolidationMatches } from "@/hooks/useConsolidationMatches";
-import { Warehouse, FileText, X, GitMerge } from "lucide-react";
+import { useBasket } from "@/contexts/BasketContext";
+import { useToast } from "@/hooks/use-toast";
+import { Warehouse, FileText, X, GitMerge, ShoppingCart } from "lucide-react";
 import {
   ITEM_SUB_STATE_COLORS,
   ARCHITECT_ITEM_LABELS,
@@ -77,6 +79,8 @@ export function RequestDetailModal({
   const thresholdDays = useUrgencyThreshold();
   const navigate = useNavigate();
   const { matches } = useConsolidationMatches(requestId);
+  const basket = useBasket();
+  const { toast } = useToast();
   const [hintDismissed, setHintDismissed] = useState(false);
 
   const { data: request, isLoading: loadingDetail } = useQuery({
@@ -387,6 +391,49 @@ export function RequestDetailModal({
                     Solicitud de Cotización
                   </button>
                 </div>
+                <button
+                  onClick={() => {
+                    const itemsWithMaterial = request.request_items.filter(
+                      (item) => !!item.material_id
+                    );
+                    if (itemsWithMaterial.length === 0) {
+                      toast({
+                        title: "Sin ítems cotizables",
+                        description:
+                          "Este requerimiento no tiene ítems con material asignado.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    itemsWithMaterial.forEach((item) => {
+                      basket.addItem(
+                        {
+                          material_id: item.material_id!,
+                          name: item.materials?.name ?? item.description,
+                          unit: item.materials?.unit ?? (item.unit ?? ""),
+                          origen: `Requerimiento #${request.request_number}`,
+                          request_id: request.id,
+                          request_item_id: item.id,
+                        },
+                        Number(item.quantity)
+                      );
+                    });
+                    toast({
+                      title: `${itemsWithMaterial.length} ítem(s) agregados a la cesta`,
+                      description: `Requerimiento #${request.request_number}`,
+                    });
+                    onClose();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-80 mb-2"
+                  style={{
+                    backgroundColor: "#EFF6FF",
+                    color: "#1D4ED8",
+                    border: "1px solid #BFDBFE",
+                  }}
+                >
+                  <ShoppingCart className="h-4 w-4 shrink-0" />
+                  Agregar a cesta de cotización
+                </button>
                 <button
                   onClick={() =>
                     onReject(request.id, request.request_number)

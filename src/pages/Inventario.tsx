@@ -869,7 +869,7 @@ export default function Inventario() {
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {basket.items.map((item) => (
                   <div
-                    key={item.material_id}
+                    key={item.id}
                     className="flex items-center justify-between text-sm"
                   >
                     <div>
@@ -881,7 +881,7 @@ export default function Inventario() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => basket.removeItem(item.material_id)}
+                      onClick={() => basket.removeItem(item.id)}
                     >
                       <Trash2 className="h-3 w-3 text-destructive" />
                     </Button>

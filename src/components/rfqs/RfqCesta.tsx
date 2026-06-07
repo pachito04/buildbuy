@@ -69,6 +69,7 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
         quantity: bi.quantity,
         unit: bi.unit,
         material_id: bi.material_id,
+        request_item_id: bi.request_item_id,
       }));
       const { error: itemsErr } = await supabase.from("rfq_items").insert(rfqItems);
       if (itemsErr) throw itemsErr;
@@ -120,7 +121,7 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
           <ShoppingCart className="h-10 w-10 mx-auto mb-3 opacity-50" />
           <p className="text-sm">La cesta de cotización está vacía.</p>
           <p className="text-xs mt-1">
-            Agregá materiales desde el módulo de Inventario o Materiales.
+            Agregá materiales desde el módulo de Inventario / Materiales, o desde un requerimiento.
           </p>
         </CardContent>
       </Card>
@@ -142,6 +143,7 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
               <thead className="bg-muted">
                 <tr>
                   <th className="text-left px-3 py-2">Material</th>
+                  <th className="text-left px-3 py-2">Origen</th>
                   <th className="text-right px-3 py-2">Cantidad</th>
                   <th className="text-left px-3 py-2">Unidad</th>
                   <th className="text-center px-3 py-2 w-10"></th>
@@ -149,8 +151,25 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
               </thead>
               <tbody>
                 {basket.items.map((item) => (
-                  <tr key={item.material_id} className="border-t">
+                  <tr key={item.id} className="border-t">
                     <td className="px-3 py-2">{item.name}</td>
+                    <td className="px-3 py-2">
+                      {item.request_item_id ? (
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-amber-50 text-amber-800 border-amber-300"
+                        >
+                          {item.origen}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-gray-50 text-gray-500 border-gray-200"
+                        >
+                          Libre
+                        </Badge>
+                      )}
+                    </td>
                     <td className="text-right px-3 py-2">
                       <Input
                         className="w-20 h-7 text-right inline-block"
@@ -158,12 +177,19 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
                         min="1"
                         step="0.01"
                         value={item.quantity}
-                        onChange={(e) => basket.updateQuantity(item.material_id, parseFloat(e.target.value) || 0)}
+                        onChange={(e) =>
+                          basket.updateQuantity(item.id, parseFloat(e.target.value) || 0)
+                        }
                       />
                     </td>
                     <td className="px-3 py-2">{item.unit}</td>
                     <td className="px-3 py-2 text-center">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => basket.removeItem(item.material_id)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => basket.removeItem(item.id)}
+                      >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </td>
@@ -180,11 +206,22 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
           <CardTitle className="text-base font-display">Datos de la solicitud</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={(e) => { e.preventDefault(); emitFromBasket.mutate(); }} className="space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              emitFromBasket.mutate();
+            }}
+            className="space-y-4"
+          >
             <div className="space-y-2">
               <Label>Tipo de solicitud *</Label>
-              <Select value={rfqType} onValueChange={(v) => setRfqType(v as "open" | "closed_bid")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={rfqType}
+                onValueChange={(v) => setRfqType(v as "open" | "closed_bid")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="open">Pedido Abierto</SelectItem>
                   <SelectItem value="closed_bid">Licitación Cerrada</SelectItem>
@@ -195,22 +232,39 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Cierre de cotización *</Label>
-                <Input type="datetime-local" value={closingDatetime} onChange={(e) => setClosingDatetime(e.target.value)} />
+                <Input
+                  type="datetime-local"
+                  value={closingDatetime}
+                  onChange={(e) => setClosingDatetime(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Entrega límite *</Label>
-                <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+                <Input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Lugar de entrega *</Label>
-              <Input placeholder="Ej: Obra Norte, Av. Reforma 123" value={deliveryLocation} onChange={(e) => setDeliveryLocation(e.target.value)} />
+              <Input
+                placeholder="Ej: Obra Norte, Av. Reforma 123"
+                value={deliveryLocation}
+                onChange={(e) => setDeliveryLocation(e.target.value)}
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Observaciones</Label>
-              <Textarea placeholder="Notas para los proveedores..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+              <Textarea
+                placeholder="Notas para los proveedores..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+              />
             </div>
 
             {rfqType === "closed_bid" && providers.length > 0 && (
@@ -233,7 +287,11 @@ export function RfqCesta({ companyId, providers }: RfqCestaProps) {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={emitFromBasket.isPending}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={emitFromBasket.isPending}
+            >
               <Send className="h-4 w-4 mr-2" />
               {emitFromBasket.isPending ? "Enviando..." : "Emitir y Enviar a Proveedores"}
             </Button>
