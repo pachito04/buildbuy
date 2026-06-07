@@ -130,7 +130,7 @@
 
 ---
 
-### T08 — [TEST RED] RecepcionDialog: recalcRequestStatus called once per distinct requestId
+### T08 — [TEST RED] RecepcionDialog: recalcRequestStatus called once per distinct requestId [x]
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 1 complete (needs T03 for `ItemSubState`)
@@ -145,7 +145,7 @@
 
 ---
 
-### T09 — [IMPL] RecepcionDialog: add status to sourcesData select + call recalcRequestStatus per requestId
+### T09 — [IMPL] RecepcionDialog: add status to sourcesData select + call recalcRequestStatus per requestId [x]
 
 - **Type:** implementation
 - **Sequential after:** T08
@@ -163,7 +163,7 @@
 
 ---
 
-### T10 — [TEST RED] RFQs: resolveInitialTab reads location.state.openTab
+### T10 — [TEST RED] RFQs: resolveInitialTab reads location.state.openTab [x]
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 1 complete
@@ -180,7 +180,7 @@
 
 ---
 
-### T11 — [IMPL] RequestDetailModal + RFQs: navigate with state + read openTab
+### T11 — [IMPL] RequestDetailModal + RFQs: navigate with state + read openTab [x]
 
 - **Type:** implementation
 - **Sequential after:** T10
@@ -194,7 +194,7 @@
 
 ---
 
-### T12 — [IMPL] CreateRequestDialog: replace Select with ToggleGroup for delivery_target
+### T12 — [IMPL] CreateRequestDialog: replace Select with ToggleGroup for delivery_target [x]
 
 - **Type:** implementation (no dedicated test required — existing form integration tests or manual E2E cover it; selector is a pure UI swap with no new logic)
 - **Sequential after:** Slice 1 complete (needs T03 for type safety)
@@ -213,7 +213,7 @@
 
 ---
 
-### T13 — [IMPL] ConsolidacionPanel: add non-consolidable copy to empty state and toolbar
+### T13 — [IMPL] ConsolidacionPanel: add non-consolidable copy to empty state and toolbar [x]
 
 - **Type:** implementation (copy-only change — no logic, no test required)
 - **Sequential after:** Slice 1 complete
