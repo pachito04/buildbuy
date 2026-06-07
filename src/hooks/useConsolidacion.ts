@@ -8,6 +8,7 @@ import {
   groupEligibleByMaterial,
   consolidatedUrgency,
 } from "@/lib/consolidacion-utils";
+import { logMovimiento, movimientoOrigenRequerimiento } from "@/lib/movimiento-utils";
 
 // ---------------------------------------------------------------------------
 // Public result type
@@ -193,6 +194,24 @@ export function useConsolidacion(companyId: string | null): UseConsolidacionResu
       });
 
       if (error) throw new Error(error.message);
+
+      // OBS-004: per-product audit — each source item entered a consolidated SC.
+      // Best-effort, after the atomic RPC succeeded (must not block the flow).
+      for (const line of selectedLines) {
+        for (const src of line.sources) {
+          await logMovimiento(supabase, {
+            request_item_id: src.request_item_id,
+            material_id: line.material_id,
+            tipo: "consolidacion",
+            origen: movimientoOrigenRequerimiento(src.request_number),
+            destino: "Cotización consolidada",
+            cantidad: src.quantity,
+            ref_type: "rfq" as any,
+            ref_id: rfqId as string,
+            created_by: user.id,
+          });
+        }
+      }
 
       return { rfqId };
     },

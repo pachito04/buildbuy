@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Truck } from "lucide-react";
 import { inventoryAfterDispatch } from "@/lib/deposito-utils";
+import { logMovimiento } from "@/lib/movimiento-utils";
 
 interface DespachoDialogProps {
   remitoId: string | null;
@@ -78,6 +79,10 @@ export function DespachoDialog({ remitoId, onClose }: DespachoDialogProps) {
       if (!transportista.trim())
         throw new Error("Ingresá el transportista");
 
+      // OBS-004: human-readable destination for the per-product audit log.
+      const obraName = (remito as any)?.requests?.projects?.name;
+      const despachoDestino = obraName ? `Obra ${obraName}` : "Obra";
+
       for (const item of items) {
         const qtyToDispatch = quantities[item.id] ?? 0;
         if (qtyToDispatch <= 0) continue;
@@ -124,6 +129,22 @@ export function DespachoDialog({ remitoId, onClose }: DespachoDialogProps) {
             created_by: user.id,
           });
         if (movErr) throw movErr;
+
+        // OBS-004: per-product movement audit — dispatch leaves inventory toward
+        // the obra. Best-effort, logged only after this item's primary writes succeed.
+        if (item.request_item_id) {
+          await logMovimiento(supabase, {
+            request_item_id: item.request_item_id,
+            material_id: item.material_id,
+            tipo: "despacho",
+            origen: "Inventario",
+            destino: despachoDestino,
+            cantidad: qtyToDispatch,
+            ref_type: "remito",
+            ref_id: remitoId,
+            created_by: user.id,
+          });
+        }
       }
 
       const { error: remErr } = await supabase

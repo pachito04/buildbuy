@@ -5,7 +5,13 @@ import type { Database } from "@/integrations/supabase/types";
 // Types
 // ---------------------------------------------------------------------------
 
-export type MovimientoTipo = "destino_asignado" | "oc_emitida" | "recepcion";
+export type MovimientoTipo =
+  | "destino_asignado"
+  | "oc_emitida"
+  | "recepcion"
+  | "despacho"
+  | "rechazo"
+  | "consolidacion";
 
 export type MovimientoInsert =
   Database["public"]["Tables"]["movimiento_producto"]["Insert"];
@@ -18,6 +24,9 @@ export const MOVIMIENTO_TIPO_LABELS: Record<MovimientoTipo, string> = {
   destino_asignado: "Destino asignado",
   oc_emitida: "OC emitida",
   recepcion: "Recepción",
+  despacho: "Despacho",
+  rechazo: "Rechazo",
+  consolidacion: "Consolidación",
 };
 
 // ---------------------------------------------------------------------------

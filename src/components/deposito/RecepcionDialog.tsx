@@ -434,6 +434,23 @@ export function RecepcionDialog({ purchaseOrderId, onClose }: RecepcionDialogPro
               created_by: user.id,
             });
           if (rejErr) throw rejErr;
+
+          // OBS-004: per-product audit — rejected goods at reception.
+          if (item.request_item_id) {
+            await logMovimiento(supabase, {
+              request_item_id: item.request_item_id,
+              material_id: item.material_id,
+              tipo: "rechazo",
+              origen: (poData as any)?.providers?.name
+                ? `Proveedor ${(poData as any).providers.name}`
+                : null,
+              destino: "Rechazado",
+              cantidad: rec.rejected,
+              ref_type: "purchase_order" as any,
+              ref_id: purchaseOrderId,
+              created_by: user.id,
+            });
+          }
         }
 
         // ------------------------------------------------------------------

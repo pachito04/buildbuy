@@ -28,12 +28,24 @@ describe('MOVIMIENTO_TIPO_LABELS', () => {
     expect(MOVIMIENTO_TIPO_LABELS['recepcion'].length).toBeGreaterThan(0);
   });
 
-  it('covers exactly the 3 Option-A tipos', () => {
+  it.each(['despacho', 'rechazo', 'consolidacion'] as const)(
+    'has a label for %s',
+    (tipo) => {
+      expect(MOVIMIENTO_TIPO_LABELS[tipo]).toBeDefined();
+      expect(typeof MOVIMIENTO_TIPO_LABELS[tipo]).toBe('string');
+      expect(MOVIMIENTO_TIPO_LABELS[tipo].length).toBeGreaterThan(0);
+    },
+  );
+
+  it('covers exactly the 6 tipos', () => {
     const keys = Object.keys(MOVIMIENTO_TIPO_LABELS);
     expect(keys).toContain('destino_asignado');
     expect(keys).toContain('oc_emitida');
     expect(keys).toContain('recepcion');
-    expect(keys).toHaveLength(3);
+    expect(keys).toContain('despacho');
+    expect(keys).toContain('rechazo');
+    expect(keys).toContain('consolidacion');
+    expect(keys).toHaveLength(6);
   });
 });
 
