@@ -168,86 +168,29 @@ export function useConsolidacion(companyId: string | null): UseConsolidacionResu
       if (!user?.id) throw new Error("Not authenticated");
       if (selectedLines.length === 0) throw new Error("No lines selected");
 
-      // Step 1: INSERT rfqs (rfq_type='consolidated' — free-text column, cast via any)
-      const { data: rfq, error: rfqErr } = await supabase
-        .from("rfqs")
-        .insert({
-          company_id: companyId,
-          created_by: user.id,
-          status: "sent",
-          rfq_type: "consolidated",
-        } as any)
-        .select("id")
-        .single();
-      if (rfqErr) throw rfqErr;
-      const rfqId = (rfq as { id: string }).id;
-
-      // Step 2: INSERT rfq_items (one per consolidated line, total quantity)
-      const rfqItemsPayload = selectedLines.map((line) => ({
-        rfq_id: rfqId,
-        description: line.description,
-        quantity: line.totalQuantity,
-        unit: line.unit,
+      // Build the p_lines payload for the RPC.
+      // Each line: material_id, description, unit, total_quantity, sources[].
+      // Sources carry request_item_id, request_id, quantity — the RPC handles
+      // rfq_items, rfq_item_sources, rfq_requests, status lock, and events atomically.
+      const p_lines = selectedLines.map((line) => ({
         material_id: line.material_id,
+        description: line.description,
+        unit: line.unit,
+        total_quantity: line.totalQuantity,
+        sources: line.sources.map((src) => ({
+          request_item_id: src.request_item_id,
+          request_id: src.request_id,
+          quantity: src.quantity,
+        })),
       }));
 
-      const { data: insertedRfqItems, error: itemsErr } = await supabase
-        .from("rfq_items")
-        .insert(rfqItemsPayload)
-        .select("id, material_id");
-      if (itemsErr) throw itemsErr;
+      const { data: rfqId, error } = await supabase.rpc("create_consolidated_rfq", {
+        p_company_id: companyId,
+        p_created_by: user.id,
+        p_lines,
+      });
 
-      const rfqItemRows = (insertedRfqItems ?? []) as {
-        id: string;
-        material_id: string | null;
-      }[];
-
-      // Step 3: INSERT rfq_item_sources (one per source contribution per line)
-      const sourcesPayload: {
-        rfq_item_id: string;
-        request_item_id: string;
-        request_id: string;
-        quantity: number;
-      }[] = [];
-
-      for (const line of selectedLines) {
-        const rfqItem = rfqItemRows.find((r) => r.material_id === line.material_id);
-        if (!rfqItem) continue;
-
-        for (const src of line.sources) {
-          sourcesPayload.push({
-            rfq_item_id: rfqItem.id,
-            request_item_id: src.request_item_id,
-            request_id: src.request_id,
-            quantity: src.quantity,
-          });
-        }
-      }
-
-      if (sourcesPayload.length > 0) {
-        const { error: sourcesErr } = await supabase
-          .from("rfq_item_sources")
-          .insert(sourcesPayload);
-        if (sourcesErr) throw sourcesErr;
-      }
-
-      // Step 4: INSERT rfq_requests (distinct source request_ids)
-      const distinctRequestIds = [
-        ...new Set(
-          selectedLines.flatMap((line) => line.sources.map((s) => s.request_id))
-        ),
-      ];
-
-      if (distinctRequestIds.length > 0) {
-        const rfqRequestsPayload = distinctRequestIds.map((requestId) => ({
-          rfq_id: rfqId,
-          request_id: requestId,
-        }));
-        const { error: reqErr } = await supabase
-          .from("rfq_requests")
-          .insert(rfqRequestsPayload);
-        if (reqErr) throw reqErr;
-      }
+      if (error) throw new Error(error.message);
 
       return { rfqId };
     },
