@@ -111,7 +111,7 @@ export default function Cotizaciones() {
       const { data: openRfqs } = await supabase
         .from("rfqs")
         .select("id, rfq_number, status, created_at, pool_id, request_id, delivery_location, observations, deadline, closing_datetime, rfq_type, purchase_pools:pool_id(name), requests:request_id(request_number, desired_date)")
-        .or("rfq_type.eq.open,rfq_type.is.null")
+        .or("rfq_type.eq.open,rfq_type.eq.consolidated,rfq_type.is.null")
         .in("status", ["sent", "responded"])
         .order("created_at", { ascending: false });
 
