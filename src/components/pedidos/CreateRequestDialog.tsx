@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Plus, Trash2, MessageSquare, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
@@ -395,24 +396,30 @@ export function CreateRequestDialog() {
                     {item.unit || "—"}
                   </span>
 
-                  <Select
+                  <ToggleGroup
+                    type="single"
                     value={item.delivery_target}
-                    onValueChange={(v: "deposito" | "obra") =>
+                    onValueChange={(v) => {
+                      // Guard: do not clear the value on deselect (single toggle)
+                      if (!v) return;
                       setItems((prev) =>
                         prev.map((it, idx) =>
-                          idx === i ? { ...it, delivery_target: v } : it
+                          idx === i
+                            ? { ...it, delivery_target: v as "deposito" | "obra" }
+                            : it
                         )
-                      )
-                    }
+                      );
+                    }}
+                    aria-label="Destino de entrega"
+                    className="h-8"
                   >
-                    <SelectTrigger className="w-28 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="obra">Obra</SelectItem>
-                      <SelectItem value="deposito">Deposito</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <ToggleGroupItem value="obra" className="h-8 px-2 text-xs">
+                      Obra
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="deposito" className="h-8 px-2 text-xs">
+                      Depósito
+                    </ToggleGroupItem>
+                  </ToggleGroup>
 
                   <Button
                     type="button"
