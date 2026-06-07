@@ -6,6 +6,7 @@ import {
   STATUS_LABELS,
   STATUS_BADGE_VARIANTS,
   ITEM_SUB_STATE_COLORS,
+  ARCHITECT_ITEM_LABELS,
   KANBAN_COLUMNS,
   REJECTION_REASONS,
   type RequestStatus,
@@ -84,9 +85,9 @@ describe('constants', () => {
     ]);
   });
 
-  it('ITEM_SUB_STATES has exactly 4 values', () => {
-    expect(ITEM_SUB_STATES).toHaveLength(4);
-    expect(ITEM_SUB_STATES).toEqual(['sin_pedir', 'en_oc', 'parcial', 'recibido']);
+  it('ITEM_SUB_STATES has exactly 5 values including en_consolidacion', () => {
+    expect(ITEM_SUB_STATES).toHaveLength(5);
+    expect(ITEM_SUB_STATES).toEqual(['sin_pedir', 'en_oc', 'parcial', 'recibido', 'en_consolidacion']);
   });
 
   it('STATUS_LABELS covers all statuses', () => {
@@ -109,6 +110,17 @@ describe('constants', () => {
       expect(ITEM_SUB_STATE_COLORS[state].bg).toBeDefined();
       expect(ITEM_SUB_STATE_COLORS[state].label).toBeDefined();
     }
+  });
+
+  it('ITEM_SUB_STATE_COLORS[en_consolidacion] has bg and label', () => {
+    expect(ITEM_SUB_STATE_COLORS['en_consolidacion']).toBeDefined();
+    expect(ITEM_SUB_STATE_COLORS['en_consolidacion'].bg).toBeDefined();
+    expect(ITEM_SUB_STATE_COLORS['en_consolidacion'].label).toBe('En consolidación');
+  });
+
+  it('ARCHITECT_ITEM_LABELS[en_consolidacion] is defined', () => {
+    expect(ARCHITECT_ITEM_LABELS['en_consolidacion']).toBeDefined();
+    expect(typeof ARCHITECT_ITEM_LABELS['en_consolidacion']).toBe('string');
   });
 
   it('KANBAN_COLUMNS has 4 columns in correct order', () => {

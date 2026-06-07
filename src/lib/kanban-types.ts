@@ -7,13 +7,14 @@ export const REQUEST_STATUSES: readonly RequestStatus[] = [
   'rechazado',
 ] as const;
 
-export type ItemSubState = 'sin_pedir' | 'en_oc' | 'parcial' | 'recibido';
+export type ItemSubState = 'sin_pedir' | 'en_oc' | 'parcial' | 'recibido' | 'en_consolidacion';
 
 export const ITEM_SUB_STATES: readonly ItemSubState[] = [
   'sin_pedir',
   'en_oc',
   'parcial',
   'recibido',
+  'en_consolidacion',
 ] as const;
 
 export const STATUS_LABELS: Record<RequestStatus, string> = {
@@ -77,17 +78,19 @@ export const STATUS_BADGE_VARIANTS: Record<
 };
 
 export const ITEM_SUB_STATE_COLORS: Record<ItemSubState, { bg: string; label: string }> = {
-  sin_pedir: { bg: 'bg-gray-300',  label: 'Sin pedir' },
-  en_oc:     { bg: 'bg-blue-500',  label: 'En OC' },
-  parcial:   { bg: 'bg-amber-500', label: 'Parcial' },
-  recibido:  { bg: 'bg-green-500', label: 'Recibido' },
+  sin_pedir:        { bg: 'bg-gray-300',   label: 'Sin pedir' },
+  en_oc:            { bg: 'bg-blue-500',   label: 'En OC' },
+  parcial:          { bg: 'bg-amber-500',  label: 'Parcial' },
+  recibido:         { bg: 'bg-green-500',  label: 'Recibido' },
+  en_consolidacion: { bg: 'bg-purple-400', label: 'En consolidación' },
 };
 
 export const ARCHITECT_ITEM_LABELS: Record<ItemSubState, string> = {
-  sin_pedir: 'Pendiente',
-  en_oc:     'En compra',
-  parcial:   'Entrega parcial',
-  recibido:  'Entregado',
+  sin_pedir:        'Pendiente',
+  en_oc:            'En compra',
+  parcial:          'Entrega parcial',
+  recibido:         'Entregado',
+  en_consolidacion: 'En cotización',
 };
 
 export interface KanbanColumnConfig {
