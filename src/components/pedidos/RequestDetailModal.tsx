@@ -250,7 +250,7 @@ export function RequestDetailModal({
                       <button
                         onClick={() => {
                           onClose();
-                          navigate("/rfqs");
+                          navigate("/rfqs", { state: { openTab: "consolidar" } });
                         }}
                         className="mt-1 text-xs font-medium text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors"
                       >

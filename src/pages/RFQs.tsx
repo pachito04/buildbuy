@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ import { RfqNuevo } from "@/components/rfqs/RfqNuevo";
 import { RfqCesta } from "@/components/rfqs/RfqCesta";
 import { RfqList } from "@/components/rfqs/RfqList";
 import { ConsolidacionPanel } from "@/components/cotizaciones/ConsolidacionPanel";
+import { resolveInitialTab } from "./RFQs.utils";
 
 type RfqTab = "nuevo" | "cesta" | "pool" | "consolidar" | "vigentes" | "historico";
 
@@ -32,7 +34,8 @@ const rfqStatusLabels: Record<string, { label: string; variant: "default" | "sec
 };
 
 export default function RFQs() {
-  const [activeTab, setActiveTab] = useState<RfqTab>("vigentes");
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<RfqTab>(() => resolveInitialTab(location.state));
   const [detailId, setDetailId] = useState<string | null>(null);
   const [awardQuoteId, setAwardQuoteId] = useState<string | null>(null);
   const [awardNotes, setAwardNotes] = useState("");
