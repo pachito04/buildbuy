@@ -35,6 +35,7 @@ import RegistroRetiro from "./pages/RegistroRetiro";
 import CuentaCorriente from "./pages/CuentaCorriente";
 import ReporteConsumos from "./pages/ReporteConsumos";
 import MiCuentaCorriente from "./pages/MiCuentaCorriente";
+import { RequireRole } from "./components/RequireRole";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -100,11 +101,46 @@ const App = () => (
               <Route path="/proveedores" element={<Proveedores />} />
               <Route path="/deposito/solicitudes" element={<SolicitudesDeposito />} />
               <Route path="/deposito/recepciones" element={<RecepcionesDeposito />} />
-              <Route path="/lista-precios" element={<ListaPreciosProveedor />} />
-              <Route path="/retiros" element={<RegistroRetiro />} />
-              <Route path="/cuenta-corriente" element={<CuentaCorriente />} />
-              <Route path="/reporte-consumos" element={<ReporteConsumos />} />
-              <Route path="/mi-cuenta-corriente" element={<MiCuentaCorriente />} />
+              <Route
+                path="/lista-precios"
+                element={
+                  <RequireRole allowed={['proveedor', 'compras', 'admin']}>
+                    <ListaPreciosProveedor />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/retiros"
+                element={
+                  <RequireRole allowed={['compras', 'admin']}>
+                    <RegistroRetiro />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/cuenta-corriente"
+                element={
+                  <RequireRole allowed={['compras', 'admin']}>
+                    <CuentaCorriente />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/reporte-consumos"
+                element={
+                  <RequireRole allowed={['compras', 'admin']}>
+                    <ReporteConsumos />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/mi-cuenta-corriente"
+                element={
+                  <RequireRole allowed={['proveedor']}>
+                    <MiCuentaCorriente />
+                  </RequireRole>
+                }
+              />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/configuracion" element={<Configuracion />} />
             </Route>
