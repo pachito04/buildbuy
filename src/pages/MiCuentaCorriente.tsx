@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { supabase } from '@/integrations/supabase/client';
+import { generateEstadoCuentaPDF } from '@/lib/estado-cuenta-pdf';
 import { useOwnProviderId } from '@/hooks/useOwnProviderId';
 import { useCuentaCorriente } from '@/hooks/useCuentaCorriente';
 import { Badge } from '@/components/ui/badge';
@@ -112,48 +111,12 @@ function MiCuentaCorrienteContent({ providerId }: Props) {
   // ---- PDF download --------------------------------------------------------
 
   function downloadPDF() {
-    const doc = new jsPDF();
-
-    // Header
-    doc.setFontSize(16);
-    doc.text('Estado de Cuenta', 14, 18);
-    doc.setFontSize(11);
-    doc.text(`Proveedor: ${providerName ?? providerId ?? ''}`, 14, 27);
-    doc.text(`Saldo neto: ${formatCurrency(saldo)}`, 14, 34);
-    if (filterDesde || filterHasta) {
-      const period = `Período: ${filterDesde || '—'} al ${filterHasta || '—'}`;
-      doc.text(period, 14, 41);
-    }
-
-    // Table
-    const tableRows = filtered.map((mov) => [
-      mov.fecha,
-      mov.tipo === 'debito' ? 'Débito' : 'Crédito',
-      mov.concepto ?? '',
-      mov.medio_pago ?? '',
-      mov.referencia ?? '',
-      mov.tipo === 'debito'
-        ? `+${formatCurrency(mov.monto)}`
-        : `-${formatCurrency(mov.monto)}`,
-    ]);
-
-    autoTable(doc, {
-      startY: filterDesde || filterHasta ? 48 : 42,
-      head: [['Fecha', 'Tipo', 'Concepto', 'Medio de pago', 'Referencia', 'Monto']],
-      body: tableRows,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [30, 41, 59] },
-      columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 18 },
-        5: { halign: 'right', cellWidth: 30 },
-      },
+    generateEstadoCuentaPDF({
+      providerName: providerName ?? providerId ?? 'proveedor',
+      movimientos: filtered,
+      saldo,
+      periodo: { desde: filterDesde || undefined, hasta: filterHasta || undefined },
     });
-
-    const filename = `cuenta-corriente-${(providerName ?? providerId ?? 'proveedor')
-      .replace(/\s+/g, '-')
-      .toLowerCase()}.pdf`;
-    doc.save(filename);
   }
 
   // ---- Render --------------------------------------------------------------

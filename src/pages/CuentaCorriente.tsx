@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useViewRole } from '@/hooks/useViewRole';
 import { useCuentaCorriente } from '@/hooks/useCuentaCorriente';
+import { generateEstadoCuentaPDF } from '@/lib/estado-cuenta-pdf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,7 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, Download } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 // ---------------------------------------------------------------------------
@@ -286,7 +287,27 @@ export default function CuentaCorriente() {
           </p>
         </div>
 
-        {selectedProviderId && companyId && (
+        <div className="flex items-center gap-2">
+          {selectedProviderId && filteredMovimientos.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const prov = (providers ?? []).find((p) => p.id === selectedProviderId);
+                generateEstadoCuentaPDF({
+                  providerName: prov?.name ?? selectedProviderId,
+                  movimientos: filteredMovimientos,
+                  saldo,
+                  periodo: { desde: filterDesde || undefined, hasta: filterHasta || undefined },
+                });
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Exportar PDF
+            </Button>
+          )}
+
+          {selectedProviderId && companyId && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
@@ -305,7 +326,8 @@ export default function CuentaCorriente() {
               />
             </DialogContent>
           </Dialog>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Provider selector */}
