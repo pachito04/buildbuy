@@ -155,7 +155,7 @@
 
 ---
 
-### T07 — [TEST RED] usePoolLifecycle: withdrawFromPool DELETEs own row; cancelPool writes pool_state
+### T07 — [x] usePoolLifecycle: withdrawFromPool DELETEs own row; cancelPool writes pool_state
 
 - **Type:** test (write failing test first — NEW file)
 - **Sequential after:** Slice 0 merged
@@ -172,7 +172,7 @@
 
 ---
 
-### T08 — [IMPL] usePoolLifecycle: new hook with withdrawFromPool and cancelPool
+### T08 — [x] usePoolLifecycle: new hook with withdrawFromPool and cancelPool
 
 - **Type:** implementation
 - **Sequential after:** T07
@@ -186,7 +186,7 @@
 
 ---
 
-### T09 — [TEST RED] Pools.tsx: updatePoolStatus writes pool_state not status
+### T09 — [x] Pools.tsx: updatePoolStatus writes pool_state not status
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 0 merged
@@ -200,7 +200,7 @@
 
 ---
 
-### T10 — [IMPL] Pools.tsx: migrate updatePoolStatus to write pool_state
+### T10 — [x] Pools.tsx: migrate updatePoolStatus to write pool_state
 
 - **Type:** implementation
 - **Sequential after:** T09
@@ -214,7 +214,7 @@
 
 ---
 
-### T11 — [TEST RED] PoolFlowPanel + PoolCard: withdraw/cancel button visibility by pool_state
+### T11 — [x] PoolFlowPanel + PoolCard: withdraw/cancel button visibility by pool_state
 
 - **Type:** test (write failing test first)
 - **Sequential after:** T08 (hook must exist for component wiring)
@@ -234,7 +234,7 @@
 
 ---
 
-### T12 — [IMPL] PoolFlowPanel + PoolCard: wire withdraw/cancel actions with AlertDialog + state-based visibility
+### T12 — [x] PoolFlowPanel + PoolCard: wire withdraw/cancel actions with AlertDialog + state-based visibility
 
 - **Type:** implementation
 - **Sequential after:** T11

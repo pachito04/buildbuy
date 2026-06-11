@@ -19,8 +19,20 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePoolFlow } from "@/hooks/usePoolFlow";
+import { usePoolLifecycle } from "@/hooks/usePoolLifecycle";
 import { AddMyRequirementsDialog } from "./AddMyRequirementsDialog";
 import { PoolConsolidatedView } from "./PoolConsolidatedView";
 import { PoolAwardPanel } from "./PoolAwardPanel";
@@ -29,6 +41,8 @@ import {
   Layers,
   CheckCircle,
   FileText,
+  LogOut,
+  XCircle,
 } from "lucide-react";
 
 interface PoolCompanyRow {
@@ -58,6 +72,8 @@ interface Props {
 export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
   const { toast } = useToast();
   const [addReqOpen, setAddReqOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
   const {
     poolItems,
@@ -73,6 +89,9 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
     isGeneratingRfq,
   } = usePoolFlow(pool.id);
 
+  const { withdrawFromPool, isWithdrawing, cancelPool, isCancelling } =
+    usePoolLifecycle();
+
   // Membership check — viewer must be in pool_companies to act.
   const isMember =
     !!companyId &&
@@ -83,10 +102,17 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
   const poolState = pool.pool_state ?? "borrador";
   const isBorrador = poolState === "borrador";
   const isConfirmado = poolState === "confirmado";
+  const isClosed = poolState === "cerrado" || poolState === "cancelado";
   const isAwardPhase =
     poolState === "en_comparativa" ||
     poolState === "adjudicado" ||
     poolState === "cerrado";
+
+  // GAP4: Visibility rules per pool_state.
+  // Withdraw: only in borrador.
+  const canWithdraw = isBorrador;
+  // Cancel: available unless closed (cerrado or cancelado).
+  const canCancel = !isClosed;
 
   // Requests already contributed by the viewer to this pool.
   const alreadyAddedRequestIds = (pool.pool_requests ?? []).map(
@@ -129,6 +155,32 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
     } catch (e: any) {
       toast({
         title: "Error al generar cotización",
+        description: e.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleWithdraw = async () => {
+    try {
+      await withdrawFromPool(pool.id);
+      toast({ title: "Te retiraste del pool" });
+    } catch (e: any) {
+      toast({
+        title: "Error al retirarse del pool",
+        description: e.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      await cancelPool(pool.id);
+      toast({ title: "Pool cancelado" });
+    } catch (e: any) {
+      toast({
+        title: "Error al cancelar el pool",
         description: e.message,
         variant: "destructive",
       });
@@ -256,6 +308,84 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
           </Button>
         )}
       </div>
+
+      {/* GAP4: Withdraw / Cancel actions — separated from flow actions for clarity */}
+      {(canWithdraw || canCancel) && (
+        <div className="flex gap-2 flex-wrap pt-2 border-t">
+          {/* Retirarse del pool — only in borrador */}
+          {canWithdraw && (
+            <AlertDialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isWithdrawing}
+                >
+                  <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                  Retirarse del pool
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Retirarse del pool?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción eliminará tu empresa del pool. Si sos el creador
+                    y no quedan otros miembros, el pool pasará a cancelado.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      setWithdrawDialogOpen(false);
+                      handleWithdraw();
+                    }}
+                  >
+                    Retirarme
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          {/* Cancelar Pool — visible when NOT in cerrado/cancelado */}
+          {canCancel && (
+            <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isCancelling}
+                >
+                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                  Cancelar pool
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Cancelar el pool?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción es irreversible y afecta a todos los participantes
+                    del pool. El pool pasará al estado cancelado y no se podrán
+                    realizar más acciones.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      setCancelDialogOpen(false);
+                      handleCancel();
+                    }}
+                  >
+                    Confirmar cancelación
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      )}
     </div>
   );
 }

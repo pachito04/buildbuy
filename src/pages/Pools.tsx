@@ -11,6 +11,7 @@ import { CreatePoolDialog } from "@/components/pools/CreatePoolDialog";
 import { PoolCard } from "@/components/pools/PoolCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { deriveLinkedCompanies } from "@/lib/pool-invite-utils";
+import { buildPoolStatePayload } from "@/pages/pools-helpers";
 
 export default function Pools() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -46,7 +47,28 @@ export default function Pools() {
     },
   });
 
-  // GAP1: fetch company_links (all statuses) so we can derive the actively-linked subset.
+  const { data: profile } = useQuery({
+    queryKey: ["profile-company"],
+    queryFn: async () => {
+      const {
+        data: { user: u },
+      } = await supabase.auth.getUser();
+      if (!u) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("company_id")
+        .eq("id", u.id)
+        .single();
+      return data;
+    },
+  });
+
+  // Use companyId from useViewRole (already reactive to auth state).
+  // Fall back to the profile query for the createPool mutation which needs the company_id at mutation time.
+  // IMPORTANT: declare effectiveCompanyId BEFORE any query that uses it in queryKey (TDZ guard).
+  const effectiveCompanyId = companyId ?? profile?.company_id ?? null;
+
+  // GAP1: fetch company_links (active only) so we can derive the actively-linked subset.
   // This replaces the previous "all companies" query — only linked companies are invitable.
   const { data: companyLinks } = useQuery({
     queryKey: ["company-links-for-pools", effectiveCompanyId],
@@ -66,26 +88,6 @@ export default function Pools() {
       return data ?? [];
     },
   });
-
-  const { data: profile } = useQuery({
-    queryKey: ["profile-company"],
-    queryFn: async () => {
-      const {
-        data: { user: u },
-      } = await supabase.auth.getUser();
-      if (!u) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("company_id")
-        .eq("id", u.id)
-        .single();
-      return data;
-    },
-  });
-
-  // Use companyId from useViewRole (already reactive to auth state).
-  // Fall back to the profile query for the createPool mutation which needs the company_id at mutation time.
-  const effectiveCompanyId = companyId ?? profile?.company_id ?? null;
 
   // GAP1: derive the set of actively-linked companies from company_links rows.
   // Only these companies may be invited to a pool (UI defense; DB trigger is the hard guard).
@@ -187,10 +189,11 @@ export default function Pools() {
   });
 
   const updatePoolStatus = useMutation({
+    // GAP4: writes pool_state (not legacy status). buildPoolStatePayload enforces this.
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase
         .from("purchase_pools")
-        .update({ status: status as any })
+        .update(buildPoolStatePayload(status) as any)
         .eq("id", id);
       if (error) throw error;
     },
