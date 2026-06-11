@@ -555,23 +555,6 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
           if (guardErr) throw guardErr;
           if (existingPo) continue; // already generated for this provider
 
-          const winningLines: WinningLine[] = desc.items.map((item) => ({
-            material_id: item.rfq_item_id, // use rfq_item_id as proxy; contributions keyed by material
-            description: item.description,
-            unit: item.unit,
-            unit_price: item.unit_price,
-          }));
-
-          // Build OC lines using contribution quantities (companyOcLines by material_id
-          // needs material_id; for Mode B we need to match by rfq_item_id via quoteItems).
-          // Simplified: use each award's quote_item unit_price and match contribution by
-          // rfq_item → pool_item → material_id chain.
-          const rfqItemToMaterial = new Map<string, string>();
-          for (const qi of quoteItemsWithProvider) {
-            // rfq_item material_id is carried in qiRaw — rebuild from quoteItemsWithProvider
-            // which only has rfq_item_id. We need materialId per rfq_item_id.
-          }
-
           // For Mode B, we build OC lines directly from the awards (no material_id indirection):
           // quantity comes from pool_item_contributions matched to rfq_item via pool_items.
           // We need the rfq_item → pool_item → contribution quantity mapping.
