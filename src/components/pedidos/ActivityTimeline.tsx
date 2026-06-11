@@ -1,5 +1,6 @@
 import { Info, type LucideIcon } from "lucide-react";
 import type { TimelineEvent } from "@/lib/kanban-types";
+import { formatPoolJoinedLabel } from "@/lib/pool-joined-utils";
 
 const EVENT_LABELS: Record<string, string> = {
   creado: "Requerimiento creado",
@@ -10,6 +11,8 @@ const EVENT_LABELS: Record<string, string> = {
   item_actualizado: "Item actualizado",
   procesado: "Requerimiento procesado",
   nota: "Nota",
+  consolidado: "Consolidado",
+  pool_joined: "Incorporado a pool de compras",
 };
 
 function formatTimestamp(iso: string): string {
@@ -52,6 +55,17 @@ export function ActivityTimeline({ events }: ActivityTimelineProps) {
               ? String(event.metadata.nota)
               : null;
 
+          // pool_joined: derive display text from metadata
+          const poolJoinedText =
+            event.tipo === "pool_joined" && event.metadata
+              ? formatPoolJoinedLabel(
+                  Number(event.metadata.pool_number),
+                  Array.isArray(event.metadata.companies)
+                    ? (event.metadata.companies as string[])
+                    : []
+                )
+              : null;
+
           return (
             <div key={event.id} className="relative flex gap-3">
               <div
@@ -65,7 +79,12 @@ export function ActivityTimeline({ events }: ActivityTimelineProps) {
                 <p className="text-xs text-muted-foreground">
                   {formatTimestamp(event.created_at)} · {event.actor_name}
                 </p>
-                {event.descripcion && (
+                {poolJoinedText && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {poolJoinedText}
+                  </p>
+                )}
+                {!poolJoinedText && event.descripcion && (
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {event.descripcion}
                   </p>

@@ -513,7 +513,7 @@
 
 ---
 
-### T28 — [TEST RED] RequestDetailModal: renders pool_joined event with pool_number and companies
+### T28 — [x] RequestDetailModal: renders pool_joined event with pool_number and companies
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 0 merged
@@ -528,7 +528,7 @@
 
 ---
 
-### T29 — [IMPL] RequestDetailModal: render pool_joined event from metadata
+### T29 — [x] RequestDetailModal: render pool_joined event from metadata
 
 - **Type:** implementation
 - **Sequential after:** T28
@@ -547,7 +547,7 @@
 
 ---
 
-### T30 — [IMPL] supabase/types.ts: add new tables, columns, and RPC signatures
+### T30 — [x] supabase/types.ts: add new tables, columns, and RPC signatures
 
 - **Type:** implementation (no dedicated test — type errors surface in tsc --noEmit)
 - **Sequential after:** Slice 0 merged

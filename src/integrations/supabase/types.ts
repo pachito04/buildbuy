@@ -939,6 +939,117 @@ export type Database = {
           },
         ]
       }
+      pool_company_awards: {
+        Row: {
+          id: string
+          pool_id: string
+          company_id: string
+          rfq_item_id: string
+          winning_quote_item_id: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          company_id: string
+          rfq_item_id: string
+          winning_quote_item_id: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          company_id?: string
+          rfq_item_id?: string
+          winning_quote_item_id?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pool_company_awards_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_company_awards_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_company_awards_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_company_awards_winning_quote_item_id_fkey"
+            columns: ["winning_quote_item_id"]
+            isOneToOne: false
+            referencedRelation: "quote_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pool_providers: {
+        Row: {
+          id: string
+          pool_id: string
+          provider_id: string
+          selected_by_company_id: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          pool_id: string
+          provider_id: string
+          selected_by_company_id: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          pool_id?: string
+          provider_id?: string
+          selected_by_company_id?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pool_providers_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_providers_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_providers_selected_by_company_id_fkey"
+            columns: ["selected_by_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       precio_proveedor: {
         Row: {
           id: string
@@ -1457,6 +1568,7 @@ export type Database = {
       }
       purchase_pools: {
         Row: {
+          award_mode: 'leader' | 'per_company'
           company_id: string
           created_at: string
           created_by: string | null
@@ -1465,12 +1577,14 @@ export type Database = {
           is_shared: boolean
           name: string
           observations: string | null
+          pool_number: number
           pool_state: string
           status: Database["public"]["Enums"]["pool_status"]
           updated_at: string
           winning_quote_id: string | null
         }
         Insert: {
+          award_mode?: 'leader' | 'per_company'
           company_id: string
           created_at?: string
           created_by?: string | null
@@ -1479,12 +1593,14 @@ export type Database = {
           is_shared?: boolean
           name: string
           observations?: string | null
+          pool_number?: number
           pool_state?: string
           status?: Database["public"]["Enums"]["pool_status"]
           updated_at?: string
           winning_quote_id?: string | null
         }
         Update: {
+          award_mode?: 'leader' | 'per_company'
           company_id?: string
           created_at?: string
           created_by?: string | null
@@ -1493,6 +1609,7 @@ export type Database = {
           is_shared?: boolean
           name?: string
           observations?: string | null
+          pool_number?: number
           pool_state?: string
           status?: Database["public"]["Enums"]["pool_status"]
           updated_at?: string
@@ -2600,6 +2717,18 @@ export type Database = {
           material_unit: string | null
           similarity_score: number
         }[]
+      }
+      pool_add_requirements: {
+        Args: { p_pool_id: string; p_request_ids: string[] }
+        Returns: undefined
+      }
+      pool_dispatch_providers: {
+        Args: { p_rfq_id: string }
+        Returns: number
+      }
+      pool_finalize_award_mode_b: {
+        Args: { p_pool_id: string }
+        Returns: undefined
       }
     }
     Enums: {
