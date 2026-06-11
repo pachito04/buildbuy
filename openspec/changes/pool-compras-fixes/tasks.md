@@ -260,7 +260,7 @@
 
 ---
 
-#### T13 — [TEST RED] usePoolAward: Mode A regression guard — adjudicate sets winning_quote_id, no pool_company_awards write
+#### T13 — [x] usePoolAward: Mode A regression guard — adjudicate sets winning_quote_id, no pool_company_awards write
 
 - **Type:** test (regression guard — write first)
 - **Sequential after:** Slice 0 merged
@@ -275,7 +275,7 @@
 
 ---
 
-#### T14 — [IMPL] usePoolAward: expose awardMode; bifurcation guard for Mode B path (Mode A intact)
+#### T14 — [x] usePoolAward: expose awardMode; bifurcation guard for Mode B path (Mode A intact)
 
 - **Type:** implementation
 - **Sequential after:** T13 (must be GREEN first — no regressions)
@@ -289,7 +289,7 @@
 
 ---
 
-#### T15 — [TEST RED] usePoolAward: confirmMyAward UPSERTs pool_company_awards + calls finalize RPC
+#### T15 — [x] usePoolAward: confirmMyAward UPSERTs pool_company_awards + calls finalize RPC
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 0 merged
@@ -307,7 +307,7 @@
 
 ---
 
-#### T16 — [IMPL] usePoolAward: add confirmMyAward for Mode B
+#### T16 — [x] usePoolAward: add confirmMyAward for Mode B
 
 - **Type:** implementation
 - **Sequential after:** T15
@@ -327,7 +327,7 @@
 
 ---
 
-#### T17 — [TEST RED] PoolAwardPanel: renders Mode A (leader) view or Mode B (per-company) view based on awardMode
+#### T17 — [x] PoolAwardPanel: renders Mode A (leader) view or Mode B (per-company) view based on awardMode
 
 - **Type:** test (write failing test first)
 - **Sequential after:** T16 (hook must expose awardMode + confirmMyAward)
@@ -341,7 +341,7 @@
 
 ---
 
-#### T18 — [IMPL] PoolAwardPanel: conditional rendering by awardMode; Mode B per-item grid + progress
+#### T18 — [x] PoolAwardPanel: conditional rendering by awardMode; Mode B per-item grid + progress
 
 - **Type:** implementation
 - **Sequential after:** T17
@@ -360,7 +360,7 @@
 
 ---
 
-#### T19 — [TEST RED] generateMyOc-utils: group awards by provider → multiple OC descriptors
+#### T19 — [x] generateMyOc-utils: group awards by provider → multiple OC descriptors
 
 - **Type:** test (write failing test first — pure util)
 - **Sequential after:** T16
@@ -376,7 +376,7 @@
 
 ---
 
-#### T20 — [IMPL] Extract groupAwardsByProvider util; wire generateMyOc Mode B path in usePoolAward
+#### T20 — [x] Extract groupAwardsByProvider util; wire generateMyOc Mode B path in usePoolAward
 
 - **Type:** implementation
 - **Sequential after:** T19

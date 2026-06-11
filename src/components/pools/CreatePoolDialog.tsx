@@ -22,6 +22,7 @@ interface Props {
     notes: string;
     isShared: boolean;
     invitedCompanyIds: string[];
+    awardMode: "leader" | "per_company";
   }) => void;
 }
 
@@ -31,6 +32,7 @@ export function CreatePoolDialog({ linkedCompanies, userCompanyId, isPending, on
   const [notes, setNotes] = useState("");
   const [isShared, setIsShared] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [awardMode, setAwardMode] = useState<"leader" | "per_company">("leader");
 
   // linkedCompanies is already filtered to active links by the parent (GAP1).
   const invitableCompanies = linkedCompanies;
@@ -43,12 +45,13 @@ export function CreatePoolDialog({ linkedCompanies, userCompanyId, isPending, on
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ name, deadline, notes, isShared, invitedCompanyIds: selectedCompanies });
+    onSubmit({ name, deadline, notes, isShared, invitedCompanyIds: selectedCompanies, awardMode });
     setName("");
     setDeadline("");
     setNotes("");
     setIsShared(false);
     setSelectedCompanies([]);
+    setAwardMode("leader");
   };
 
   return (
@@ -84,6 +87,40 @@ export function CreatePoolDialog({ linkedCompanies, userCompanyId, isPending, on
             </p>
           </div>
           <Switch checked={isShared} onCheckedChange={setIsShared} />
+        </div>
+
+        {/* Award mode selector (GAP2) */}
+        <div className="space-y-2">
+          <Label>Modo de adjudicación</Label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={`flex-1 text-sm px-3 py-2 rounded-lg border transition-colors ${
+                awardMode === "leader"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border hover:bg-muted"
+              }`}
+              onClick={() => setAwardMode("leader")}
+            >
+              Líder adjudica todo
+            </button>
+            <button
+              type="button"
+              className={`flex-1 text-sm px-3 py-2 rounded-lg border transition-colors ${
+                awardMode === "per_company"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border hover:bg-muted"
+              }`}
+              onClick={() => setAwardMode("per_company")}
+            >
+              Adjudicación por empresa
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {awardMode === "leader"
+              ? "Un líder elige la cotización ganadora para todos."
+              : "Cada empresa elige su proveedor ganador por ítem."}
+          </p>
         </div>
 
         {/* Company selection — only actively-linked companies (GAP1) */}

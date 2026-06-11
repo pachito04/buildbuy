@@ -106,7 +106,8 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
   const isAwardPhase =
     poolState === "en_comparativa" ||
     poolState === "adjudicado" ||
-    poolState === "cerrado";
+    poolState === "cerrado" ||
+    poolState === "cancelado";
 
   // GAP4: Visibility rules per pool_state.
   // Withdraw: only in borrador.
@@ -215,7 +216,7 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
       <PoolAwardPanel
         poolId={pool.id}
         poolState={
-          poolState as "en_comparativa" | "adjudicado" | "cerrado"
+          poolState as "en_comparativa" | "adjudicado" | "cerrado" | "cancelado"
         }
         companyNames={companyNames}
         companyId={companyId!}

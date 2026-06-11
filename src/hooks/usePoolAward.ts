@@ -28,8 +28,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import {
   companyOcLines,
+  groupAwardsByProvider,
   type WinningLine,
   type MyContribution,
+  type QuoteItemWithProvider,
+  type PoolCompanyAward,
 } from "@/lib/pool-award-utils";
 
 // ---------------------------------------------------------------------------
@@ -54,9 +57,10 @@ interface PoolRfqRow {
   company_id: string;
 }
 
-/** Minimal purchase_pools row — winner resolution only. */
+/** Minimal purchase_pools row — winner resolution + award_mode. */
 interface PoolWinnerRow {
   winning_quote_id: string | null;
+  award_mode: "leader" | "per_company";
 }
 
 /** Quote row enriched with its items (joined). */
@@ -125,33 +129,90 @@ export interface UsePoolAwardResult {
 
   /**
    * The winning quote id as stored on purchase_pools.winning_quote_id.
-   * Null before adjudication or while loading.
+   * Null before adjudication or while loading (Mode A only).
    */
   winningQuoteId: string | null;
+
+  /**
+   * Award mode from purchase_pools.award_mode.
+   * 'leader' = Mode A (default); 'per_company' = Mode B.
+   */
+  awardMode: "leader" | "per_company";
 
   isLoading: boolean;
   error: Error | null;
 
   /**
-   * Persist the winning quote on purchase_pools (winning_quote_id) and advance
-   * pool_state to 'adjudicado' in a single UPDATE. Uses the member-writable
-   * purchase_pools_member_update RLS policy. Does NOT touch quotes.status.
-   * Subsequent calls on an already-adjudicado pool are idempotent.
+   * Mode A only. Persist the winning quote on purchase_pools (winning_quote_id)
+   * and advance pool_state to 'adjudicado'. Does NOT touch quotes.status.
    */
   adjudicate: (poolId: string, winningQuoteId: string) => Promise<void>;
   isAdjudicating: boolean;
 
   /**
+   * Mode B only. UPSERT this company's per-item awards into pool_company_awards,
+   * then call pool_finalize_award_mode_b RPC. Never writes winning_quote_id.
+   */
+  confirmMyAward: (
+    poolId: string,
+    awards: { rfqItemId: string; quoteItemId: string }[]
+  ) => Promise<void>;
+  isConfirmingAward: boolean;
+
+  /**
    * Generate THIS company's purchase order from the pool award.
-   * Resolves the winning quote via purchase_pools.winning_quote_id, then
-   * loads quote_items + rfq_items → companyOcLines →
-   * INSERT purchase_orders + purchase_order_items.
-   * Guard: if this company already has a PO for the pool RFQ, this is a no-op.
-   * After inserting, checks if all member companies have POs; if so sets
-   * pool_state to 'cerrado'.
+   *
+   * Mode A: reads winning_quote_id from purchase_pools → one OC.
+   * Mode B: reads pool_company_awards for this company → groups by provider
+   *         → inserts one OC per provider.
+   *
+   * Guard (Mode A): if company already has a PO for the pool RFQ → no-op.
+   * Guard (Mode B): if company already has a PO for (rfq_id, provider_id) → skip that OC.
    */
   generateMyOc: (poolId: string) => Promise<void>;
   isGeneratingOc: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Internal helper (not exported)
+// ---------------------------------------------------------------------------
+
+/**
+ * After generating an OC, check if all member companies have a PO for the
+ * pool RFQ. If so, transition pool_state to 'cerrado'. Shared by Mode A and B.
+ */
+async function checkAndClosePools(poolId: string, rfqId: string) {
+  const { data: memberRows, error: memberErr } = await supabase
+    .from("pool_companies")
+    .select("company_id")
+    .eq("pool_id", poolId);
+  if (memberErr) throw memberErr;
+
+  const memberIds = (memberRows ?? []).map(
+    (r: { company_id: string }) => r.company_id
+  );
+
+  const { data: poRows, error: poListErr } = await supabase
+    .from("purchase_orders")
+    .select("company_id")
+    .eq("rfq_id", rfqId);
+  if (poListErr) throw poListErr;
+
+  const companiesWithPo = new Set(
+    (poRows ?? []).map((r: { company_id: string }) => r.company_id)
+  );
+
+  const allMembersHavePo =
+    memberIds.length > 0 &&
+    memberIds.every((id) => companiesWithPo.has(id));
+
+  if (allMembersHavePo) {
+    const { error: cerradoErr } = await supabase
+      .from("purchase_pools")
+      .update({ pool_state: "cerrado" })
+      .eq("id", poolId);
+    if (cerradoErr) throw cerradoErr;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +259,7 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
     queryFn: async (): Promise<PoolWinnerRow | null> => {
       const { data, error } = await supabase
         .from("purchase_pools")
-        .select("winning_quote_id")
+        .select("winning_quote_id, award_mode")
         .eq("id", poolId!)
         .limit(1)
         .maybeSingle();
@@ -208,6 +269,8 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
   });
 
   const winningQuoteId = poolWinnerData?.winning_quote_id ?? null;
+  const awardMode: "leader" | "per_company" =
+    (poolWinnerData?.award_mode as "leader" | "per_company") ?? "leader";
 
   // ---- shared comparativa query --------------------------------------------
   // Fetches quotes + quote_items (nested) + rfq_items (nested) for the pool
@@ -329,6 +392,50 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
     },
   });
 
+  // ---- confirmMyAward mutation (Mode B only) --------------------------------
+  // UPSERTs this company's per-item award selections into pool_company_awards,
+  // then calls pool_finalize_award_mode_b to check/transition pool_state.
+  // Never writes winning_quote_id.
+
+  const confirmAwardMutation = useMutation({
+    mutationFn: async ({
+      poolId,
+      awards,
+    }: {
+      poolId: string;
+      awards: { rfqItemId: string; quoteItemId: string }[];
+    }) => {
+      if (!companyId) throw new Error("No company_id");
+
+      // Only valid in Mode B — guard silently (DB RLS is the real enforcement).
+      const rows = awards.map((a) => ({
+        pool_id: poolId,
+        company_id: companyId,
+        rfq_item_id: a.rfqItemId,
+        winning_quote_item_id: a.quoteItemId,
+      }));
+
+      const { error: upsertErr } = await supabase
+        .from("pool_company_awards")
+        .upsert(rows, { onConflict: "pool_id,company_id,rfq_item_id" });
+      if (upsertErr) throw upsertErr;
+
+      const { error: rpcErr } = await supabase.rpc(
+        "pool_finalize_award_mode_b",
+        { p_pool_id: poolId }
+      );
+      if (rpcErr) throw rpcErr;
+    },
+    onSuccess: (_data, { poolId }) => {
+      qc.invalidateQueries({ queryKey: ["pools"] });
+      qc.invalidateQueries({ queryKey: ["pool-winner", poolId] });
+      qc.invalidateQueries({ queryKey: poolComparativaKey(poolId) });
+    },
+    onError: (e: Error) => {
+      console.error("[usePoolAward] confirmMyAward failed:", e.message);
+    },
+  });
+
   // ---- generateMyOc mutation ------------------------------------------------
 
   const generateOcMutation = useMutation({
@@ -351,7 +458,192 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
       }
       const rfqId = (rfqRow as { id: string }).id;
 
-      // Step 2: Guard — check if this company already has a PO for the pool RFQ.
+      // Step 2: Read pool award_mode to bifurcate the path.
+      const { data: poolModeRow, error: poolModeErr } = await supabase
+        .from("purchase_pools")
+        .select("award_mode, winning_quote_id")
+        .eq("id", poolId)
+        .limit(1)
+        .maybeSingle();
+      if (poolModeErr) throw poolModeErr;
+      const resolvedAwardMode =
+        (poolModeRow?.award_mode as "leader" | "per_company") ?? "leader";
+
+      // ---------------------------------------------------------------------------
+      // Mode B path — per-company, per-item, potentially multiple OCs
+      // ---------------------------------------------------------------------------
+      if (resolvedAwardMode === "per_company") {
+        // Read MY company's pool_company_awards.
+        const { data: awardsRaw, error: awardsErr } = await supabase
+          .from("pool_company_awards")
+          .select("rfq_item_id, winning_quote_item_id")
+          .eq("pool_id", poolId)
+          .eq("company_id", companyId);
+        if (awardsErr) throw awardsErr;
+        if (!awardsRaw || awardsRaw.length === 0) {
+          throw new Error(
+            "No awards found for this company. Confirm your per-item adjudication first."
+          );
+        }
+        const myAwards: PoolCompanyAward[] = (awardsRaw as any[]).map((r) => ({
+          rfq_item_id: r.rfq_item_id as string,
+          winning_quote_item_id: r.winning_quote_item_id as string,
+        }));
+
+        // Fetch all quote_items for those quote_item_ids (to resolve provider_id).
+        const quoteItemIds = myAwards.map((a) => a.winning_quote_item_id);
+        const { data: qiRaw, error: qiErr } = await supabase
+          .from("quote_items")
+          .select(
+            `id, rfq_item_id, unit_price,
+             quotes!inner(provider_id),
+             rfq_items!inner(material_id, description, unit)`
+          )
+          .in("id", quoteItemIds);
+        if (qiErr) throw qiErr;
+
+        const quoteItemsWithProvider: QuoteItemWithProvider[] = (
+          qiRaw ?? []
+        ).map((qi: any) => ({
+          id: qi.id,
+          rfq_item_id: qi.rfq_item_id,
+          provider_id: qi.quotes?.provider_id as string,
+          unit_price: Number(qi.unit_price),
+          description: qi.rfq_items?.description ?? "",
+          unit: qi.rfq_items?.unit ?? "",
+        }));
+
+        // Group awards by provider to determine OC count.
+        const ocDescriptors = groupAwardsByProvider(
+          myAwards,
+          quoteItemsWithProvider
+        );
+
+        if (ocDescriptors.length === 0) {
+          throw new Error(
+            "No OC descriptors could be built from the per-item awards."
+          );
+        }
+
+        // Fetch MY company's contributions for quantity resolution.
+        const { data: contribRows, error: contribErr } = await supabase
+          .from("pool_item_contributions")
+          .select(`quantity, pool_items!inner(material_id, pool_id)`)
+          .eq("company_id", companyId)
+          .eq("pool_items.pool_id", poolId);
+        if (contribErr) throw contribErr;
+        const myContribs: MyContribution[] = (contribRows ?? [])
+          .filter((c: any) => c.pool_items?.material_id != null)
+          .map(
+            (c: any): MyContribution => ({
+              material_id: c.pool_items.material_id as string,
+              quantity: Number(c.quantity),
+            })
+          );
+
+        // INSERT one OC per provider descriptor (double-generation guard per rfq+provider).
+        for (const desc of ocDescriptors) {
+          // Guard: skip if PO for (rfq_id, provider_id) already exists.
+          const { data: existingPo, error: guardErr } = await supabase
+            .from("purchase_orders")
+            .select("id")
+            .eq("rfq_id", rfqId)
+            .eq("company_id", companyId)
+            .eq("provider_id", desc.provider_id)
+            .limit(1)
+            .maybeSingle();
+          if (guardErr) throw guardErr;
+          if (existingPo) continue; // already generated for this provider
+
+          const winningLines: WinningLine[] = desc.items.map((item) => ({
+            material_id: item.rfq_item_id, // use rfq_item_id as proxy; contributions keyed by material
+            description: item.description,
+            unit: item.unit,
+            unit_price: item.unit_price,
+          }));
+
+          // Build OC lines using contribution quantities (companyOcLines by material_id
+          // needs material_id; for Mode B we need to match by rfq_item_id via quoteItems).
+          // Simplified: use each award's quote_item unit_price and match contribution by
+          // rfq_item → pool_item → material_id chain.
+          const rfqItemToMaterial = new Map<string, string>();
+          for (const qi of quoteItemsWithProvider) {
+            // rfq_item material_id is carried in qiRaw — rebuild from quoteItemsWithProvider
+            // which only has rfq_item_id. We need materialId per rfq_item_id.
+          }
+
+          // For Mode B, we build OC lines directly from the awards (no material_id indirection):
+          // quantity comes from pool_item_contributions matched to rfq_item via pool_items.
+          // We need the rfq_item → pool_item → contribution quantity mapping.
+          const { data: rfqItemsRaw, error: rfqItemsErr } = await supabase
+            .from("rfq_items")
+            .select("id, material_id")
+            .in("id", desc.items.map((i) => i.rfq_item_id));
+          if (rfqItemsErr) throw rfqItemsErr;
+
+          const rfqItemMaterialMap = new Map<string, string>(
+            (rfqItemsRaw ?? []).map((r: any) => [r.id, r.material_id])
+          );
+
+          const ocLines = desc.items.map((item) => {
+            const materialId = rfqItemMaterialMap.get(item.rfq_item_id) ?? item.rfq_item_id;
+            const contrib = myContribs.find((c) => c.material_id === materialId);
+            return {
+              material_id: materialId,
+              description: item.description,
+              unit: item.unit,
+              quantity: contrib?.quantity ?? 0,
+              unit_price: item.unit_price,
+            };
+          }).filter((l) => l.quantity > 0);
+
+          if (ocLines.length === 0) continue;
+
+          const totalAmount = ocLines.reduce(
+            (sum, line) => sum + line.quantity * line.unit_price,
+            0
+          );
+
+          const { data: poRow, error: poErr } = await supabase
+            .from("purchase_orders")
+            .insert({
+              company_id: companyId,
+              provider_id: desc.provider_id,
+              rfq_id: rfqId,
+              total_amount: totalAmount,
+              created_by: user.id,
+            })
+            .select("id")
+            .single();
+          if (poErr) throw poErr;
+
+          const poId = (poRow as { id: string }).id;
+
+          const { error: poItemsErr } = await supabase
+            .from("purchase_order_items")
+            .insert(
+              ocLines.map((line) => ({
+                purchase_order_id: poId,
+                description: line.description,
+                quantity: line.quantity,
+                unit: line.unit,
+                unit_price: line.unit_price,
+                material_id: line.material_id,
+              }))
+            );
+          if (poItemsErr) throw poItemsErr;
+        }
+
+        // Check if ALL member companies now have POs for the pool RFQ → cerrado.
+        await checkAndClosePools(poolId, rfqId);
+        return;
+      }
+
+      // ---------------------------------------------------------------------------
+      // Mode A path (leader) — unchanged from original implementation
+      // ---------------------------------------------------------------------------
+
+      // Guard — check if this company already has a PO for the pool RFQ.
       const { data: existingPo, error: guardErr } = await supabase
         .from("purchase_orders")
         .select("id")
@@ -366,24 +658,14 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
       }
 
       // Step 3: Resolve the winning quote via purchase_pools.winning_quote_id.
-      // This is safe for pool members (purchase_pools_member_update / SELECT
-      // policies cover pool members). We deliberately avoid querying
-      // quotes.status='awarded' — that column can only be written by the
-      // provider that owns the quote (quotes_provider_update policy), so it
-      // would always be null after adjudication by a buyer/member.
-      const { data: poolRow, error: poolReadErr } = await supabase
-        .from("purchase_pools")
-        .select("winning_quote_id")
-        .eq("id", poolId)
-        .limit(1)
-        .maybeSingle();
-      if (poolReadErr) throw poolReadErr;
-      if (!poolRow?.winning_quote_id) {
+      // We deliberately avoid querying quotes.status='awarded' — that column can
+      // only be written by the provider that owns the quote.
+      const resolvedWinningQuoteId = poolModeRow?.winning_quote_id as string | null;
+      if (!resolvedWinningQuoteId) {
         throw new Error(
           "No winning quote found. Adjudicate the pool before generating an OC."
         );
       }
-      const resolvedWinningQuoteId = poolRow.winning_quote_id as string;
 
       // Load the winning quote + its items (joins to rfq_items for material details).
       const { data: winningQuoteRow, error: wqErr } = await supabase
@@ -419,7 +701,6 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
         );
 
       // Step 5: Resolve MY company's contributions for this pool.
-      // pool_item_contributions → joined to pool_items by pool_id → filter by company_id.
       const { data: contribRows, error: contribErr } = await supabase
         .from("pool_item_contributions")
         .select(
@@ -485,39 +766,7 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
       if (poItemsErr) throw poItemsErr;
 
       // Step 10: Check if ALL member companies now have a PO for the pool RFQ.
-      // Fetch all member company_ids from pool_companies.
-      const { data: memberRows, error: memberErr } = await supabase
-        .from("pool_companies")
-        .select("company_id")
-        .eq("pool_id", poolId);
-      if (memberErr) throw memberErr;
-
-      const memberIds = (memberRows ?? []).map(
-        (r: { company_id: string }) => r.company_id
-      );
-
-      // Fetch all POs for the pool RFQ, one per company.
-      const { data: poRows, error: poListErr } = await supabase
-        .from("purchase_orders")
-        .select("company_id")
-        .eq("rfq_id", rfqId);
-      if (poListErr) throw poListErr;
-
-      const companiesWithPo = new Set(
-        (poRows ?? []).map((r: { company_id: string }) => r.company_id)
-      );
-
-      const allMembersHavePo =
-        memberIds.length > 0 &&
-        memberIds.every((id) => companiesWithPo.has(id));
-
-      if (allMembersHavePo) {
-        const { error: cerradoErr } = await supabase
-          .from("purchase_pools")
-          .update({ pool_state: "cerrado" })
-          .eq("id", poolId);
-        if (cerradoErr) throw cerradoErr;
-      }
+      await checkAndClosePools(poolId, rfqId);
     },
     onSuccess: (_data, { poolId }) => {
       qc.invalidateQueries({ queryKey: ["pools"] });
@@ -542,6 +791,7 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
     poolItems: comparativaData?.poolItems ?? [],
     contributions: comparativaData?.contributions ?? [],
     winningQuoteId,
+    awardMode,
     isLoading,
     error,
 
@@ -549,6 +799,11 @@ export function usePoolAward(poolId: string | null): UsePoolAwardResult {
       await adjudicateMutation.mutateAsync({ poolId, winningQuoteId });
     },
     isAdjudicating: adjudicateMutation.isPending,
+
+    confirmMyAward: async (poolId, awards) => {
+      await confirmAwardMutation.mutateAsync({ poolId, awards });
+    },
+    isConfirmingAward: confirmAwardMutation.isPending,
 
     generateMyOc: async (poolId) => {
       await generateOcMutation.mutateAsync({ poolId });

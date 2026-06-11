@@ -105,12 +105,14 @@ export default function Pools() {
       notes,
       isShared,
       invitedCompanyIds,
+      awardMode,
     }: {
       name: string;
       deadline: string;
       notes: string;
       isShared: boolean;
       invitedCompanyIds: string[];
+      awardMode?: "leader" | "per_company";
     }) => {
       const { data: pool, error } = await supabase
         .from("purchase_pools")
@@ -121,6 +123,7 @@ export default function Pools() {
           created_by: user?.id,
           company_id: effectiveCompanyId || null,
           is_shared: isShared,
+          award_mode: awardMode ?? "leader",
         } as any)
         .select()
         .single();

@@ -26,7 +26,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { usePoolAward } from "@/hooks/usePoolAward";
+import { usePoolLifecycle } from "@/hooks/usePoolLifecycle";
 import { PoolConsolidatedView } from "./PoolConsolidatedView";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   ChevronDown,
   ChevronRight,
@@ -35,6 +47,7 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  XCircle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -74,7 +87,7 @@ interface RfqItemRow {
 
 interface Props {
   poolId: string;
-  poolState: "en_comparativa" | "adjudicado" | "cerrado";
+  poolState: "en_comparativa" | "adjudicado" | "cerrado" | "cancelado";
   /** Map of company_id → company name (built by PoolCard from companies list). */
   companyNames: Map<string, string>;
   /** The viewer's own company_id. */
@@ -431,6 +444,12 @@ export function PoolAwardPanel({
 }: Props) {
   const { toast } = useToast();
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+
+  // Per-item award state (Mode B only): rfq_item_id → selected quote_item_id
+  const [perItemSelections, setPerItemSelections] = useState<
+    Map<string, string>
+  >(new Map());
 
   const {
     poolRfq,
@@ -438,13 +457,25 @@ export function PoolAwardPanel({
     poolItems,
     contributions,
     winningQuoteId,
+    awardMode,
     isLoading,
     error,
     adjudicate,
     isAdjudicating,
+    confirmMyAward,
+    isConfirmingAward,
     generateMyOc,
     isGeneratingOc,
   } = usePoolAward(poolId);
+
+  // Cancel action (carry-over from Slice B: accessible in en_comparativa + adjudicado)
+  const { cancelPool, isCancelling } = usePoolLifecycle();
+
+  // Mode B: track how many companies have already submitted their awards
+  // (member-wide read from pool_company_awards via the component's own effect).
+  const [awardsCountByCompany, setAwardsCountByCompany] = useState<
+    Set<string>
+  >(new Set());
 
   // ---------------------------------------------------------------------------
   // Derived data
@@ -549,9 +580,63 @@ export function PoolAwardPanel({
 
   const myOcAlreadyGenerated = companiesWithOc.has(companyId);
 
+  // Mode B: load which companies have confirmed their per-item awards.
+  // Member-wide read — gives progress signal "X de N empresas adjudicaron".
+  useEffect(() => {
+    if (awardMode !== "per_company" || !poolId) return;
+    let cancelled = false;
+    import("@/integrations/supabase/client").then(({ supabase }) => {
+      supabase
+        .from("pool_company_awards")
+        .select("company_id")
+        .eq("pool_id", poolId)
+        .then(({ data }) => {
+          if (!cancelled && data) {
+            setAwardsCountByCompany(
+              new Set(data.map((r: any) => r.company_id as string))
+            );
+          }
+        });
+    });
+    return () => { cancelled = true; };
+  }, [poolId, awardMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Derived: rfq_item_id → list of (quoteId, quoteItemId, unit_price, providerName)
+  // Only computed for Mode B, when quotes are loaded.
+  const rfqItemQuoteOptions = useMemo(() => {
+    if (awardMode !== "per_company") return new Map<string, { quoteItemId: string; quoteId: string; unit_price: number; provider_id: string }[]>();
+    const map = new Map<string, { quoteItemId: string; quoteId: string; unit_price: number; provider_id: string }[]>();
+    for (const q of quotes) {
+      for (const qi of q.quote_items) {
+        const existing = map.get(qi.rfq_item_id) ?? [];
+        existing.push({
+          quoteItemId: qi.id,
+          quoteId: q.id,
+          unit_price: qi.unit_price,
+          provider_id: q.provider_id,
+        });
+        map.set(qi.rfq_item_id, existing);
+      }
+    }
+    return map;
+  }, [quotes, awardMode]);
+
   // ---------------------------------------------------------------------------
   // Handlers
   // ---------------------------------------------------------------------------
+
+  const handleCancel = async () => {
+    try {
+      await cancelPool(poolId);
+      toast({ title: "Pool cancelado" });
+    } catch (e: any) {
+      toast({
+        title: "Error al cancelar el pool",
+        description: e.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleAdjudicate = async () => {
     if (!selectedQuoteId) return;
@@ -594,6 +679,26 @@ export function PoolAwardPanel({
     }
   };
 
+  const handleConfirmMyAward = async () => {
+    const awardsArray = Array.from(perItemSelections.entries()).map(
+      ([rfqItemId, quoteItemId]) => ({ rfqItemId, quoteItemId })
+    );
+    if (awardsArray.length === 0) return;
+    try {
+      await confirmMyAward(poolId, awardsArray);
+      toast({
+        title: "Adjudicación confirmada",
+        description: "Tu selección por ítem fue registrada.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Error al confirmar adjudicación",
+        description: e.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   // ---------------------------------------------------------------------------
   // Render states
   // ---------------------------------------------------------------------------
@@ -620,6 +725,11 @@ export function PoolAwardPanel({
   const isEnComparativa = poolState === "en_comparativa";
   const isAdjudicado = poolState === "adjudicado";
   const isCerrado = poolState === "cerrado";
+  const isCancelado = poolState === "cancelado";
+
+  // Cancel is accessible in en_comparativa and adjudicado (carry-over from Slice B design).
+  // DB trigger is the hard guard; UI just provides the action.
+  const canCancel = isEnComparativa || isAdjudicado;
 
   return (
     <div className="space-y-4 pt-2 border-t">
@@ -705,7 +815,10 @@ export function PoolAwardPanel({
       {/* ------------------------------------------------------------------ */}
       {/* Action bar */}
       {/* ------------------------------------------------------------------ */}
-      {isEnComparativa && (
+      {/* ------------------------------------------------------------------ */}
+      {/* Mode A action bar (en_comparativa) */}
+      {/* ------------------------------------------------------------------ */}
+      {isEnComparativa && awardMode === "leader" && (
         <div className="flex items-center gap-3 flex-wrap">
           <Button
             size="sm"
@@ -732,6 +845,106 @@ export function PoolAwardPanel({
         </div>
       )}
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Mode B: per-item grid + progress (en_comparativa) */}
+      {/* ------------------------------------------------------------------ */}
+      {isEnComparativa && awardMode === "per_company" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">
+              Seleccioná el proveedor ganador por ítem
+            </span>
+            <Badge variant="outline" className="text-xs">
+              {awardsCountByCompany.size} de {memberCompanyIds.length} empresas adjudicaron
+            </Badge>
+          </div>
+          {rfqItemIds.length === 0 && (
+            <div className="text-sm text-muted-foreground">
+              Sin ítems de RFQ disponibles.
+            </div>
+          )}
+          {rfqItemIds.map((rfqItemId) => {
+            const rfqItem = rfqItemsById.get(rfqItemId);
+            const options = rfqItemQuoteOptions.get(rfqItemId) ?? [];
+            const selectedQItemId = perItemSelections.get(rfqItemId) ?? null;
+            return (
+              <div
+                key={rfqItemId}
+                className="border rounded-lg p-3 space-y-2"
+              >
+                <div className="text-sm font-medium">
+                  {rfqItem?.description ?? rfqItemId.slice(0, 8)}
+                  <span className="ml-1 text-xs text-muted-foreground font-normal">
+                    ({rfqItem?.unit ?? ""})
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {options.map((opt) => {
+                    const providerLabel =
+                      providerNames.get(opt.provider_id) ??
+                      opt.provider_id.slice(0, 8);
+                    const isSelected = opt.quoteItemId === selectedQItemId;
+                    return (
+                      <button
+                        key={opt.quoteItemId}
+                        type="button"
+                        className={`text-xs px-2 py-1 rounded border transition-colors ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border hover:bg-muted"
+                        }`}
+                        onClick={() => {
+                          setPerItemSelections((prev) => {
+                            const next = new Map(prev);
+                            if (isSelected) {
+                              next.delete(rfqItemId);
+                            } else {
+                              next.set(rfqItemId, opt.quoteItemId);
+                            }
+                            return next;
+                          });
+                        }}
+                      >
+                        {providerLabel} — ${formatARS(opt.unit_price)}
+                      </button>
+                    );
+                  })}
+                  {options.length === 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      Sin cotizaciones para este ítem.
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <div className="flex items-center gap-3 pt-1">
+            <Button
+              size="sm"
+              disabled={perItemSelections.size === 0 || isConfirmingAward}
+              onClick={handleConfirmMyAward}
+            >
+              {isConfirmingAward ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {isConfirmingAward
+                ? "Confirmando..."
+                : "Confirmar mi adjudicación"}
+            </Button>
+            {perItemSelections.size === 0 && (
+              <span className="text-xs text-muted-foreground">
+                Seleccioná al menos un proveedor por ítem.
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Generate OC action (adjudicado) */}
+      {/* ------------------------------------------------------------------ */}
       {isAdjudicado && (
         <div className="flex items-center gap-3 flex-wrap">
           {myOcAlreadyGenerated ? (
@@ -755,6 +968,54 @@ export function PoolAwardPanel({
                 : "Generar mi orden de compra"}
             </Button>
           )}
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Cancel action (carry-over from Slice B: accessible in en_comparativa + adjudicado) */}
+      {/* ------------------------------------------------------------------ */}
+      {canCancel && (
+        <div className="pt-2 border-t">
+          <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isCancelling}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                Cancelar pool
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Cancelar el pool?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción es irreversible y afecta a todos los participantes
+                  del pool. El pool pasará al estado cancelado y no se podrán
+                  realizar más acciones.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setCancelDialogOpen(false);
+                    handleCancel();
+                  }}
+                >
+                  Confirmar cancelación
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
+      {isCancelado && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted border rounded-lg px-3 py-2">
+          <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+          Pool cancelado.
         </div>
       )}
     </div>
