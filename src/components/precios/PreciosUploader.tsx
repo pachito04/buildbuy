@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Upload, FileSpreadsheet, AlertCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { downloadPlantillaPrecios } from '@/lib/consumos/plantilla-precios';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -243,6 +244,19 @@ export function PreciosUploader({ onParsed }: PreciosUploaderProps) {
 
   return (
     <div className="space-y-3">
+      {/* Template download — always visible; does NOT touch upload state */}
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={() => downloadPlantillaPrecios()}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Descargar plantilla
+        </Button>
+      </div>
+
       <div
         onDragOver={(e) => {
           e.preventDefault();
