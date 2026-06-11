@@ -88,7 +88,7 @@
 
 ---
 
-### T03 — [TEST RED] CreatePoolDialog: assert only linked-active companies appear + empty state
+### T03 — [x] CreatePoolDialog: assert only linked-active companies appear + empty state
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 0 merged
@@ -104,7 +104,7 @@
 
 ---
 
-### T04 — [IMPL] CreatePoolDialog: replace all-companies query with linked-active filter + empty state
+### T04 — [x] CreatePoolDialog: replace all-companies query with linked-active filter + empty state
 
 - **Type:** implementation
 - **Sequential after:** T03
@@ -119,7 +119,7 @@
 
 ---
 
-### T05 — [TEST RED] PoolCard "Invitar Empresa": assert same linked-active filter
+### T05 — [x] PoolCard "Invitar Empresa": assert same linked-active filter
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 0 merged
@@ -134,7 +134,7 @@
 
 ---
 
-### T06 — [IMPL] PoolCard "Invitar Empresa": apply linked-active filter
+### T06 — [x] PoolCard "Invitar Empresa": apply linked-active filter
 
 - **Type:** implementation
 - **Sequential after:** T05

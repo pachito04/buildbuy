@@ -8,7 +8,12 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface Props {
-  companies: { id: string; name: string }[];
+  /**
+   * Companies that are actively linked to the current user's company.
+   * The caller (Pools.tsx) is responsible for deriving this list from
+   * company_links rows using deriveLinkedCompanies() — GAP1 filter.
+   */
+  linkedCompanies: { id: string; name: string }[];
   userCompanyId: string | null;
   isPending: boolean;
   onSubmit: (data: {
@@ -20,14 +25,15 @@ interface Props {
   }) => void;
 }
 
-export function CreatePoolDialog({ companies, userCompanyId, isPending, onSubmit }: Props) {
+export function CreatePoolDialog({ linkedCompanies, userCompanyId, isPending, onSubmit }: Props) {
   const [name, setName] = useState("");
   const [deadline, setDeadline] = useState("");
   const [notes, setNotes] = useState("");
   const [isShared, setIsShared] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
 
-  const otherCompanies = companies.filter((c) => c.id !== userCompanyId);
+  // linkedCompanies is already filtered to active links by the parent (GAP1).
+  const invitableCompanies = linkedCompanies;
 
   const toggleCompany = (id: string) => {
     setSelectedCompanies((prev) =>
@@ -80,17 +86,17 @@ export function CreatePoolDialog({ companies, userCompanyId, isPending, onSubmit
           <Switch checked={isShared} onCheckedChange={setIsShared} />
         </div>
 
-        {/* Company selection */}
+        {/* Company selection — only actively-linked companies (GAP1) */}
         {isShared && (
           <div className="space-y-2">
             <Label>Invitar empresas</Label>
-            {otherCompanies.length === 0 ? (
+            {invitableCompanies.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                No hay otras empresas registradas para invitar.
+                No tenés empresas vinculadas. Creá un vínculo activo primero.
               </p>
             ) : (
               <div className="space-y-2 max-h-40 overflow-y-auto">
-                {otherCompanies.map((c) => (
+                {invitableCompanies.map((c) => (
                   <div key={c.id} className="flex items-center gap-3 p-2 border rounded-lg">
                     <Checkbox
                       checked={selectedCompanies.includes(c.id)}

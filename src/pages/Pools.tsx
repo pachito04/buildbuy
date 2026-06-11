@@ -10,6 +10,7 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { CreatePoolDialog } from "@/components/pools/CreatePoolDialog";
 import { PoolCard } from "@/components/pools/PoolCard";
 import { Card, CardContent } from "@/components/ui/card";
+import { deriveLinkedCompanies } from "@/lib/pool-invite-utils";
 
 export default function Pools() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -45,15 +46,24 @@ export default function Pools() {
     },
   });
 
-  const { data: companies } = useQuery({
-    queryKey: ["companies"],
+  // GAP1: fetch company_links (all statuses) so we can derive the actively-linked subset.
+  // This replaces the previous "all companies" query — only linked companies are invitable.
+  const { data: companyLinks } = useQuery({
+    queryKey: ["company-links-for-pools", effectiveCompanyId],
+    enabled: !!effectiveCompanyId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("companies")
-        .select("id, name")
-        .order("name");
+        .from("company_links")
+        .select(
+          `requester_company_id,
+           target_company_id,
+           status,
+           requester:companies!company_links_requester_company_id_fkey(id, name),
+           target:companies!company_links_target_company_id_fkey(id, name)`
+        )
+        .eq("status", "active");
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 
@@ -76,6 +86,15 @@ export default function Pools() {
   // Use companyId from useViewRole (already reactive to auth state).
   // Fall back to the profile query for the createPool mutation which needs the company_id at mutation time.
   const effectiveCompanyId = companyId ?? profile?.company_id ?? null;
+
+  // GAP1: derive the set of actively-linked companies from company_links rows.
+  // Only these companies may be invited to a pool (UI defense; DB trigger is the hard guard).
+  const linkedCompanies = effectiveCompanyId
+    ? deriveLinkedCompanies(
+        (companyLinks ?? []) as Parameters<typeof deriveLinkedCompanies>[0],
+        effectiveCompanyId
+      )
+    : [];
 
   const createPool = useMutation({
     mutationFn: async ({
@@ -226,7 +245,7 @@ export default function Pools() {
             </Button>
           </DialogTrigger>
           <CreatePoolDialog
-            companies={companies || []}
+            linkedCompanies={linkedCompanies}
             userCompanyId={effectiveCompanyId}
             isPending={createPool.isPending}
             onSubmit={(data) => createPool.mutate(data)}
@@ -254,7 +273,7 @@ export default function Pools() {
               key={pool.id}
               pool={pool}
               approvedRequests={approvedRequests || []}
-              companies={companies || []}
+              companies={linkedCompanies}
               userCompanyId={effectiveCompanyId}
               onAddRequests={(poolId, requestIds) =>
                 addRequests.mutate({ poolId, requestIds })
