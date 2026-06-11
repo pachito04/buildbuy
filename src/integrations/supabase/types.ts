@@ -2730,6 +2730,14 @@ export type Database = {
         Args: { p_pool_id: string }
         Returns: undefined
       }
+      precio_proveedor_bulk_insert: {
+        Args: { p_rows: Json; p_provider_id: string; p_company_id: string }
+        Returns: Json
+      }
+      precio_proveedor_edit: {
+        Args: { p_id: string; p_patch: Json }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role:
@@ -2756,6 +2764,8 @@ export type Database = {
         | "remito_delivered"
         | "material_purchased"
         | "request_rejected"
+        | "precio_actualizado_por_proveedor"
+        | "precio_editado_por_compras"
       po_status: "sent" | "accepted" | "rejected"
       pool_status: "open" | "closed" | "quoting" | "awarded" | "cancelled"
       quote_status: "pending" | "submitted" | "awarded" | "rejected"

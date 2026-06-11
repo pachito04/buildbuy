@@ -5,7 +5,7 @@ import { useViewRole } from '@/hooks/useViewRole';
 import { useAuth } from '@/hooks/useAuth';
 import { useOwnProviderId } from '@/hooks/useOwnProviderId';
 import { usePreciosProveedor, preciosKey, type PrecioWithMaterial } from '@/hooks/usePreciosProveedor';
-import { resolvePrecioVigente, hasVigenciaOverlap } from '@/lib/precio-vigencia';
+import { resolvePrecioVigente } from '@/lib/precio-vigencia';
 import { PreciosUploader, type ParsedPrecioRow } from '@/components/precios/PreciosUploader';
 import { ComparativaPrecios } from '@/components/precios/ComparativaPrecios';
 import { Button } from '@/components/ui/button';
@@ -254,21 +254,26 @@ export default function ListaPreciosProveedor() {
   const handleParsed = useCallback(
     async (rows: ParsedPrecioRow[]) => {
       if (!effectiveProviderId || !user?.id) return;
-      let successCount = 0;
-      let unknownMaterialCount = 0;
-      let overlapCount = 0;
-
-      // Working copy of existing prices — updated in memory after each successful
-      // insert so that later rows in the same import batch are checked against
-      // already-inserted rows as well.
-      const workingPrecios = [...precios];
 
       // Providers publish global prices (company_id = null).
       // Only compras/admin may write a company-scoped override.
       const resolvedCompanyId = isProvider ? null : (companyId ?? null);
 
+      // Resolve material_id client-side (keeps "material not found" message
+      // in the client layer; RPC validates overlap server-side).
+      let unknownMaterialCount = 0;
+      const resolvedRows: {
+        provider_id: string;
+        material_id: string;
+        precio_unitario: number;
+        unidad_medida: string | null;
+        vigencia_desde: string;
+        vigencia_hasta: string | null;
+        company_id: string | null;
+        created_by: string;
+      }[] = [];
+
       for (const row of rows) {
-        // Resolve material by name (case-insensitive).
         const mat = (materials ?? []).find(
           (m) => m.name.toLowerCase() === row.material_name.toLowerCase()
         );
@@ -276,8 +281,7 @@ export default function ListaPreciosProveedor() {
           unknownMaterialCount++;
           continue;
         }
-
-        const payload = {
+        resolvedRows.push({
           provider_id: effectiveProviderId,
           material_id: mat.id,
           precio_unitario: row.precio_unitario,
@@ -285,29 +289,37 @@ export default function ListaPreciosProveedor() {
           vigencia_desde: row.vigencia_desde,
           vigencia_hasta: row.vigencia_hasta ?? null,
           company_id: resolvedCompanyId,
-        };
+          created_by: user.id,
+        });
+      }
 
-        // Client-side overlap guard — same logic as the ABM insert path.
-        if (hasVigenciaOverlap(workingPrecios, payload)) {
-          overlapCount++;
-          continue;
-        }
+      let insertedCount = 0;
+      let overlapCount = 0;
 
-        const { data: inserted, error } = await supabase
-          .from('precio_proveedor')
-          .insert({ ...payload, created_by: user.id })
-          .select()
-          .single();
-
-        if (error) {
-          overlapCount++;
-        } else {
-          successCount++;
-          if (inserted) {
-            // Add to working copy so subsequent rows in the batch see this row.
-            workingPrecios.push(inserted as PrecioWithMaterial);
+      if (resolvedRows.length > 0) {
+        // Single RPC call — sets batch token inside one transaction so the
+        // trigger fires exactly ONE summary notification instead of N.
+        const { data: rpcResult, error: rpcError } = await supabase.rpc(
+          'precio_proveedor_bulk_insert',
+          {
+            p_rows: resolvedRows as unknown as import('@/integrations/supabase/types').Json,
+            p_provider_id: effectiveProviderId,
+            p_company_id: resolvedCompanyId ?? '',
           }
+        );
+
+        if (rpcError) {
+          toast({
+            title: 'Error al importar precios',
+            description: rpcError.message,
+            variant: 'destructive',
+          });
+          return;
         }
+
+        const result = rpcResult as { inserted: number; rejected: { reason: string }[] } | null;
+        insertedCount = result?.inserted ?? 0;
+        overlapCount = (result?.rejected ?? []).length;
       }
 
       qc.invalidateQueries({ queryKey: preciosKey(effectiveProviderId, resolvedCompanyId) });
@@ -321,13 +333,13 @@ export default function ListaPreciosProveedor() {
       toast({
         title: 'Importación completada',
         description:
-          successCount === 0 && rejectedCount > 0
+          insertedCount === 0 && rejectedCount > 0
             ? `No se importó ningún precio. ${rejectedParts.join(', ')}.`
-            : `${successCount} precio(s) importado(s)${rejectedCount > 0 ? `. ${rejectedParts.join(', ')} rechazado(s).` : '.'}`,
+            : `${insertedCount} precio(s) importado(s)${rejectedCount > 0 ? `. ${rejectedParts.join(', ')} rechazado(s).` : '.'}`,
         variant: rejectedCount > 0 ? 'destructive' : 'default',
       });
     },
-    [effectiveProviderId, user?.id, materials, companyId, isProvider, precios, qc, toast]
+    [effectiveProviderId, user?.id, materials, companyId, isProvider, qc, toast]
   );
 
   // ---- Render --------------------------------------------------------------

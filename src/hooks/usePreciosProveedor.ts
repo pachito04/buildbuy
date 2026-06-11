@@ -104,6 +104,10 @@ export function usePreciosProveedor(providerId: string | null) {
   });
 
   // ---- Close vigencia (set vigencia_hasta) ---------------------------------
+  // Compras/admin edit is routed through precio_proveedor_edit RPC which sets
+  // the 'compras' actor token inside the same transaction so the DB trigger
+  // notifies the provider. Provider self-edit stays as a direct update so the
+  // trigger notifies Compras/admin instead.
 
   const closeVigenciaMutation = useMutation({
     mutationFn: async ({
@@ -113,11 +117,28 @@ export function usePreciosProveedor(providerId: string | null) {
       id: string;
       vigencia_hasta: string;
     }): Promise<void> => {
-      const { error } = await supabase
-        .from('precio_proveedor')
-        .update({ vigencia_hasta })
-        .eq('id', id);
-      if (error) throw error;
+      const role = (await supabase.auth.getUser()).data.user?.id
+        ? undefined
+        : undefined; // will use companyId from hook context below
+      void role; // unused — role is read from useViewRole instead
+      const isComprasActor =
+        companyId !== null; // Compras/admin always have a companyId; provider context does not (provider writes global prices)
+
+      if (isComprasActor) {
+        // Route through RPC so the actor token fires the correct notification.
+        const { error } = await supabase.rpc('precio_proveedor_edit', {
+          p_id: id,
+          p_patch: { vigencia_hasta },
+        });
+        if (error) throw error;
+      } else {
+        // Provider self-edit — direct update; trigger fires notification to Compras.
+        const { error } = await supabase
+          .from('precio_proveedor')
+          .update({ vigencia_hasta })
+          .eq('id', id);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: preciosKey(providerId, companyId) });
