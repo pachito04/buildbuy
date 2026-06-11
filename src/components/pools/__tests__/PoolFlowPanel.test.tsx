@@ -109,6 +109,10 @@ vi.mock('@/components/pools/PoolAwardPanel', () => ({
   PoolAwardPanel: () => <div data-testid="pool-award-panel" />,
 }));
 
+vi.mock('@/components/pools/PoolProvidersPanel', () => ({
+  PoolProvidersPanel: () => <div data-testid="pool-providers-panel" />,
+}));
+
 // ---------------------------------------------------------------------------
 // Import component AFTER mocks
 // ---------------------------------------------------------------------------

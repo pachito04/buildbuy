@@ -397,7 +397,7 @@
 
 ---
 
-### T21 — [TEST RED] usePoolProviders: loads candidate set + selectProvider INSERTs + deselectProvider DELETEs
+### T21 — [x] usePoolProviders: loads candidate set + selectProvider INSERTs + deselectProvider DELETEs
 
 - **Type:** test (write failing test first — NEW file)
 - **Sequential after:** Slice 0 merged
@@ -416,7 +416,7 @@
 
 ---
 
-### T22 — [IMPL] usePoolProviders: new hook — candidate set + selectProvider/deselectProvider
+### T22 — [x] usePoolProviders: new hook — candidate set + selectProvider/deselectProvider
 
 - **Type:** implementation
 - **Sequential after:** T21
@@ -432,7 +432,7 @@
 
 ---
 
-### T23 — [TEST RED] usePoolFlow.generateSharedRfq: calls pool_dispatch_providers RPC + notifies when count > 0
+### T23 — [x] usePoolFlow.generateSharedRfq: calls pool_dispatch_providers RPC + notifies when count > 0
 
 - **Type:** test (write failing test first)
 - **Sequential after:** Slice 0 merged
@@ -451,7 +451,7 @@
 
 ---
 
-### T24 — [IMPL] usePoolFlow: wire pool_dispatch_providers + notify-providers in generateSharedRfq; wire pool_add_requirements in addMyRequirements
+### T24 — [x] usePoolFlow: wire pool_dispatch_providers + notify-providers in generateSharedRfq; wire pool_add_requirements in addMyRequirements
 
 - **Type:** implementation
 - **Sequential after:** T23
@@ -464,7 +464,7 @@
 
 ---
 
-### T25 — [TEST RED] PoolProvidersPanel: shows candidate set + mark/unmark wires to usePoolProviders
+### T25 — [x] PoolProvidersPanel: shows candidate set + mark/unmark wires to usePoolProviders
 
 - **Type:** test (write failing test first)
 - **Sequential after:** T22 (hook must exist)
@@ -480,7 +480,7 @@
 
 ---
 
-### T26 — [IMPL] PoolProvidersPanel: new component — candidate set, checkbox select/deselect, consolidated list
+### T26 — [x] PoolProvidersPanel: new component — candidate set, checkbox select/deselect, consolidated list
 
 - **Type:** implementation
 - **Sequential after:** T25
@@ -496,7 +496,7 @@
 
 ---
 
-### T27 — [IMPL] PoolFlowPanel: mount PoolProvidersPanel
+### T27 — [x] PoolFlowPanel: mount PoolProvidersPanel
 
 - **Type:** implementation (wiring only — no new logic)
 - **Sequential after:** T26

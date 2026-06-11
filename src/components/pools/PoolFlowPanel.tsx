@@ -36,6 +36,7 @@ import { usePoolLifecycle } from "@/hooks/usePoolLifecycle";
 import { AddMyRequirementsDialog } from "./AddMyRequirementsDialog";
 import { PoolConsolidatedView } from "./PoolConsolidatedView";
 import { PoolAwardPanel } from "./PoolAwardPanel";
+import { PoolProvidersPanel } from "./PoolProvidersPanel";
 import {
   PackagePlus,
   Layers,
@@ -234,6 +235,13 @@ export function PoolFlowPanel({ pool, companyId, companyNames }: Props) {
         companyNames={companyNames}
         isLoading={isLoadingItems}
       />
+
+      {/* GAP3: Provider selection panel — available in borrador and confirmado
+          so members can choose their providers before generateSharedRfq is called. */}
+      <div className="pt-2 border-t">
+        <h3 className="text-sm font-semibold mb-2">Proveedores del pool</h3>
+        <PoolProvidersPanel poolId={pool.id} companyId={companyId!} />
+      </div>
 
       {/* Pool-flow actions */}
       <div className="flex gap-2 flex-wrap">

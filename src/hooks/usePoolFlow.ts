@@ -136,6 +136,10 @@ export function usePoolFlow(poolId: string | null): UsePoolFlowResult {
   });
 
   // ---- addMyRequirements mutation -------------------------------------------
+  // GAP5: replaced direct INSERT into pool_requests with pool_add_requirements RPC.
+  // The RPC handles: (1) INSERT pool_requests ON CONFLICT DO NOTHING, (2) read pool_number +
+  // company names, (3) INSERT requerimiento_evento per request — all in one transaction.
+  // SECURITY INVOKER: RLS on pool_requests and requerimiento_evento apply normally.
 
   const addRequirementsMutation = useMutation({
     mutationFn: async ({
@@ -147,14 +151,14 @@ export function usePoolFlow(poolId: string | null): UsePoolFlowResult {
     }) => {
       if (!requestIds.length) return;
 
-      const inserts = requestIds.map((rid) => ({
-        pool_id: poolId,
-        request_id: rid,
-      }));
-
-      const { error } = await supabase.from("pool_requests").insert(inserts);
+      const { error } = await supabase.rpc("pool_add_requirements", {
+        p_pool_id: poolId,
+        p_request_ids: requestIds,
+      });
       if (error) throw error;
       // NOTE: intentionally NOT writing requests.status='in_pool' (AD-6).
+      // The RPC only passes new request_ids (caller responsibility) to avoid
+      // duplicate events (GAP5 idempotency: ON CONFLICT DO NOTHING for pool_requests).
     },
     onSuccess: (_data, { poolId }) => {
       qc.invalidateQueries({ queryKey: ["pools"] });
@@ -422,6 +426,26 @@ export function usePoolFlow(poolId: string | null): UsePoolFlowResult {
         .update({ pool_state: "en_comparativa" })
         .eq("id", poolId);
       if (stateErr) throw stateErr;
+
+      // GAP3: Dispatch providers from pool_providers into rfq_providers via RPC.
+      // The RPC reads the member-selected pool_providers (SECURITY DEFINER, cross-tenant),
+      // deduplicates by provider_id, and inserts idempotently into rfq_providers.
+      // Returns the total count of providers now in rfq_providers (0 = no providers selected).
+      const { data: providerCount, error: dispErr } = await supabase.rpc(
+        "pool_dispatch_providers",
+        { p_rfq_id: rfqId }
+      );
+      if (dispErr) throw dispErr;
+
+      // GAP3: Notify providers — only if at least one provider was dispatched.
+      // Unlike the non-pool flow (RfqNuevo/RfqCesta), GAP3 design mandates surfacing
+      // the error to the caller rather than silently catching it (failure isolation).
+      // The rfq + rfq_providers are already persisted, so a retry is safe.
+      if ((providerCount ?? 0) > 0) {
+        await supabase.functions.invoke("notify-providers", {
+          body: { type: "rfq_sent", rfq_id: rfqId },
+        });
+      }
 
       return rfqId;
     },
