@@ -35,7 +35,7 @@ export const preciosKey = (providerId: string | null, companyId: string | null) 
  */
 export function usePreciosProveedor(providerId: string | null) {
   const { user } = useAuth();
-  const { companyId } = useViewRole();
+  const { companyId, viewRole } = useViewRole();
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -117,12 +117,11 @@ export function usePreciosProveedor(providerId: string | null) {
       id: string;
       vigencia_hasta: string;
     }): Promise<void> => {
-      const role = (await supabase.auth.getUser()).data.user?.id
-        ? undefined
-        : undefined; // will use companyId from hook context below
-      void role; // unused — role is read from useViewRole instead
-      const isComprasActor =
-        companyId !== null; // Compras/admin always have a companyId; provider context does not (provider writes global prices)
+      // Compras/admin edit → route through the RPC (actor token makes the trigger
+      // notify the provider). Provider self-edit → direct update (notifies Compras).
+      // Keyed off role, not companyId, so a provider with a non-null company is not
+      // misclassified as Compras.
+      const isComprasActor = viewRole !== 'proveedor';
 
       if (isComprasActor) {
         // Route through RPC so the actor token fires the correct notification.

@@ -304,7 +304,9 @@ export default function ListaPreciosProveedor() {
           {
             p_rows: resolvedRows as unknown as import('@/integrations/supabase/types').Json,
             p_provider_id: effectiveProviderId,
-            p_company_id: resolvedCompanyId ?? '',
+            // null = global price; the RPC resolves the company via profiles.
+            // Passing '' would hit "invalid input syntax for type uuid".
+            p_company_id: resolvedCompanyId,
           }
         );
 
