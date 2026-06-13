@@ -216,6 +216,7 @@ export function WizardNuevaObra({ open, onOpenChange }: WizardNuevaObraProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
+          <span className="eyebrow">Proyecto</span>
           <DialogTitle>Nueva Obra</DialogTitle>
         </DialogHeader>
 

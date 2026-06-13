@@ -7,6 +7,7 @@ interface ViewRoleContextType {
   setViewRole: (role: AppRole) => void;
   actualRole: AppRole | null;
   companyId: string | null;
+  fullName: string | null;
   loading: boolean;
 }
 
@@ -15,6 +16,7 @@ const ViewRoleContext = createContext<ViewRoleContextType>({
   setViewRole: () => {},
   actualRole: null,
   companyId: null,
+  fullName: null,
   loading: true,
 });
 
@@ -22,16 +24,18 @@ export function ViewRoleProvider({ children }: { children: ReactNode }) {
   const [viewRole, setViewRole] = useState<AppRole | null>(null);
   const [actualRole, setActualRole] = useState<AppRole | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function fetchUserData(userId: string) {
     setLoading(true); // ensure loading=true while fetching to block premature redirects
     const [profileRes, roleRes] = await Promise.all([
-      supabase.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("company_id, full_name").eq("id", userId).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
     ]);
 
     setCompanyId(profileRes.data?.company_id ?? null);
+    setFullName((profileRes.data as { full_name?: string | null } | null)?.full_name ?? null);
 
     if (roleRes.data?.role) {
       const role = roleRes.data.role as AppRole;
@@ -64,6 +68,7 @@ export function ViewRoleProvider({ children }: { children: ReactNode }) {
         setCompanyId(null);
         setActualRole(null);
         setViewRole(null);
+        setFullName(null);
         setLoading(false);
       }
     });
@@ -73,7 +78,7 @@ export function ViewRoleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ViewRoleContext.Provider value={{ viewRole, setViewRole, actualRole, companyId, loading }}>
+    <ViewRoleContext.Provider value={{ viewRole, setViewRole, actualRole, companyId, fullName, loading }}>
       {children}
     </ViewRoleContext.Provider>
   );

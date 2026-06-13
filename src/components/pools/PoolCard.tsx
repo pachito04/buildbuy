@@ -179,6 +179,7 @@ export function PoolCard({
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
+                      <span className="eyebrow">Pool de compra</span>
                       <DialogTitle>Agregar Pedidos al Pool</DialogTitle>
                     </DialogHeader>
                     {!approvedRequests.length ? (
@@ -238,6 +239,7 @@ export function PoolCard({
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
+                    <span className="eyebrow">Pool de compra</span>
                     <DialogTitle>Invitar Empresa al Pool</DialogTitle>
                   </DialogHeader>
                   {availableCompanies.length === 0 ? (

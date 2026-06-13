@@ -33,10 +33,7 @@ interface ActivityTimelineProps {
 export function ActivityTimeline({ events }: ActivityTimelineProps) {
   if (events.length === 0) {
     return (
-      <div
-        className="flex flex-col items-center justify-center py-6 text-muted-foreground"
-        style={{ border: "1px dashed #E0DDD8", borderRadius: 10 }}
-      >
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-6 text-muted-foreground">
         <span className="text-2xl mb-2">📋</span>
         <p className="text-sm">Sin actividad registrada</p>
       </div>
@@ -68,10 +65,7 @@ export function ActivityTimeline({ events }: ActivityTimelineProps) {
 
           return (
             <div key={event.id} className="relative flex gap-3">
-              <div
-                className="absolute -left-6 mt-1 flex h-5 w-5 items-center justify-center rounded-full"
-                style={{ backgroundColor: "#C96A00" }}
-              >
+              <div className="absolute -left-6 mt-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
                 <div className="h-2 w-2 rounded-full bg-white" />
               </div>
               <div className="flex-1 min-w-0">

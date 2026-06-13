@@ -30,7 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, HardHat, Search, Link2, LinkIcon } from "lucide-react";
+import { ArrowUpRight, Plus, Pencil, Trash2, HardHat, Search, Link2, LinkIcon } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 type Architect = {
   id: string;
@@ -208,22 +209,26 @@ export default function Arquitectos() {
   arquitectoUsers?.forEach((u) => { userMap[u.id] = u; });
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Arquitectos</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Arquitectos asociados a tus proyectos de obra
-          </p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Agregar Arquitecto</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar Arquitecto" : "Nuevo Arquitecto"}</DialogTitle>
-            </DialogHeader>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Equipo"
+        title="Arquitectos"
+        subtitle="Arquitectos asociados a tus proyectos de obra"
+        actions={
+          <Dialog open={dialogOpen} onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}>
+            <DialogTrigger asChild>
+              <button className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5">
+                Agregar Arquitecto
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <span className="eyebrow">Equipo</span>
+                <DialogTitle>{editing ? "Editar Arquitecto" : "Nuevo Arquitecto"}</DialogTitle>
+              </DialogHeader>
             <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-4">
               <div className="space-y-2">
                 <Label>Nombre completo *</Label>
@@ -242,8 +247,9 @@ export default function Arquitectos() {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+          </Dialog>
+        }
+      />
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

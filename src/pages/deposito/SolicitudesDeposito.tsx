@@ -16,6 +16,7 @@ import {
   ChevronUp,
   Warehouse,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { DespachoDialog } from "@/components/deposito/DespachoDialog";
 
 type TabKey = "borrador" | "confirmado" | "en_transito";
@@ -27,9 +28,9 @@ const tabs: { key: TabKey; label: string; icon: typeof Clock }[] = [
 ];
 
 const statusBadge: Record<string, { label: string; className: string }> = {
-  borrador: { label: "Pendiente", className: "bg-amber-100 text-amber-800 border-amber-300" },
-  confirmado: { label: "En preparación", className: "bg-blue-100 text-blue-800 border-blue-300" },
-  en_transito: { label: "Despachado", className: "bg-green-100 text-green-800 border-green-300" },
+  borrador: { label: "Pendiente", className: "bg-warning/15 text-warning border-warning/30" },
+  confirmado: { label: "En preparación", className: "bg-primary/10 text-primary border-primary/30" },
+  en_transito: { label: "Despachado", className: "bg-success/15 text-success border-success/30" },
 };
 
 export default function SolicitudesDeposito() {
@@ -110,12 +111,11 @@ export default function SolicitudesDeposito() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="font-display text-xl sm:text-2xl font-bold">Solicitudes de Despacho</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Materiales pendientes de preparación y despacho a obra
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Depósito"
+        title="Solicitudes de Despacho"
+        subtitle="Materiales pendientes de preparación y despacho a obra"
+      />
 
       {/* Tabs — horizontal scroll on mobile */}
       <div className="flex gap-1 border-b overflow-x-auto">

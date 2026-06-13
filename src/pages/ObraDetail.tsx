@@ -51,7 +51,7 @@ export default function ObraDetail() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 md:p-8 space-y-6">
       <div className="flex items-start gap-4">
         <Button variant="ghost" size="icon" asChild className="mt-0.5">
           <Link to="/obras">
@@ -59,8 +59,9 @@ export default function ObraDetail() {
           </Link>
         </Button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="font-display text-2xl font-bold">{obra.name}</h1>
+          <span className="eyebrow">Proyectos</span>
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+            <h1 className="font-display text-4xl font-semibold tracking-tight">{obra.name}</h1>
             {obra.code && (
               <Badge variant="outline" className="text-xs font-mono">
                 {obra.code}

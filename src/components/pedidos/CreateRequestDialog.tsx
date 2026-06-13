@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Plus, Trash2, MessageSquare, AlertCircle } from "lucide-react";
+import { Plus, Trash2, MessageSquare, AlertCircle, ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 
@@ -235,14 +235,17 @@ export function CreateRequestDialog() {
       }}
     >
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
+        <button className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5">
           Nuevo requerimiento
-        </Button>
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuevo requerimiento</DialogTitle>
+          <span className="eyebrow">Nuevo</span>
+          <DialogTitle>Requerimiento</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={(e) => {
@@ -449,6 +452,18 @@ export function CreateRequestDialog() {
                     </Button>
                   )}
                 </div>
+
+                {item.material_id && (() => {
+                  const mat = allMaterials?.find((m) => m.material_id === item.material_id);
+                  if (!mat) return null;
+                  return (
+                    <p className="pl-1 text-xs text-muted-foreground">
+                      {mat.stock > 0
+                        ? `Stock disponible: ${mat.stock} ${mat.unit}`
+                        : "Sin stock disponible"}
+                    </p>
+                  );
+                })()}
 
                 {expandedObs.has(i) && (
                   <Input

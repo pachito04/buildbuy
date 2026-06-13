@@ -464,7 +464,7 @@ export function PoolMateriasPanel() {
   const activeLinks = links.filter(isLinkActive);
 
   return (
-    <Card className="shadow-sm">
+    <Card className="shadow-soft">
       <CardHeader className="px-6 py-4 border-b bg-muted/20">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <Layers className="h-4 w-4 text-primary" />

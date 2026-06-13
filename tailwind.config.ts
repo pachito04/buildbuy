@@ -14,8 +14,13 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["DM Sans", "sans-serif"],
-        display: ["Space Grotesk", "sans-serif"],
+        sans: ["Geist", "sans-serif"],
+        display: ["Geist", "sans-serif"],
+        mono: ["Geist Mono", "monospace"],
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        soft: "var(--shadow-soft)",
       },
       colors: {
         border: "hsl(var(--border))",

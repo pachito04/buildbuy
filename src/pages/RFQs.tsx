@@ -66,7 +66,7 @@ export default function RFQs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rfqs")
-        .select("*, rfq_items(*), rfq_providers(*, providers:provider_id(name, email)), purchase_pools:pool_id(name), requests:request_id(raw_message, request_number)")
+        .select("*, rfq_items(*), rfq_providers(*, providers:provider_id(name, email)), purchase_pools:pool_id(name), requests:request_id(raw_message, request_number, projects:project_id(name)), quotes(total_price, status, providers:provider_id(name))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -222,10 +222,13 @@ export default function RFQs() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 md:p-8 space-y-8">
       <div>
-        <h1 className="font-display text-2xl font-bold">Solicitudes de Cotización</h1>
-        <p className="text-muted-foreground text-sm mt-1">Gestión de solicitudes enviadas a proveedores</p>
+        <span className="eyebrow">Compras</span>
+        <h1 className="font-display text-4xl font-semibold tracking-tight mt-2">Solicitudes de Cotización</h1>
+        <p className="text-muted-foreground text-sm mt-2">
+          {vigentes.length} vigente{vigentes.length !== 1 ? "s" : ""} · gestión de solicitudes a proveedores
+        </p>
       </div>
 
       {/* Tab bar */}
@@ -328,7 +331,8 @@ export default function RFQs() {
       <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display">Detalle de la Solicitud</DialogTitle>
+            <span className="eyebrow">Solicitud de cotización</span>
+            <DialogTitle>Detalle de la solicitud</DialogTitle>
           </DialogHeader>
           {detailRfq && (
             <div className="space-y-4">
@@ -482,7 +486,8 @@ export default function RFQs() {
       <Dialog open={!!awardQuoteId} onOpenChange={(o) => { if (!o) { setAwardQuoteId(null); setAwardNotes(""); setAwardPaymentTerms(""); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display">Adjudicar Cotización</DialogTitle>
+            <span className="eyebrow">Adjudicación</span>
+            <DialogTitle>Adjudicar cotización</DialogTitle>
           </DialogHeader>
           {(() => {
             const q = detailQuotes?.find((q: any) => q.id === awardQuoteId);

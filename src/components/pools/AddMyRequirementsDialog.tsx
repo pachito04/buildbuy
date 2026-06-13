@@ -112,6 +112,7 @@ export function AddMyRequirementsDialog({
   return (
     <DialogContent>
       <DialogHeader>
+        <span className="eyebrow">Pool de compra</span>
         <DialogTitle className="flex items-center gap-2">
           <PackagePlus className="h-4 w-4" />
           Agregar mis requerimientos al pool

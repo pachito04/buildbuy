@@ -601,7 +601,8 @@ export function RecepcionDialog({ purchaseOrderId, onClose }: RecepcionDialogPro
     <Dialog open={!!purchaseOrderId} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <span className="eyebrow">Depósito · recepción</span>
+          <DialogTitle>
             Registrar Recepción
             {(poData as any)?.po_number && ` — OC #${(poData as any).po_number}`}
           </DialogTitle>

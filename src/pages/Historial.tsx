@@ -35,6 +35,7 @@ import {
   Layers,
   Percent,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const COLORS = [
   "hsl(24, 95%, 53%)",
@@ -219,28 +220,29 @@ export default function Historial() {
   const monthLabel = monthOptions.find((m) => m.value === selectedMonth)?.label || "";
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Reportes Mensuales</h1>
-          <p className="text-muted-foreground text-sm mt-1">Métricas de compras, pools y proveedores</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {monthOptions.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" onClick={exportOrders}>
-            <Download className="h-4 w-4 mr-1" />CSV
-          </Button>
-        </div>
-      </div>
+    <div className="p-6 md:p-8 space-y-8">
+      <PageHeader
+        eyebrow="Reportes"
+        title="Reportes Mensuales"
+        subtitle="Métricas de compras, pools y proveedores"
+        actions={
+          <div className="flex items-center gap-3">
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={exportOrders}>
+              <Download className="h-4 w-4 mr-1" />CSV
+            </Button>
+          </div>
+        }
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

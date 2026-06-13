@@ -6,18 +6,15 @@ import { providersOverLimit } from "@/lib/consumos";
 import type { ProviderSaldo } from "@/lib/consumos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Inbox, Layers, FileText, ShoppingCart, Clock, CheckCircle, Truck, PackageCheck, AlertTriangle, Warehouse, ClipboardList } from "lucide-react";
-
-const statusLabelMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }> = {
-  pendiente:           { label: "Pendiente",             variant: "outline"     },
-  en_curso:            { label: "En curso",               variant: "outline", className: "bg-amber-100 text-amber-800 border-amber-300" },
-  recibido:            { label: "Recibido",              variant: "default", className: "bg-green-600 text-white border-green-600 hover:bg-green-600" },
-  rechazado:           { label: "Rechazado",             variant: "destructive" },
-};
+import { Inbox, FileText, ShoppingCart, Clock, CheckCircle, Truck, PackageCheck, AlertTriangle, ClipboardList, ArrowUpRight, TrendingUp, TrendingDown, Building2, BarChart3, PiggyBank } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useObrasAvance } from "@/hooks/useObrasAvance";
+import { formatCurrency } from "@/lib/computo-utils";
 
 export default function Dashboard() {
-  const { viewRole: role } = useViewRole();
+  const { viewRole: role, fullName } = useViewRole();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const { data: pendienteCount } = useQuery({
     queryKey: ["dashboard-pendiente", role, user?.id],
@@ -69,18 +66,6 @@ export default function Dashboard() {
         .from("requests")
         .select("*", { count: "exact", head: true })
         .eq("status", "rechazado" as any);
-      return count || 0;
-    },
-  });
-
-  const { data: poolCount } = useQuery({
-    queryKey: ["dashboard-pools"],
-    enabled: role === "compras" || role === "admin",
-    queryFn: async () => {
-      const { count } = await supabase
-        .from("purchase_pools")
-        .select("*", { count: "exact", head: true })
-        .in("status", ["open", "closed", "quoting"]);
       return count || 0;
     },
   });
@@ -152,25 +137,22 @@ export default function Dashboard() {
     },
   });
 
-  // Recent activity — sorted by updated_at so state changes surface first
-  const { data: recentRequests } = useQuery({
-    queryKey: ["dashboard-recent", role, user?.id],
-    enabled: role !== "proveedor" && !!role,
+  // --- "Este mes" deltas (real, created in current calendar month) ---
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+  const { data: requestsThisMonth } = useQuery({
+    queryKey: ["dashboard-req-month", role, user?.id],
+    enabled: role !== "proveedor" && role !== "deposito" && !!role && !!user?.id,
     queryFn: async () => {
-      let query = supabase
-        .from("requests")
-        .select(
-          "id, status, raw_message, created_at, updated_at, request_number, desired_date, projects:project_id(name), architects:architect_id(full_name)"
-        )
-        .order("updated_at", { ascending: false })
-        .limit(5);
-
-      if (role === "arquitecto") {
-        query = query.eq("created_by", user!.id);
+      let q = supabase.from("requests").select("status").gte("created_at", monthStart);
+      if (role === "arquitecto") q = q.eq("created_by", user!.id);
+      const { data } = await q;
+      const counts: Record<string, number> = { pendiente: 0, en_curso: 0, recibido: 0 };
+      for (const r of data ?? []) {
+        const s = (r as { status: string }).status;
+        counts[s] = (counts[s] ?? 0) + 1;
       }
-
-      const { data } = await query;
-      return data || [];
+      return counts;
     },
   });
 
@@ -285,6 +267,123 @@ export default function Dashboard() {
     },
   });
 
+  // --- Obras activas (avance) — compras/admin ---
+  const { data: obrasList } = useQuery({
+    queryKey: ["dashboard-obras", companyId],
+    enabled: isComprasOrAdmin && !!companyId,
+    queryFn: async (): Promise<{ id: string; name: string; contact_name: string | null; code: string | null }[]> => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, name, contact_name, code")
+        .eq("active", true)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; contact_name: string | null; code: string | null }[];
+    },
+  });
+
+  const { data: avanceMap } = useObrasAvance(isComprasOrAdmin ? companyId : null);
+
+  // Obras creadas este mes (trend de "Obras activas")
+  const { data: projectsThisMonth } = useQuery({
+    queryKey: ["dashboard-projects-month", companyId],
+    enabled: isComprasOrAdmin && !!companyId,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("projects")
+        .select("*", { count: "exact", head: true })
+        .eq("active", true)
+        .gte("created_at", monthStart);
+      return count || 0;
+    },
+  });
+
+  // Comparativas pendientes = RFQs sent/responded con cotizaciones recibidas
+  const { data: comparativasPendientes } = useQuery({
+    queryKey: ["dashboard-comparativas", companyId],
+    enabled: isComprasOrAdmin && !!companyId,
+    queryFn: async (): Promise<number> => {
+      const { data: openRfqs } = await supabase
+        .from("rfqs")
+        .select("id")
+        .eq("company_id", companyId!)
+        .in("status", ["sent", "responded"]);
+      const ids = (openRfqs ?? []).map((r) => r.id);
+      if (!ids.length) return 0;
+      const { data: quoted } = await supabase
+        .from("quotes")
+        .select("rfq_id")
+        .in("rfq_id", ids)
+        .in("status", ["pending", "submitted", "awarded"] as any);
+      return new Set((quoted ?? []).map((q) => q.rfq_id)).size;
+    },
+  });
+
+  // Ahorro total = Σ por ítem adjudicado de (oferta más cara − adjudicada) × cantidad
+  const { data: ahorroTotal } = useQuery({
+    queryKey: ["dashboard-ahorro", companyId],
+    enabled: isComprasOrAdmin && !!companyId,
+    queryFn: async (): Promise<number> => {
+      // 1. Ítems de OC efectivamente comprados (referencian un quote_item) de la empresa
+      const { data: poItems, error: e1 } = await supabase
+        .from("purchase_order_items")
+        .select("quantity, quote_item_id, purchase_orders!inner(company_id)")
+        .eq("purchase_orders.company_id", companyId!)
+        .not("quote_item_id", "is", null);
+      if (e1) throw e1;
+      const awarded = (poItems ?? []).filter((p: any) => p.quote_item_id);
+      if (!awarded.length) return 0;
+
+      // 2. unit_price + rfq_item_id de cada quote_item adjudicado
+      const qiIds = [...new Set(awarded.map((p: any) => p.quote_item_id as string))];
+      const { data: awardedQis, error: e2 } = await supabase
+        .from("quote_items")
+        .select("id, rfq_item_id, unit_price")
+        .in("id", qiIds);
+      if (e2) throw e2;
+      const qiMap = new Map<string, { rfq_item_id: string; unit_price: number }>();
+      for (const qi of awardedQis ?? []) {
+        qiMap.set(qi.id, { rfq_item_id: qi.rfq_item_id as string, unit_price: Number(qi.unit_price) });
+      }
+
+      // 3. unit_price máximo por rfq_item entre TODAS las ofertas recibidas
+      const rfqItemIds = [...new Set((awardedQis ?? []).map((qi: any) => qi.rfq_item_id).filter(Boolean))] as string[];
+      if (!rfqItemIds.length) return 0;
+      const { data: allQis, error: e3 } = await supabase
+        .from("quote_items")
+        .select("rfq_item_id, unit_price")
+        .in("rfq_item_id", rfqItemIds);
+      if (e3) throw e3;
+      const maxPrice = new Map<string, number>();
+      for (const qi of allQis ?? []) {
+        const p = Number(qi.unit_price);
+        maxPrice.set(qi.rfq_item_id as string, Math.max(maxPrice.get(qi.rfq_item_id as string) ?? 0, p));
+      }
+
+      // 4. Σ (máx − adjudicado) × cantidad
+      let total = 0;
+      for (const item of awarded as any[]) {
+        const qi = qiMap.get(item.quote_item_id);
+        if (!qi || !qi.rfq_item_id) continue;
+        const max = maxPrice.get(qi.rfq_item_id) ?? qi.unit_price;
+        total += Math.max(max - qi.unit_price, 0) * Number(item.quantity);
+      }
+      return total;
+    },
+  });
+
+  const obrasActivas = (obrasList ?? [])
+    .map((o) => {
+      const av = avanceMap?.get(o.id);
+      const presupuesto = av?.presupuesto ?? 0;
+      const comprometido = av?.comprometido ?? 0;
+      const pct = presupuesto > 0 ? Math.min(Math.round((comprometido / presupuesto) * 100), 100) : 0;
+      return { ...o, presupuesto, comprometido, pct, hasAvance: !!av };
+    })
+    .filter((o) => o.hasAvance)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 5);
+
   const overLimitProviders =
     saldoLimite != null && providerSaldos
       ? providersOverLimit(providerSaldos, saldoLimite)
@@ -313,25 +412,65 @@ export default function Dashboard() {
     admin:      "Panel de Administrador",
   };
 
-  const stats = [];
-  if (role === "arquitecto") {
+  type Stat = {
+    label: string;
+    value: number | string;
+    icon: typeof Inbox;
+    color: string;
+    trend?: { label: string; positive: boolean };
+  };
+  const reqM = requestsThisMonth ?? { pendiente: 0, en_curso: 0, recibido: 0 };
+  const esteMes = (n: number) => ({ label: `+${n} este mes`, positive: true });
+  const stats: Stat[] = [];
+  if (role === "compras" || role === "admin") {
+    // 4 KPIs del mockup — todos con dato real
+    stats.push({
+      label: "Obras activas",
+      value: obrasList?.length ?? "—",
+      icon: Building2,
+      color: "text-primary",
+      trend: esteMes(projectsThisMonth ?? 0),
+    });
+    stats.push({
+      label: "Requerimientos abiertos",
+      value: pendienteCount != null && parcialCount != null ? pendienteCount + parcialCount : "—",
+      icon: Inbox,
+      color: "text-warning",
+      trend: esteMes(reqM.pendiente + reqM.en_curso),
+    });
+    stats.push({
+      label: "Comparativas pendientes",
+      value: comparativasPendientes ?? "—",
+      icon: BarChart3,
+      color: "text-success",
+    });
+    stats.push({
+      label: "Ahorro total",
+      value: ahorroTotal != null ? formatCurrency(ahorroTotal) : "—",
+      icon: PiggyBank,
+      color: "text-success",
+    });
+  } else if (role === "arquitecto") {
     stats.push({
       label: "Pendientes",
       value: pendienteCount ?? "—",
       icon: Inbox,
       color: "text-primary",
+      trend: esteMes(reqM.pendiente),
     });
     stats.push({
       label: "Procesado Parcial",
       value: parcialCount ?? "—",
       icon: Clock,
       color: "text-warning",
+      trend: esteMes(reqM.en_curso),
     });
     stats.push({
       label: "Procesado Total",
       value: totalCount ?? "—",
       icon: CheckCircle,
       color: "text-green-600",
+      trend: esteMes(reqM.recibido),
     });
   } else if (role === "deposito") {
     stats.push({
@@ -358,43 +497,27 @@ export default function Dashboard() {
       icon: AlertTriangle,
       color: "text-red-600",
     });
-  } else if (role !== "proveedor") {
     stats.push({
-      label: "Pendientes",
-      value: pendienteCount ?? "—",
-      icon: Inbox,
-      color: "text-primary",
-    });
-    stats.push({
-      label: "Procesado Parcial",
-      value: parcialCount ?? "—",
-      icon: Clock,
-      color: "text-warning",
-    });
-    stats.push({
-      label: "Procesado Total",
-      value: totalCount ?? "—",
-      icon: CheckCircle,
-      color: "text-green-600",
-    });
-  }
-  if (role === "compras" || role === "admin") {
-    stats.push({
-      label: "Pools Activos",
-      value: poolCount ?? "—",
-      icon: Layers,
-      color: "text-success",
-    });
-  }
-  if (role !== "arquitecto") {
-    stats.push({
-      label: role === "proveedor" ? "Solicitudes de cotizaciones vigentes" : "Solicitudes Abiertas",
+      label: "Solicitudes Abiertas",
       value: rfqCount ?? "—",
       icon: FileText,
       color: "text-warning",
     });
     stats.push({
-      label: role === "proveedor" ? "OCs Recibidas" : "OCs Emitidas",
+      label: "OCs Emitidas",
+      value: poCount ?? "—",
+      icon: ShoppingCart,
+      color: "text-muted-foreground",
+    });
+  } else if (role === "proveedor") {
+    stats.push({
+      label: "Solicitudes de cotizaciones vigentes",
+      value: rfqCount ?? "—",
+      icon: FileText,
+      color: "text-warning",
+    });
+    stats.push({
+      label: "OCs Recibidas",
       value: poCount ?? "—",
       icon: ShoppingCart,
       color: "text-muted-foreground",
@@ -402,27 +525,43 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold">
-          {role ? roleLabels[role] || "Dashboard" : "Dashboard"}
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {role === "arquitecto" && "Gestiona tus requerimientos de obra"}
-          {role === "compras" && "Resumen general de compras"}
-          {role === "proveedor" && "Tus cotizaciones y órdenes de compra"}
-          {role === "deposito" && "Control de despachos y recepciones"}
-          {role === "admin" && "Vista completa del sistema"}
-          {!role && "Cargando..."}
-        </p>
+    <div className="p-6 md:p-8 space-y-8">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <span className="eyebrow">Dashboard</span>
+          <h1 className="font-display text-4xl font-semibold tracking-tight mt-2">
+            {fullName
+              ? `Buenas, ${fullName.split(" ")[0]}.`
+              : role
+                ? roleLabels[role] || "Dashboard"
+                : "Dashboard"}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-2">
+            {role === "arquitecto" && "Gestiona tus requerimientos de obra"}
+            {role === "compras" && "Resumen general de compras"}
+            {role === "proveedor" && "Tus cotizaciones y órdenes de compra"}
+            {role === "deposito" && "Control de despachos y recepciones"}
+            {role === "admin" && "Vista completa del sistema"}
+            {!role && "Cargando..."}
+          </p>
+        </div>
+        {(role === "arquitecto" || role === "compras" || role === "admin") && (
+          <button
+            onClick={() => navigate("/requerimientos")}
+            className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
+          >
+            Nuevo requerimiento
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </button>
+        )}
       </div>
 
       {stats.length > 0 && (
-        <div
-          className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-${Math.min(stats.length, 4)}`}
-        >
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
-            <Card key={stat.label}>
+            <Card key={stat.label} className="rounded-2xl !shadow-card border-border/70">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.label}
@@ -430,77 +569,68 @@ export default function Dashboard() {
                 <stat.icon className={`h-4 w-4 ${stat.color}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-display font-bold">{stat.value}</div>
+                <div className="text-4xl font-display font-semibold tracking-tight">{stat.value}</div>
+                {stat.trend && (
+                  <div
+                    className={`mt-3 flex items-center gap-1 text-xs ${
+                      stat.trend.positive ? "text-success" : "text-destructive"
+                    }`}
+                  >
+                    {stat.trend.positive ? (
+                      <TrendingUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <TrendingDown className="h-3.5 w-3.5" />
+                    )}
+                    <span>{stat.trend.label}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {role !== "proveedor" && role !== "deposito" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">Actividad Reciente</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!recentRequests?.length ? (
-              <p className="text-muted-foreground text-sm">
-                {role === "arquitecto"
-                  ? "Aún no creaste ningún pedido."
-                  : "No hay actividad reciente."}
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentRequests.map((r: any) => {
-                  const projName = r.projects?.name;
-                  const archName = r.architects?.full_name;
-                  const sl =
-                    role === "arquitecto"
-                      ? (statusLabelMap[r.status] ?? { label: r.status, variant: "secondary" as const })
-                      : (statusLabelMap[r.status] ?? { label: r.status, variant: "secondary" as const });
-
-                  return (
-                    <div
-                      key={r.id}
-                      className="flex items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {projName
-                            ? projName
-                            : `Pedido #${r.request_number}`}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <Badge variant={sl.variant} className={`text-xs h-4 px-1.5 ${sl.className || ""}`}>
-                            {sl.label}
-                          </Badge>
-                          {archName && (
-                            <span className="text-xs text-muted-foreground">
-                              👷 {archName}
-                            </span>
-                          )}
-                          {r.raw_message && (
-                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                              {r.raw_message}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {new Date(r.updated_at ?? r.created_at).toLocaleDateString("es-AR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                  );
-                })}
+      {isComprasOrAdmin && obrasActivas.length > 0 && (
+        <div className="rounded-[1.25rem] border bg-background p-1.5 !shadow-card">
+          <Card className="rounded-2xl shadow-none border-border/70 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="font-display text-lg font-semibold tracking-tight">Obras activas</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Ordenadas por avance</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <button
+                onClick={() => navigate("/obras")}
+                className="rounded-full border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+              >
+                Ver todas
+              </button>
+            </div>
+            <div>
+              {obrasActivas.map((o, idx) => (
+                <div
+                  key={o.id}
+                  className={`grid grid-cols-[2fr_1fr_1.6fr] items-center gap-6 px-6 py-4 ${idx < obrasActivas.length - 1 ? "border-b" : ""}`}
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{o.name}</div>
+                    {(o.contact_name || o.code) && (
+                      <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {o.contact_name || o.code}
+                      </div>
+                    )}
+                  </div>
+                  <div className="font-mono text-sm text-muted-foreground">{formatCurrency(o.presupuesto)}</div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                      <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${o.pct}%` }} />
+                    </div>
+                    <span className="w-10 text-right font-mono text-sm">{o.pct}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Over-limit saldo alert — compras/admin only */}
@@ -556,9 +686,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          <Card>
+          <div className="rounded-[1.25rem] border bg-background p-1.5 !shadow-card">
+          <Card className="rounded-2xl shadow-none border-border/70">
             <CardHeader>
-              <CardTitle className="font-display text-lg">Remitos Recientes</CardTitle>
+              <CardTitle className="font-display text-lg font-semibold tracking-tight">Remitos Recientes</CardTitle>
             </CardHeader>
             <CardContent>
               {!recentRemitos?.length ? (
@@ -608,6 +739,7 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+          </div>
         </>
       )}
     </div>

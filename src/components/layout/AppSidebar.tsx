@@ -67,10 +67,20 @@ interface AppSidebarProps {
   onMobileClose?: () => void;
 }
 
+const roleShort: Record<string, string> = {
+  arquitecto: "Arquitecto",
+  compras: "Compras",
+  proveedor: "Proveedor",
+  deposito: "Depósito",
+  admin: "Administrador",
+};
+
+const systemPaths = ["/usuarios", "/configuracion"];
+
 export function AppSidebar({ mobileOpen, onMobileClose }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { viewRole: role, loading } = useViewRole();
+  const { viewRole: role, fullName, loading } = useViewRole();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -81,42 +91,65 @@ export function AppSidebar({ mobileOpen, onMobileClose }: AppSidebarProps) {
     ? []
     : navItems.filter((item) => !role || item.roles.includes(role as AppRole));
 
+  const operaciones = visibleItems.filter((i) => !systemPaths.includes(i.to));
+  const sistema = visibleItems.filter((i) => systemPaths.includes(i.to));
+
+  const identity = [fullName, role ? roleShort[role] ?? role : null]
+    .filter(Boolean)
+    .join(" · ");
+
+  const renderItem = (item: NavItem) => {
+    const isActive =
+      location.pathname === item.to ||
+      location.pathname.startsWith(item.to + "/") ||
+      (item.to === "/requerimientos" && location.pathname.includes("/requerimientos"));
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        onClick={onMobileClose}
+        className={cn(
+          "flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium transition-colors min-h-[40px]",
+          isActive
+            ? "bg-foreground text-background"
+            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        )}
+      >
+        <item.icon className="h-[18px] w-[18px] shrink-0" />
+        {item.label}
+      </NavLink>
+    );
+  };
+
   const sidebarContent = (
     <>
-      <div className="flex items-center justify-center px-6 py-5 border-b border-sidebar-border">
-        <img src={logoBuildBuy} alt="BuildBuy" className="h-10 w-auto" />
+      <div className="px-5 py-5 border-b border-sidebar-border">
+        <img src={logoBuildBuy} alt="BuildBuy" className="h-8 w-auto" />
+        {identity && (
+          <div className="mt-2 font-mono text-[11px] tracking-wide text-muted-foreground truncate">
+            {identity}
+          </div>
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {visibleItems.map((item) => {
-          const isActive = location.pathname === item.to ||
-            location.pathname.startsWith(item.to + "/") ||
-            (item.to === '/requerimientos' && location.pathname.includes('/requerimientos'));
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={onMobileClose}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px]",
-                isActive
-                  ? "bg-sidebar-accent text-primary"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {item.label}
-            </NavLink>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <div className="eyebrow px-3 pb-2 pt-1">Operaciones</div>
+        <div className="space-y-1">{operaciones.map(renderItem)}</div>
+
+        {sistema.length > 0 && (
+          <>
+            <div className="eyebrow px-3 pb-2 pt-5">Sistema</div>
+            <div className="space-y-1">{sistema.map(renderItem)}</div>
+          </>
+        )}
       </nav>
 
       <div className="border-t border-sidebar-border p-3">
         <button
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors min-h-[44px]"
+          className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors min-h-[40px]"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-[18px] w-[18px]" />
           Cerrar Sesión
         </button>
       </div>

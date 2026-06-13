@@ -185,7 +185,8 @@ export function ComparativaDetail({ rfq, open, onClose }: ComparativaDetailProps
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display flex items-center gap-2">
+          <span className="eyebrow">Comparativa</span>
+          <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
             {rfq.label}
           </DialogTitle>

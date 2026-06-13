@@ -188,7 +188,8 @@ export function DespachoDialog({ remitoId, onClose }: DespachoDialogProps) {
     <Dialog open={!!remitoId} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <span className="eyebrow">Depósito · despacho</span>
+          <DialogTitle>
             Confirmar Despacho
             {(remito as any)?.requests?.request_number &&
               ` — Pedido #${(remito as any).requests.request_number}`}

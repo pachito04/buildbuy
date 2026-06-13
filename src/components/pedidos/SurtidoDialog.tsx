@@ -370,9 +370,8 @@ export function SurtidoDialog({
     <Dialog open={!!requestId} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">
-            Procesar Requerimiento — Pedido #{requestNumber}
-          </DialogTitle>
+          <span className="eyebrow">Procesar requerimiento</span>
+          <DialogTitle>Pedido #{requestNumber}</DialogTitle>
         </DialogHeader>
 
         {isLoading && (

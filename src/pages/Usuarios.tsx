@@ -20,7 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Users, ShieldAlert, Link2, Copy, Check, Plus, Pencil, HardHat } from "lucide-react";
+import { ArrowUpRight, Users, ShieldAlert, Link2, Copy, Check, Plus, Pencil, HardHat } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 type AppRole = "arquitecto" | "compras" | "proveedor" | "deposito" | "admin";
 
@@ -350,32 +351,23 @@ export default function Usuarios() {
   const displayUsers = users ?? [];
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1
-            className="font-bold text-2xl tracking-tight"
-            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Sistema"
+        title="Usuarios"
+        subtitle="Gestioná los miembros de tu organización y sus roles"
+        actions={
+          <button
+            onClick={() => { setInviteOpen(true); setGeneratedCode(null); }}
+            className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
           >
-            Usuarios
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Gestioná los miembros de tu organización y sus roles
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            setInviteOpen(true);
-            setGeneratedCode(null);
-          }}
-          size="sm"
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Invitar usuario
-        </Button>
-      </div>
+            Invitar usuario
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </button>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -388,10 +380,7 @@ export default function Usuarios() {
           <Card key={label} className="border-0 shadow-sm bg-muted/40">
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">{label}</p>
-              <p
-                className="text-2xl font-bold mt-0.5"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
+              <p className="font-display text-2xl font-bold mt-0.5">
                 {value}
               </p>
             </CardContent>
@@ -654,9 +643,8 @@ export default function Usuarios() {
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              Invitar usuario
-            </DialogTitle>
+            <span className="eyebrow">Sistema</span>
+            <DialogTitle>Invitar usuario</DialogTitle>
             <DialogDescription>
               Generá un código de invitación. El usuario lo ingresa al registrarse y queda
               vinculado a tu empresa con el rol que elijas.

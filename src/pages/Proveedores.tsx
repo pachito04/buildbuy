@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Star, Trash2, Pencil, CheckCircle, XCircle, Eye, Search, Copy } from "lucide-react";
+import { ArrowUpRight, Plus, Star, Trash2, Pencil, CheckCircle, XCircle, Eye, Search, Copy } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface ProviderForm {
   name: string;
@@ -123,31 +124,39 @@ export default function Proveedores() {
   const detailProvider = providers?.find((p) => p.id === detailId);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Proveedores</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gestión de proveedores, onboarding y scoring</p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              navigator.clipboard.writeText(registrationUrl);
-              toast({ title: "Enlace copiado", description: "Comparte este enlace con tus proveedores" });
-            }}
-          >
-            <Copy className="h-4 w-4 mr-1" />Link de Registro
-          </Button>
-          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setForm(emptyForm); setEditId(null); } }}>
-            <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" />Agregar Proveedor</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editId ? "Editar Proveedor" : "Nuevo Proveedor"}</DialogTitle>
-              </DialogHeader>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Compras"
+        title="Proveedores"
+        subtitle="Gestión de proveedores, onboarding y scoring"
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(registrationUrl);
+                toast({ title: "Enlace copiado", description: "Comparte este enlace con tus proveedores" });
+              }}
+            >
+              <Copy className="h-4 w-4 mr-1" />Link de Registro
+            </Button>
+            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setForm(emptyForm); setEditId(null); } }}>
+              <DialogTrigger asChild>
+                <button
+                  className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
+                >
+                  Agregar Proveedor
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </span>
+                </button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <span className="eyebrow">Compras</span>
+                  <DialogTitle>{editId ? "Editar Proveedor" : "Nuevo Proveedor"}</DialogTitle>
+                </DialogHeader>
               <form onSubmit={(e) => { e.preventDefault(); upsertMutation.mutate(form); }} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Nombre de empresa *</Label>
@@ -177,8 +186,9 @@ export default function Proveedores() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
@@ -188,9 +198,17 @@ export default function Proveedores() {
         </div>
         <div className="flex gap-2">
           {["all", "pending", "verified", "rejected"].map((s) => (
-            <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)}>
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`rounded-full border px-4 py-1.5 text-xs font-medium transition-colors ${
+                filterStatus === s
+                  ? "bg-foreground text-background border-foreground"
+                  : "border-border bg-card text-muted-foreground hover:bg-secondary"
+              }`}
+            >
               {s === "all" ? "Todos" : verificationLabels[s]?.label || s}
-            </Button>
+            </button>
           ))}
         </div>
       </div>
@@ -199,7 +217,8 @@ export default function Proveedores() {
       <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display">Detalle del Proveedor</DialogTitle>
+            <span className="eyebrow">Compras</span>
+            <DialogTitle>Detalle del Proveedor</DialogTitle>
           </DialogHeader>
           {detailProvider && (
             <div className="space-y-4">

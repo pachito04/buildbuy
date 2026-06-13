@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { MovimientosProducto } from "@/components/trazabilidad/MovimientosProducto";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -154,11 +155,12 @@ export default function Trazabilidad() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold">Trazabilidad</h1>
-        <p className="text-muted-foreground text-sm mt-1">Cadena completa: Pedido → Pool → Solicitud → Cotización → OC</p>
-      </div>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Compras"
+        title="Trazabilidad"
+        subtitle="Cadena completa: Pedido → Pool → Solicitud → Cotización → OC"
+      />
 
       {/* Search */}
       <div className="relative max-w-md">
@@ -272,7 +274,8 @@ export default function Trazabilidad() {
       <Dialog open={!!selectedChain} onOpenChange={(o) => { if (!o) { setSelectedChain(null); setExpandedItemId(null); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display">Cadena de Trazabilidad</DialogTitle>
+            <span className="eyebrow">Compras</span>
+              <DialogTitle>Cadena de Trazabilidad</DialogTitle>
           </DialogHeader>
           {selectedChain && (
             <div className="space-y-4">

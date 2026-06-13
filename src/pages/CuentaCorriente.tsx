@@ -31,7 +31,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Download } from 'lucide-react';
+import { ArrowUpRight, Plus, Download } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import type { Database } from '@/integrations/supabase/types';
 
 // ---------------------------------------------------------------------------
@@ -187,7 +188,7 @@ function ManualMovimientoForm({ providerId, companyId, onSuccess }: ManualMovimi
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{error}</p>
+        <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{error}</p>
       )}
 
       <div className="flex justify-end gap-2 pt-2">
@@ -277,58 +278,60 @@ export default function CuentaCorriente() {
   // ---- Render ---------------------------------------------------------------
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cuenta Corriente</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Historial de débitos y créditos por proveedor.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {selectedProviderId && filteredMovimientos.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const prov = (providers ?? []).find((p) => p.id === selectedProviderId);
-                generateEstadoCuentaPDF({
-                  providerName: prov?.name ?? selectedProviderId,
-                  movimientos: filteredMovimientos,
-                  saldo,
-                  periodo: { desde: filterDesde || undefined, hasta: filterHasta || undefined },
-                });
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Exportar PDF
-            </Button>
-          )}
-
-          {selectedProviderId && companyId && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Registrar pago / crédito
+    <div className="p-6 md:p-8 space-y-6 max-w-6xl mx-auto">
+      <PageHeader
+        eyebrow="Compras"
+        title="Cuenta Corriente"
+        subtitle="Historial de débitos y créditos por proveedor."
+        actions={
+          <div className="flex items-center gap-2">
+            {selectedProviderId && filteredMovimientos.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const prov = (providers ?? []).find((p) => p.id === selectedProviderId);
+                  generateEstadoCuentaPDF({
+                    providerName: prov?.name ?? selectedProviderId,
+                    movimientos: filteredMovimientos,
+                    saldo,
+                    periodo: { desde: filterDesde || undefined, hasta: filterHasta || undefined },
+                  });
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar PDF
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Registrar movimiento manual</DialogTitle>
-              </DialogHeader>
-              <ManualMovimientoForm
-                providerId={selectedProviderId}
-                companyId={companyId}
-                onSuccess={() => setDialogOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
-          )}
-        </div>
-      </div>
+            )}
+
+            {selectedProviderId && companyId && (
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
+                  >
+                    Registrar pago / crédito
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </span>
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <span className="eyebrow">Compras</span>
+                    <DialogTitle>Registrar movimiento manual</DialogTitle>
+                  </DialogHeader>
+                  <ManualMovimientoForm
+                    providerId={selectedProviderId}
+                    companyId={companyId}
+                    onSuccess={() => setDialogOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        }
+      />
 
       {/* Provider selector */}
       <div className="flex items-center gap-3">

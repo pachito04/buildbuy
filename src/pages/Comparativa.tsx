@@ -250,79 +250,82 @@ export default function Comparativa() {
   const COL_COUNT = 8;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 md:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/cotizaciones")}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="min-w-0">
-            <h1 className="font-display text-2xl font-bold flex items-center gap-2">
-              <FileText className="h-6 w-6 text-primary shrink-0" />
-              <span className="truncate">Comparativa — {rfqLabel}</span>
-            </h1>
-            {rfq && (
-              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-1">
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  Creación:{" "}
-                  {new Date(rfq.created_at).toLocaleDateString("es-AR")}
-                </span>
-                {rfq.closing_datetime && (
+      <div className="flex items-start gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="mt-1 shrink-0"
+          onClick={() => navigate("/cotizaciones")}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <span className="eyebrow">Compras</span>
+              <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight flex items-center gap-2">
+                <FileText className="h-6 w-6 text-primary shrink-0" />
+                <span className="truncate">Comparativa — {rfqLabel}</span>
+              </h1>
+              {rfq && (
+                <p className="mt-2 text-sm text-muted-foreground flex flex-wrap gap-4">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    Cierre:{" "}
-                    {new Date(rfq.closing_datetime).toLocaleString("es-AR")}
+                    Creación:{" "}
+                    {new Date(rfq.created_at).toLocaleDateString("es-AR")}
                   </span>
-                )}
-                {rfq.creator_name && (
+                  {rfq.closing_datetime && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Cierre:{" "}
+                      {new Date(rfq.closing_datetime).toLocaleString("es-AR")}
+                    </span>
+                  )}
+                  {rfq.creator_name && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {rfq.creator_name}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    {rfq.creator_name}
+                    <Package className="h-3 w-3" />
+                    {rfqItems?.length || 0} productos
                   </span>
+                  <Badge variant="outline">
+                    {(quotes as any[])?.length || 0} cotizaciones
+                  </Badge>
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {canEdit && rfqId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1.5"
+                  onClick={() => setEditOpen(true)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Editar encabezado
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => navigate("/cotizaciones")}
+                className="flex items-center gap-2"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                Carrito
+                {cart.totalItems > 0 && (
+                  <Badge className="text-xs px-1.5 py-0 bg-primary">
+                    {cart.totalItems}
+                  </Badge>
                 )}
-                <span className="flex items-center gap-1">
-                  <Package className="h-3 w-3" />
-                  {rfqItems?.length || 0} productos
-                </span>
-                <Badge variant="outline">
-                  {(quotes as any[])?.length || 0} cotizaciones
-                </Badge>
-              </div>
-            )}
+              </Button>
+            </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          {canEdit && rfqId && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-1.5"
-              onClick={() => setEditOpen(true)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Editar encabezado
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => navigate("/cotizaciones")}
-            className="flex items-center gap-2"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            Carrito
-            {cart.totalItems > 0 && (
-              <Badge className="text-xs px-1.5 py-0 bg-primary">
-                {cart.totalItems}
-              </Badge>
-            )}
-          </Button>
         </div>
       </div>
 
@@ -495,7 +498,7 @@ function ProductSection({
               {totalAwarded > 0 && (
                 <Badge
                   variant={remaining === 0 ? "default" : "outline"}
-                  className={`text-xs ${remaining === 0 ? "bg-green-600" : ""}`}
+                  className={`text-xs ${remaining === 0 ? "bg-success text-success-foreground" : ""}`}
                 >
                   Adjudicado: {totalAwarded.toLocaleString("es-AR")} | Restante:{" "}
                   {remaining.toLocaleString("es-AR")}
@@ -539,15 +542,15 @@ function ProductSection({
             <tr
               key={q.quote_item_id}
               className={`border-b last:border-b-0 transition-colors ${
-                isBest ? "bg-green-50 dark:bg-green-950/20" : ""
-              } ${q.inCart ? "bg-blue-50 dark:bg-blue-950/20" : ""} ${
+                isBest ? "bg-success/5" : ""
+              } ${q.inCart ? "bg-primary/5" : ""} ${
                 q.hasPO ? "bg-muted/30" : ""
               }`}
             >
               <td className="px-4 py-2.5 font-medium">
                 <div className="flex items-center gap-2">
                   {isBest && (
-                    <Badge className="text-[10px] py-0 bg-green-600 shrink-0">
+                    <Badge className="text-[10px] py-0 bg-success text-success-foreground shrink-0">
                       Mejor
                     </Badge>
                   )}
@@ -564,11 +567,11 @@ function ProductSection({
                 {providerQuotes.length === 1 ? (
                   <span className="text-xs text-muted-foreground">Única</span>
                 ) : isBest ? (
-                  <span className="inline-flex items-center gap-1 text-green-600 font-medium text-xs">
+                  <span className="inline-flex items-center gap-1 text-success font-medium text-xs">
                     <ArrowDown className="h-3 w-3" /> Mejor
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-red-500 font-medium text-xs">
+                  <span className="inline-flex items-center gap-1 text-destructive font-medium text-xs">
                     <ArrowUp className="h-3 w-3" /> +{diff.toFixed(1)}%
                   </span>
                 )}
@@ -638,7 +641,7 @@ function ProductSection({
                   </Badge>
                 ) : q.inCart ? (
                   <div className="flex items-center justify-center gap-1">
-                    <Badge className="bg-blue-600 text-white text-xs">
+                    <Badge className="bg-primary text-primary-foreground text-xs">
                       En carrito
                     </Badge>
                     <Button

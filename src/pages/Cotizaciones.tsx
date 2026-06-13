@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, Send, ShoppingCart, Trash2, FileText, Clock, CheckCircle, History, Calendar, X } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -639,11 +640,12 @@ export default function Cotizaciones() {
     const quoteDetailQuote = quoteDetailRfq?.myQuotes.find((q: any) => q.id === quoteDetailId) ?? null;
 
     return (
-      <div className="p-6 space-y-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Cotizaciones</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gestión de solicitudes y cotizaciones enviadas</p>
-        </div>
+      <div className="p-6 md:p-8 space-y-6">
+        <PageHeader
+          eyebrow="Compras"
+          title="Cotizaciones"
+          subtitle="Gestión de solicitudes y cotizaciones enviadas"
+        />
 
         {/* Tabs */}
         <div className="flex gap-1 border-b">
@@ -694,7 +696,8 @@ export default function Cotizaciones() {
         <Dialog open={!!detailRfqId} onOpenChange={(o) => { if (!o) setDetailRfqId(null); }}>
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="font-display">Detalle de la Solicitud</DialogTitle>
+              <span className="eyebrow">Compras</span>
+              <DialogTitle>Detalle de la Solicitud</DialogTitle>
             </DialogHeader>
             {detailRfqData && (
               <div className="space-y-4">
@@ -750,7 +753,8 @@ export default function Cotizaciones() {
         <Dialog open={!!quoteDetailId} onOpenChange={(o) => { if (!o) setQuoteDetailId(null); }}>
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="font-display">Detalle de mi Cotización</DialogTitle>
+              <span className="eyebrow">Compras</span>
+              <DialogTitle>Detalle de mi Cotización</DialogTitle>
             </DialogHeader>
             {quoteDetailRfq && quoteDetailQuote && (
               <div className="space-y-4">
@@ -831,7 +835,7 @@ export default function Cotizaciones() {
 
             {/* Draft recovered notice */}
             {hadSavedDraft && quoteDraft.rfqId === quoteRfqId && !draftNoticeDismissed && (
-              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+              <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                 <span>Borrador recuperado. Tus datos anteriores fueron restaurados.</span>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -982,7 +986,7 @@ export default function Cotizaciones() {
                     const desiredDate = (rfq as any)?.requests?.desired_date;
                     if (!desiredDate) return null;
                     return (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         Solicitado para el {(() => {
                           const d = new Date(desiredDate);
@@ -1111,13 +1115,12 @@ export default function Cotizaciones() {
   // COMPRAS / ADMIN VIEW — TABS
   // =====================================================
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Cotizaciones</h1>
-          <p className="text-muted-foreground text-sm mt-1">Comparativas de cotizaciones y carrito de compras</p>
-        </div>
-      </div>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Compras"
+        title="Cotizaciones"
+        subtitle="Comparativas de cotizaciones y carrito de compras"
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b">

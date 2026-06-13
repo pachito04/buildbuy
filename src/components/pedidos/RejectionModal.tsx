@@ -39,9 +39,10 @@ export function RejectionModal({ open, requestNumber, onConfirm, onCancel, isPen
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rechazar REQ-{paddedNumber}</DialogTitle>
+          <span className="eyebrow">Rechazar requerimiento</span>
+          <DialogTitle>REQ-{paddedNumber}</DialogTitle>
           <DialogDescription>
-            Esta accion es irreversible. El requerimiento no podra ser reactivado.
+            Esta acción es irreversible. El requerimiento no podrá ser reactivado.
           </DialogDescription>
         </DialogHeader>
 

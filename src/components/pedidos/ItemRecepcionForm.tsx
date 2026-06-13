@@ -53,12 +53,7 @@ export function ItemRecepcionForm({ requestId, item }: ItemRecepcionFormProps) {
           setQty(String(pending));
           setOpen(true);
         }}
-        className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors hover:opacity-80"
-        style={{
-          backgroundColor: "#EFF6FF",
-          color: "#2563EB",
-          border: "1px solid #BFDBFE",
-        }}
+        className="flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
       >
         <PackageCheck className="h-3.5 w-3.5" />
         Confirmar recepción
@@ -67,10 +62,7 @@ export function ItemRecepcionForm({ requestId, item }: ItemRecepcionFormProps) {
   }
 
   return (
-    <div
-      className="mt-2 p-2.5 rounded-lg space-y-2"
-      style={{ backgroundColor: "#F0F7FF", border: "1px solid #BFDBFE" }}
-    >
+    <div className="mt-2 space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5">
       <div className="flex items-center gap-2">
         <label className="text-xs text-muted-foreground shrink-0">Cantidad:</label>
         <input
@@ -80,8 +72,7 @@ export function ItemRecepcionForm({ requestId, item }: ItemRecepcionFormProps) {
           step="any"
           value={qty}
           onChange={(e) => setQty(e.target.value)}
-          className="w-24 rounded border px-2 py-1 text-sm"
-          style={{ borderColor: "#D1D5DB" }}
+          className="w-24 rounded border border-input bg-background px-2 py-1 text-sm"
           autoFocus
         />
         <span className="text-xs text-muted-foreground">
@@ -92,11 +83,7 @@ export function ItemRecepcionForm({ requestId, item }: ItemRecepcionFormProps) {
         <button
           onClick={handleConfirm}
           disabled={!isValid || mutation.isPending}
-          className="text-xs font-medium px-3 py-1.5 rounded transition-colors disabled:opacity-50"
-          style={{
-            backgroundColor: isValid ? "#2563EB" : "#93C5FD",
-            color: "white",
-          }}
+          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
         >
           {mutation.isPending ? "Guardando..." : "Confirmar"}
         </button>
@@ -105,8 +92,7 @@ export function ItemRecepcionForm({ requestId, item }: ItemRecepcionFormProps) {
             setQty("");
             setOpen(false);
           }}
-          className="text-xs font-medium px-3 py-1.5 rounded"
-          style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}
+          className="rounded bg-secondary px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
         >
           Cancelar
         </button>

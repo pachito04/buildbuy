@@ -2,11 +2,10 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +26,8 @@ import {
   Package,
   ArrowDownCircle,
   ArrowUpCircle,
+  ArrowUp,
+  ArrowDown,
   AlertTriangle,
   ShoppingCart,
   Trash2,
@@ -71,7 +72,7 @@ const STATUS_CONFIG = {
     color: "#10B981",
     bg: "bg-emerald-50",
     text: "text-emerald-700",
-    label: "OK",
+    label: "Disponible",
   },
 } as const;
 
@@ -109,7 +110,7 @@ export default function Inventario() {
   );
   const [basketQty, setBasketQty] = useState("1");
   const [basketPanelOpen, setBasketPanelOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"all" | "critical" | "low">(
+  const [statusFilter, setStatusFilter] = useState<"all" | "critical" | "low" | "ok">(
     "all"
   );
   const [searchQuery, setSearchQuery] = useState("");
@@ -230,6 +231,7 @@ export default function Inventario() {
       const status = getStockStatus(item);
       if (statusFilter === "critical" && status !== "critical") return false;
       if (statusFilter === "low" && status !== "low") return false;
+      if (statusFilter === "ok" && status !== "ok") return false;
       const name = item.materials?.name ?? "";
       if (searchQuery && !name.toLowerCase().includes(searchQuery.toLowerCase()))
         return false;
@@ -242,6 +244,26 @@ export default function Inventario() {
       (item) => getStockStatus(item) === "critical"
     ).length;
   }, [inventory]);
+
+  const counts = useMemo(() => {
+    const c = { all: 0, critical: 0, low: 0, ok: 0 };
+    for (const it of inventory ?? []) {
+      c.all++;
+      c[getStockStatus(it)]++;
+    }
+    return c;
+  }, [inventory]);
+
+  const criticalProviders = useMemo(() => {
+    const names = new Set<string>();
+    for (const it of inventory ?? []) {
+      if (getStockStatus(it) === "critical") {
+        const p = frequentProviders?.get(it.material_id);
+        if (p) names.add(p);
+      }
+    }
+    return Array.from(names);
+  }, [inventory, frequentProviders]);
 
   const createItem = useMutation({
     mutationFn: async () => {
@@ -329,37 +351,52 @@ export default function Inventario() {
       toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const openEntry = (type: "in" | "out") => {
+    setSelectedItem(null);
+    setEntryType(type);
+    setEntryQty("");
+    setEntryNotes("");
+    setEntryOpen(true);
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 md:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="font-display text-2xl font-bold">Inventario</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Control de existencias de materiales
-            </p>
-          </div>
-          {criticalCount > 0 && (
-            <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              {criticalCount} en crítico
-            </Badge>
-          )}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <span className="eyebrow">Stock</span>
+          <h1 className="font-display text-4xl font-semibold tracking-tight mt-2">Inventario</h1>
+          <p className="text-muted-foreground text-sm mt-2">
+            Control de existencias · {inventory?.length ?? 0} material{(inventory?.length ?? 0) !== 1 ? "es" : ""}
+          </p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Agregar Material
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => openEntry("out")}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary"
+          >
+            <ArrowUp className="h-4 w-4" /> Salida
+          </button>
+          <button
+            onClick={() => openEntry("in")}
+            className="inline-flex items-center gap-2 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
+          >
+            <ArrowDown className="h-4 w-4" /> Entrada de stock
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+          </button>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-muted-foreground">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Agregar material
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Nuevo Material en Inventario</DialogTitle>
+              <span className="eyebrow">Inventario</span>
+              <DialogTitle>Nuevo material</DialogTitle>
             </DialogHeader>
             <form
               onSubmit={(e) => {
@@ -449,55 +486,52 @@ export default function Inventario() {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
+      {/* Critical alert */}
+      {criticalCount > 0 && (
+        <div className="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 px-5 py-3.5">
+          <AlertTriangle className="h-[18px] w-[18px] shrink-0 text-destructive" />
+          <p className="text-sm">
+            <strong>{criticalCount} material{criticalCount !== 1 ? "es" : ""}</strong> en estado crítico.
+            {criticalProviders.length > 0 &&
+              ` Revisá las entradas pendientes con ${criticalProviders.slice(0, 2).join(" y ")}.`}
+          </p>
+        </div>
+      )}
+
       {/* Filters + Search */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant={statusFilter === "all" ? "default" : "outline"}
-            className={
-              statusFilter === "all"
-                ? "bg-primary/10 text-primary border border-primary hover:bg-primary/20"
-                : ""
-            }
-            onClick={() => setStatusFilter("all")}
-          >
-            Todos
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "critical" ? "default" : "outline"}
-            className={
-              statusFilter === "critical"
-                ? "bg-red-50 text-red-700 border border-red-300 hover:bg-red-100"
-                : ""
-            }
-            onClick={() => setStatusFilter("critical")}
-          >
-            <AlertTriangle className="h-3 w-3 mr-1" />
-            Crítico
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "low" ? "default" : "outline"}
-            className={
-              statusFilter === "low"
-                ? "bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100"
-                : ""
-            }
-            onClick={() => setStatusFilter("low")}
-          >
-            Bajo
-          </Button>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex flex-wrap gap-2">
+          {([
+            { key: "all", label: "Todos", n: counts.all },
+            { key: "critical", label: "Crítico", n: counts.critical },
+            { key: "low", label: "Bajo", n: counts.low },
+            { key: "ok", label: "Disponible", n: counts.ok },
+          ] as const).map((f) => {
+            const active = statusFilter === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={() => setStatusFilter(f.key)}
+                className={`rounded-full border px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+                  active
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                {f.label} · {String(f.n).padStart(2, "0")}
+              </button>
+            );
+          })}
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar material..."
-            className="pl-8 w-64"
+            className="w-64 rounded-full pl-8"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -527,7 +561,7 @@ export default function Inventario() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-3">
           {filteredInventory.map((item) => {
             const qty = Number(item.quantity);
             const reserved = Number(item.reserved);
@@ -543,177 +577,106 @@ export default function Inventario() {
 
             const lastEntry = lastEntries?.get(item.material_id);
             const provider = frequentProviders?.get(item.material_id);
+            const unit = item.materials?.unit ?? "";
+
+            const metaParts: string[] = [];
+            if (provider) metaParts.push(provider);
+            if (lastEntry) metaParts.push(`entrada ${new Date(lastEntry).toLocaleDateString("es-AR")}`);
+            const meta = metaParts.join(" · ") || "Sin movimientos";
 
             return (
-              <Card
-                key={item.id}
-                className="flex flex-col overflow-hidden"
-              >
-                {/* Color strip */}
-                <div
-                  className="h-1 shrink-0"
-                  style={{ backgroundColor: cfg.color }}
-                />
+              <Card key={item.id} className="rounded-2xl border-border/70 shadow-soft transition-shadow hover:shadow-card">
+                <CardContent className="grid items-center gap-5 p-5 md:grid-cols-[6px_1.6fr_170px_1fr_260px]">
+                  {/* Strip */}
+                  <div className="h-12 w-1.5 rounded-full" style={{ backgroundColor: cfg.color }} />
 
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-display">
-                      {capitalize(item.materials?.name ?? "")}
-                    </CardTitle>
+                  {/* Material */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate font-medium">{capitalize(item.materials?.name ?? "")}</span>
+                    </div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                      {meta}
+                    </div>
+                  </div>
+
+                  {/* Stock total / disponible */}
+                  <div>
+                    <div className="mb-0.5 text-[11px] text-muted-foreground/80">Stock total / disponible</div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-display text-2xl font-semibold">{available.toLocaleString("es-AR")}</span>
+                      <span className="font-mono text-xs text-muted-foreground">/ {qty.toLocaleString("es-AR")} {unit}</span>
+                    </div>
+                  </div>
+
+                  {/* Bar */}
+                  <div>
+                    <div className="relative h-2 overflow-hidden rounded-full bg-secondary">
+                      {reserved > 0 && (
+                        <div className="absolute left-0 top-0 h-full" style={{ width: `${reservedPct}%`, backgroundColor: "#FBBF24" }} />
+                      )}
+                      <div className="absolute top-0 h-full" style={{ left: `${reservedPct}%`, width: `${availablePct}%`, backgroundColor: cfg.color }} />
+                      {min > 0 && (
+                        <div className="absolute top-[-3px] h-[14px] w-0.5" style={{ left: `${Math.min(minLinePct, 100)}%`, backgroundColor: "#E04444", opacity: 0.7 }} />
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <span>reservado {reserved}</span>
+                      <span>disponible {available}</span>
+                      <span>mín {min}</span>
+                    </div>
+                  </div>
+
+                  {/* Status + actions */}
+                  <div className="flex items-center gap-3 justify-self-end">
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.text}`}
+                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-wider"
+                      style={{ color: cfg.color, borderColor: cfg.color }}
                     >
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: cfg.color }} />
                       {cfg.label}
                     </span>
-                  </div>
-                  {item.materials?.description && (
-                    <p className="text-xs text-muted-foreground">
-                      {item.materials.description}
-                    </p>
-                  )}
-                </CardHeader>
-
-                <CardContent className="space-y-3 mt-auto">
-                  {/* Stock number */}
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold font-display">
-                      {qty.toLocaleString("es-AR")}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {item.materials?.unit}
-                    </span>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div>
-                    <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
-                      {/* Reserved segment (yellow, left) */}
-                      {reserved > 0 && (
-                        <div
-                          className="absolute left-0 top-0 h-full"
-                          style={{
-                            width: `${reservedPct}%`,
-                            backgroundColor: "#FBBF24",
-                          }}
-                        />
-                      )}
-                      {/* Available segment (status color, right of reserved) */}
-                      <div
-                        className="absolute top-0 h-full"
-                        style={{
-                          left: `${reservedPct}%`,
-                          width: `${availablePct}%`,
-                          backgroundColor: cfg.color,
-                        }}
-                      />
-                      {/* Min stock line */}
-                      {min > 0 && (
-                        <div
-                          className="absolute top-0 h-full w-0.5 z-10"
-                          style={{
-                            left: `${Math.min(minLinePct, 100)}%`,
-                            backgroundColor: "#E04444",
-                          }}
-                        />
-                      )}
-                    </div>
-                    {/* Legend */}
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <span
-                          className="inline-block h-2 w-2 rounded-full"
-                          style={{ backgroundColor: cfg.color }}
-                        />
-                        Disponible: <strong>{available}</strong>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span
-                          className="inline-block h-2 w-2 rounded-full"
-                          style={{ backgroundColor: "#FBBF24" }}
-                        />
-                        Reservado: <strong>{reserved}</strong>
-                      </span>
-                      {min > 0 && (
-                        <span className="ml-auto text-red-500 font-medium">
-                          Mín: {min}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Secondary info */}
-                  <div className="space-y-1 text-xs text-muted-foreground border-t pt-2">
-                    <div className="flex justify-between">
-                      <span>Proveedor habitual</span>
-                      <span className="font-medium text-foreground truncate ml-2 max-w-[50%] text-right">
-                        {provider ?? "—"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Última entrada</span>
-                      <span className="font-medium text-foreground">
-                        {lastEntry
-                          ? new Date(lastEntry).toLocaleDateString("es-AR")
-                          : "—"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Disponible real</span>
-                      <span className="font-medium text-foreground">
-                        {available} {item.materials?.unit}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => {
-                        setSelectedItem(item);
-                        setEntryType("in");
-                        setEntryOpen(true);
-                      }}
-                    >
-                      + Entrada
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
-                      onClick={() => {
-                        setSelectedItem(item);
-                        setEntryType("out");
-                        setEntryOpen(true);
-                      }}
-                    >
-                      − Salida
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-8 w-8 shrink-0 bg-gray-50 hover:bg-gray-100"
-                      onClick={() => setSelectedItem(item)}
-                      title="Ver movimientos"
-                    >
-                      <ClipboardList className="h-3.5 w-3.5" />
-                    </Button>
-                    {showBasket && (
+                    <div className="flex items-center gap-1">
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-8 w-8 shrink-0 bg-gray-50 hover:bg-gray-100"
-                        onClick={() => {
-                          setBasketDialogItem(item);
-                          setBasketQty("1");
-                        }}
-                        title="Agregar a cesta"
+                        className="h-8 w-8 shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                        title="Entrada"
+                        onClick={() => { setSelectedItem(item); setEntryType("in"); setEntryOpen(true); }}
                       >
-                        <ShoppingCart className="h-3.5 w-3.5" />
+                        <Plus className="h-3.5 w-3.5" />
                       </Button>
-                    )}
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-8 w-8 shrink-0 border-red-300 text-red-600 hover:bg-red-50"
+                        title="Salida"
+                        onClick={() => { setSelectedItem(item); setEntryType("out"); setEntryOpen(true); }}
+                      >
+                        <ArrowUpCircle className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-8 w-8 shrink-0"
+                        title="Movimientos"
+                        onClick={() => setSelectedItem(item)}
+                      >
+                        <ClipboardList className="h-3.5 w-3.5" />
+                      </Button>
+                      {showBasket && (
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-8 shrink-0"
+                          title="Agregar a cesta"
+                          onClick={() => { setBasketDialogItem(item); setBasketQty("1"); }}
+                        >
+                          <ShoppingCart className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -734,10 +697,8 @@ export default function Inventario() {
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>
-              {entryType === "in" ? "Registrar Entrada" : "Registrar Salida"} —{" "}
-              {selectedItem?.materials?.name}
-            </DialogTitle>
+            <span className="eyebrow">{entryType === "in" ? "Registrar entrada" : "Registrar salida"}</span>
+            <DialogTitle>{selectedItem?.materials?.name ?? "Seleccioná un material"}</DialogTitle>
           </DialogHeader>
           <form
             onSubmit={(e) => {
@@ -746,14 +707,37 @@ export default function Inventario() {
             }}
             className="space-y-4"
           >
+            {!selectedItem && (
+              <div className="space-y-2">
+                <Label>Material</Label>
+                <Select
+                  value=""
+                  onValueChange={(v) =>
+                    setSelectedItem(inventory?.find((i) => i.id === v) ?? null)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar material..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inventory?.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.materials?.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>Cantidad ({selectedItem?.materials?.unit})</Label>
+              <Label>Cantidad ({selectedItem?.materials?.unit ?? "—"})</Label>
               <Input
                 type="number"
                 step="0.01"
                 placeholder="0"
                 value={entryQty}
                 onChange={(e) => setEntryQty(e.target.value)}
+                disabled={!selectedItem}
                 required
               />
               {entryType === "out" && selectedItem && (
@@ -775,7 +759,7 @@ export default function Inventario() {
             <Button
               type="submit"
               className="w-full"
-              disabled={addMovement.isPending}
+              disabled={addMovement.isPending || !selectedItem}
             >
               {addMovement.isPending
                 ? "Registrando..."
@@ -796,6 +780,7 @@ export default function Inventario() {
       >
         <DialogContent className="max-w-xs">
           <DialogHeader>
+            <span className="eyebrow">Cesta de cotización</span>
             <DialogTitle>Agregar a cesta</DialogTitle>
           </DialogHeader>
           <p className="text-sm font-medium">
@@ -916,9 +901,8 @@ export default function Inventario() {
       >
         <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display">
-              Movimientos — {selectedItem?.materials?.name}
-            </DialogTitle>
+            <span className="eyebrow">Movimientos</span>
+            <DialogTitle>{selectedItem?.materials?.name}</DialogTitle>
           </DialogHeader>
           <div className="text-sm space-y-1 mb-3">
             <p>

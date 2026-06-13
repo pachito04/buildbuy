@@ -139,9 +139,10 @@ export function SolicitudDirectaDialog({
     >
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display flex items-center gap-2">
+          <span className="eyebrow">Solicitud de cotización</span>
+          <DialogTitle className="flex items-center gap-2">
             <Send className="h-5 w-5 text-primary" />
-            Solicitud de Cotización — Pedido #{requestNumber}
+            Pedido #{requestNumber}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">

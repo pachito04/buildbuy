@@ -148,11 +148,26 @@ export default function Pedidos() {
     setSolicitudTarget({ requestId, requestNumber, projectName, desiredDate });
   };
 
-  return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold">Requerimientos</h1>
+  const obrasCount = new Set(requests.map(r => r.project_id).filter(Boolean)).size;
+  const roleEyebrow =
+    role === "arquitecto" ? "Arquitecto" :
+    role === "compras" ? "Compras" :
+    role === "admin" ? "Administrador" : "Circuito de compras";
 
+  return (
+    <div className="space-y-6 p-6 md:p-8">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <span className="eyebrow">{roleEyebrow}</span>
+          <h1 className="font-display text-4xl font-semibold tracking-tight mt-2">Requerimientos</h1>
+          <p className="text-muted-foreground text-sm mt-2">
+            {requests.length} solicitud{requests.length !== 1 ? "es" : ""} en circuito · {obrasCount} obra{obrasCount !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <CreateRequestDialog />
+      </div>
+
+      <div className="flex items-center gap-4 flex-wrap">
         <Select
           value={obraId ?? filters.obraFilter}
           onValueChange={(v) => setFilters(f => ({ ...f, obraFilter: v }))}
@@ -184,10 +199,6 @@ export default function Pedidos() {
           value={filters.searchQuery}
           onChange={(e) => setFilters(f => ({ ...f, searchQuery: e.target.value }))}
         />
-
-        <div className="ml-auto">
-          <CreateRequestDialog />
-        </div>
       </div>
 
       <KanbanBoard

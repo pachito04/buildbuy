@@ -57,34 +57,30 @@ export function RequestDetailModalHeader({ request, thresholdDays, role }: Reque
   return (
     <div className="space-y-3">
       {/* Line 1: REQ ID + status badge */}
-      <div className="flex items-center gap-3 pr-10">
-        <h2 style={{ fontSize: 17, fontWeight: 800 }}>
-          {formatRequestNumber(request.request_number)}
-        </h2>
-        <Badge variant={badgeConfig.variant} className={badgeConfig.className}>
-          {isArquitecto ? archLabel : STATUS_LABELS[request.status]}
-        </Badge>
-        {isUrgente(request.desired_date, thresholdDays) && (
-          <Badge
-            variant="outline"
-            className="bg-amber-100 text-amber-800 border-amber-300"
-          >
-            Urgente
+      <div className="pr-10">
+        <span className="eyebrow">Requerimiento</span>
+        <div className="flex items-center gap-3 mt-1 flex-wrap">
+          <h2 className="font-display text-2xl font-semibold tracking-tight">
+            {formatRequestNumber(request.request_number)}
+          </h2>
+          <Badge variant={badgeConfig.variant} className={badgeConfig.className}>
+            {isArquitecto ? archLabel : STATUS_LABELS[request.status]}
           </Badge>
-        )}
+          {isUrgente(request.desired_date, thresholdDays) && (
+            <Badge
+              variant="outline"
+              className="bg-amber-100 text-amber-800 border-amber-300"
+            >
+              Urgente
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Line 2: Atraso badge */}
       {atraso !== null && (
         <div>
-          <span
-            className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded"
-            style={{
-              backgroundColor: "#FEF2F2",
-              border: "1px solid #FECACA",
-              color: "#E04444",
-            }}
-          >
+          <span className="inline-flex items-center gap-1 rounded-md border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">
             ⚠️ Atrasado {atraso} días
           </span>
         </div>
@@ -93,44 +89,32 @@ export function RequestDetailModalHeader({ request, thresholdDays, role }: Reque
       {/* Line 3: Grid info */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         <div>
-          <span
-            className="uppercase text-muted-foreground block tracking-wider"
-            style={{ fontSize: 10 }}
-          >
+          <span className="eyebrow block mb-0.5">
             Obra
           </span>
-          <span className="font-medium" style={{ fontSize: 12 }}>
+          <span className="text-sm font-medium">
             {request.projects?.name ?? "Sin obra"}
           </span>
         </div>
         <div>
-          <span
-            className="uppercase text-muted-foreground block tracking-wider"
-            style={{ fontSize: 10 }}
-          >
+          <span className="eyebrow block mb-0.5">
             Arquitecto
           </span>
-          <span className="font-medium" style={{ fontSize: 12 }}>
+          <span className="text-sm font-medium">
             {request.architects?.full_name ?? "—"}
           </span>
         </div>
         <div>
-          <span
-            className="uppercase text-muted-foreground block tracking-wider"
-            style={{ fontSize: 10 }}
-          >
+          <span className="eyebrow block mb-0.5">
             Creado
           </span>
-          <span style={{ fontSize: 12 }}>{formatDate(request.created_at)}</span>
+          <span className="text-sm">{formatDate(request.created_at)}</span>
         </div>
         <div>
-          <span
-            className="uppercase text-muted-foreground block tracking-wider"
-            style={{ fontSize: 10 }}
-          >
+          <span className="eyebrow block mb-0.5">
             Entrega deseada
           </span>
-          <span style={{ fontSize: 12 }}>
+          <span className="text-sm">
             {formatDate(request.desired_date)}
           </span>
         </div>

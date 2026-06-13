@@ -24,6 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Download, ShieldAlert } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useViewRole } from '@/hooks/useViewRole';
 
 // ---------------------------------------------------------------------------
@@ -130,23 +131,20 @@ function MiCuentaCorrienteContent({ providerId }: Props) {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mi Cuenta Corriente</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {providerName ? `Movimientos de ${providerName}` : 'Historial de movimientos'}
-          </p>
-        </div>
-
-        {filtered.length > 0 && (
-          <Button variant="outline" size="sm" onClick={downloadPDF}>
-            <Download className="h-4 w-4 mr-2" />
-            Descargar PDF
-          </Button>
-        )}
-      </div>
+    <div className="p-6 md:p-8 space-y-6 max-w-5xl mx-auto">
+      <PageHeader
+        eyebrow="Proveedor"
+        title="Mi Cuenta Corriente"
+        subtitle={providerName ? `Movimientos de ${providerName}` : 'Historial de movimientos'}
+        actions={
+          filtered.length > 0 ? (
+            <Button variant="outline" size="sm" onClick={downloadPDF}>
+              <Download className="h-4 w-4 mr-2" />
+              Descargar PDF
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Saldo card */}
       {!isLoading && (

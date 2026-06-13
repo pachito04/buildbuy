@@ -12,6 +12,7 @@ import {
   ChevronUp,
   PackageCheck,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { RecepcionDialog } from "@/components/deposito/RecepcionDialog";
 
 export default function RecepcionesDeposito() {
@@ -46,14 +47,11 @@ export default function RecepcionesDeposito() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="font-display text-xl sm:text-2xl font-bold">
-          Recepciones de Material
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Órdenes de compra pendientes de recepción en depósito
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Depósito"
+        title="Recepciones de Material"
+        subtitle="Órdenes de compra pendientes de recepción en depósito"
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12">

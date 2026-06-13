@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, AlertTriangle, X } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import type { Database } from '@/integrations/supabase/types';
 import type { RetiroFormRow } from '@/lib/retiro';
 
@@ -281,14 +282,12 @@ export default function RegistroRetiro() {
   // ---- Render ---------------------------------------------------------------
 
   return (
-    <div className="p-6 space-y-8 max-w-5xl mx-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Registro de Retiros</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Registrá los materiales retirados por los arquitectos en el proveedor.
-        </p>
-      </div>
+    <div className="p-6 md:p-8 space-y-8 max-w-5xl mx-auto">
+      <PageHeader
+        eyebrow="Compras"
+        title="Registro de Retiros"
+        subtitle="Registrá los materiales retirados por los arquitectos en el proveedor."
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -419,7 +418,7 @@ export default function RegistroRetiro() {
                         {previewItem?.hasPrice
                           ? formatCurrency(previewItem.precioUnitario)
                           : row.material_id
-                            ? <span className="text-amber-600 text-xs font-medium">Sin precio vigente</span>
+                            ? <span className="text-warning text-xs font-medium">Sin precio vigente</span>
                             : <span className="text-muted-foreground text-xs">—</span>
                         }
                       </TableCell>
@@ -459,9 +458,9 @@ export default function RegistroRetiro() {
 
           {/* Missing prices alert */}
           {preview.missingPrices.length > 0 && (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800 text-sm">
+            <Alert className="border-warning/30 bg-warning/10">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <AlertDescription className="text-foreground text-sm">
                 <strong>Sin precio vigente:</strong>{' '}
                 {preview.missingPrices.map(materialName).join(', ')}.
                 Actualizá la lista de precios antes de confirmar el retiro.
@@ -472,9 +471,9 @@ export default function RegistroRetiro() {
 
         {/* Form errors */}
         {formErrors.length > 0 && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-3 space-y-1">
+          <div className="rounded-md bg-destructive/10 border border-destructive/30 p-3 space-y-1">
             {formErrors.map((err, i) => (
-              <p key={i} className="text-sm text-red-700">{err}</p>
+              <p key={i} className="text-sm text-destructive">{err}</p>
             ))}
           </div>
         )}
@@ -551,7 +550,7 @@ export default function RegistroRetiro() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => setAnulacionTarget(retiro.id)}
                           >
                             <Trash2 className="h-4 w-4 mr-1" />

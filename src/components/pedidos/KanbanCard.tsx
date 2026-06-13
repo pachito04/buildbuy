@@ -1,10 +1,18 @@
 import { useDraggable } from "@dnd-kit/core";
+import { User, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ItemsProgressBar } from "./ItemsProgressBar";
 import { isUrgente } from "@/hooks/useUrgencyThreshold";
 import type { RequestWithItems, ItemSubState } from "@/lib/kanban-types";
 import { getArchitectLabel, ARCHITECT_BADGE_VARIANTS } from "@/lib/kanban-types";
+
+function shortName(full: string | null | undefined): string | null {
+  if (!full) return null;
+  const parts = full.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0][0]}. ${parts[parts.length - 1]}`;
+}
 
 interface KanbanCardProps {
   request: RequestWithItems;
@@ -65,19 +73,20 @@ export function KanbanCard({ request, onClick, isDragOverlay = false, thresholdD
   const itemCount = request.request_items?.length ?? 0;
   const obraName = request.projects?.name ?? 'Sin obra';
   const isRechazado = request.status === 'rechazado';
+  const archName = shortName(request.architects?.full_name);
 
   return (
     <Card
       ref={!isDragOverlay ? setNodeRef : undefined}
       {...(!isDragOverlay ? { ...attributes, ...listeners } : {})}
       onClick={!isDragging ? onClick : undefined}
-      className={`cursor-pointer transition-shadow hover:shadow-md ${
+      className={`cursor-pointer rounded-2xl border-border/70 shadow-soft transition-shadow hover:shadow-card ${
         isDragOverlay ? 'opacity-80 rotate-3 shadow-xl' : ''
       } ${isDragging ? 'opacity-40' : ''} ${isRechazado ? 'opacity-75' : ''}`}
     >
-      <CardContent className="p-3 space-y-2">
+      <CardContent className="p-4 space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className={`text-sm font-semibold ${isRechazado ? 'line-through text-muted-foreground' : ''}`}>
+          <span className={`font-mono text-[11px] tracking-wide text-muted-foreground ${isRechazado ? 'line-through' : ''}`}>
             {formatRequestNumber(request.request_number)}
           </span>
           {isUrgente(request.desired_date, thresholdDays) && (
@@ -95,15 +104,26 @@ export function KanbanCard({ request, onClick, isDragOverlay = false, thresholdD
             </Badge>
           );
         })()}
-        <p className="text-xs text-muted-foreground truncate">{obraName}</p>
-        {isRechazado && request.motivo_rechazo && (
-          <p className="text-xs text-red-600 truncate">{request.motivo_rechazo}</p>
-        )}
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{itemCount} {itemCount === 1 ? 'ítem' : 'ítems'}</span>
+        <p className="text-sm font-medium truncate">{obraName}</p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {archName && (
+            <>
+              <span className="flex items-center gap-1 min-w-0">
+                <User className="h-3 w-3 shrink-0" />
+                <span className="truncate">{archName}</span>
+              </span>
+              <span>·</span>
+            </>
+          )}
+          <span className="shrink-0">{itemCount} {itemCount === 1 ? 'ítem' : 'ítems'}</span>
           {(() => {
             const dias = getDiasRestantes(request.desired_date, request.status);
-            return <span className={dias.className}>{dias.text}</span>;
+            return (
+              <span className={`ml-auto flex shrink-0 items-center gap-1 ${dias.className}`}>
+                <Clock className="h-3 w-3" />
+                {dias.text}
+              </span>
+            );
           })()}
         </div>
         {itemCount > 0 && request.status === 'en_curso' && (
@@ -111,6 +131,11 @@ export function KanbanCard({ request, onClick, isDragOverlay = false, thresholdD
             items={request.request_items.map(i => ({ status: i.status as ItemSubState }))}
             variant="mini"
           />
+        )}
+        {isRechazado && request.motivo_rechazo && (
+          <div className="inline-block max-w-full truncate rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+            {request.motivo_rechazo}
+          </div>
         )}
       </CardContent>
     </Card>

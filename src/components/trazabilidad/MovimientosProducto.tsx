@@ -75,7 +75,7 @@ export function MovimientosProducto({ requestItemId }: MovimientosProductoProps)
             MOVIMIENTO_TIPO_LABELS[mov.tipo as MovimientoTipo] ?? mov.tipo;
           const colorClass =
             TIPO_COLOR[mov.tipo as MovimientoTipo] ??
-            "bg-gray-100 text-gray-700 border-gray-200";
+            "bg-secondary text-secondary-foreground border-border";
           const userName =
             (mov.profiles as any)?.full_name ?? "Usuario desconocido";
 

@@ -22,7 +22,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Building2, Search, MapPin, User, Inbox, LayoutDashboard } from "lucide-react";
+import { ArrowUpRight, Plus, Pencil, Trash2, Building2, Search, MapPin, User, Inbox, LayoutDashboard } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Link } from "react-router-dom";
 import { PROVINCIAS, PROVINCIA_NAMES } from "@/data/argentina-geo";
 import { WizardNuevaObra } from "@/components/obras/WizardNuevaObra";
@@ -152,26 +153,30 @@ export default function Obras() {
   );
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Obras</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Proyectos de obra asociados a tu empresa
-          </p>
-        </div>
-
-        <Button onClick={() => setWizardOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva Obra
-        </Button>
-      </div>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Proyectos"
+        title="Obras"
+        subtitle="Proyectos de obra asociados a tu empresa"
+        actions={
+          <button
+            onClick={() => setWizardOpen(true)}
+            className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
+          >
+            Nueva Obra
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </button>
+        }
+      />
 
       <WizardNuevaObra open={wizardOpen} onOpenChange={setWizardOpen} />
 
       <Dialog open={editDialogOpen} onOpenChange={(o) => (o ? setEditDialogOpen(true) : closeEditDialog())}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
+            <span className="eyebrow">Proyectos</span>
             <DialogTitle>Editar Obra</DialogTitle>
           </DialogHeader>
           <form

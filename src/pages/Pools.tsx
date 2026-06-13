@@ -5,8 +5,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { CreatePoolDialog } from "@/components/pools/CreatePoolDialog";
 import { PoolCard } from "@/components/pools/PoolCard";
 import { Card, CardContent } from "@/components/ui/card";
@@ -235,29 +236,33 @@ export default function Pools() {
   });
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Pools de Compra</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Consolidación de pedidos por volumen — propios o inter-empresa
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Crear Pool
-            </Button>
-          </DialogTrigger>
-          <CreatePoolDialog
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Compras"
+        title="Pools de Compra"
+        subtitle="Consolidación de pedidos por volumen — propios o inter-empresa"
+        actions={
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
+              >
+                Crear Pool
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            </DialogTrigger>
+            <CreatePoolDialog
             linkedCompanies={linkedCompanies}
             userCompanyId={effectiveCompanyId}
             isPending={createPool.isPending}
             onSubmit={(data) => createPool.mutate(data)}
           />
-        </Dialog>
-      </div>
+          </Dialog>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12">

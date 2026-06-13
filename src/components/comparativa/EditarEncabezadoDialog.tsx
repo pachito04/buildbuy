@@ -157,6 +157,7 @@ export function EditarEncabezadoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
+          <span className="eyebrow">Comparativa</span>
           <DialogTitle>Editar encabezado</DialogTitle>
         </DialogHeader>
 

@@ -42,7 +42,8 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Upload, AlertTriangle, Search, Pencil, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Plus, Upload, AlertTriangle, Search, Pencil, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import type { Database } from '@/integrations/supabase/types';
 
 // ---------------------------------------------------------------------------
@@ -347,53 +348,54 @@ export default function ListaPreciosProveedor() {
   // ---- Render --------------------------------------------------------------
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Lista de Precios</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isProvider
-              ? 'Gestioná los precios de tu lista.'
-              : 'Precios por proveedor y comparativa entre proveedores.'}
-          </p>
-        </div>
+    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        eyebrow="Proveedor"
+        title="Lista de Precios"
+        subtitle={isProvider ? 'Gestioná los precios de tu lista.' : 'Precios por proveedor y comparativa entre proveedores.'}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* Excel import */}
+            <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!effectiveProviderId}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar Excel
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <span className="eyebrow">Proveedor</span>
+                  <DialogTitle>Importar lista de precios desde Excel</DialogTitle>
+                </DialogHeader>
+                <PreciosUploader onParsed={handleParsed} />
+              </DialogContent>
+            </Dialog>
 
-        <div className="flex items-center gap-2">
-          {/* Excel import */}
-          <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" disabled={!effectiveProviderId}>
-                <Upload className="h-4 w-4 mr-2" />
-                Importar Excel
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Importar lista de precios desde Excel</DialogTitle>
-              </DialogHeader>
-              <PreciosUploader onParsed={handleParsed} />
-            </DialogContent>
-          </Dialog>
-
-          {/* New price */}
-          <Dialog
-            open={dialogOpen}
-            onOpenChange={(open) => {
-              setDialogOpen(open);
-              if (!open) resetForm();
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button size="sm" disabled={!effectiveProviderId}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nuevo precio
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Registrar precio</DialogTitle>
-              </DialogHeader>
+            {/* New price */}
+            <Dialog
+              open={dialogOpen}
+              onOpenChange={(open) => {
+                setDialogOpen(open);
+                if (!open) resetForm();
+              }}
+            >
+              <DialogTrigger asChild>
+                <button
+                  disabled={!effectiveProviderId}
+                  className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  Nuevo precio
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </span>
+                </button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <span className="eyebrow">Proveedor</span>
+                  <DialogTitle>Registrar precio</DialogTitle>
+                </DialogHeader>
 
               <form onSubmit={handleSubmit} className="space-y-4 mt-2">
                 {/* Material */}
@@ -478,7 +480,7 @@ export default function ListaPreciosProveedor() {
                 </div>
 
                 {formError && (
-                  <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{formError}</p>
+                  <p className="text-sm text-destructive bg-destructive/10 rounded px-3 py-2">{formError}</p>
                 )}
 
                 <div className="flex justify-end gap-2 pt-2">
@@ -499,8 +501,9 @@ export default function ListaPreciosProveedor() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* Provider selector (Compras only) */}
       {isCompras && (
@@ -530,9 +533,9 @@ export default function ListaPreciosProveedor() {
       {effectiveProviderId && (
         <div className="space-y-2">
           {materialsWithoutActivePrice.length > 0 && (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800 text-sm">
+            <Alert className="border-warning/30 bg-warning/10">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <AlertDescription className="text-foreground text-sm">
                 <strong>{materialsWithoutActivePrice.length} material(es)</strong> sin precio
                 vigente:{' '}
                 {materialsWithoutActivePrice
@@ -545,9 +548,9 @@ export default function ListaPreciosProveedor() {
           )}
 
           {expiredPrecios.length > 0 && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800 text-sm">
+            <Alert className="border-destructive/30 bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-foreground text-sm">
                 <strong>{expiredPrecios.length} precio(s)</strong> con vigencia vencida. Actualizalos
                 para evitar bloqueos en los retiros.
               </AlertDescription>

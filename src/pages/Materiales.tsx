@@ -30,7 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Pencil, Trash2, Package } from "lucide-react";
+import { ArrowUpRight, Plus, Search, Pencil, Trash2, Package } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const DEFAULT_CATEGORIES = [
   "General",
@@ -170,27 +171,30 @@ export default function Materiales() {
   const categories = [...new Set(materials?.map((m) => m.category) || [])];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Catálogo de Materiales</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Inventario maestro de materiales de tu empresa
-          </p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Agregar Material
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingMaterial ? "Editar Material" : "Nuevo Material"}
-              </DialogTitle>
-            </DialogHeader>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Catálogo"
+        title="Catálogo de Materiales"
+        subtitle="Inventario maestro de materiales de tu empresa"
+        actions={
+          <Dialog open={dialogOpen} onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}>
+            <DialogTrigger asChild>
+              <button
+                className="inline-flex items-center gap-2.5 rounded-full bg-foreground py-2 pl-5 pr-2 text-sm font-medium text-background transition-transform hover:-translate-y-0.5"
+              >
+                Agregar Material
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <span className="eyebrow">Catálogo</span>
+                <DialogTitle>
+                  {editingMaterial ? "Editar Material" : "Nuevo Material"}
+                </DialogTitle>
+              </DialogHeader>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -264,8 +268,9 @@ export default function Materiales() {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+          </Dialog>
+        }
+      />
 
       {/* Filters */}
       <div className="flex gap-3">

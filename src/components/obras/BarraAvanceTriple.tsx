@@ -29,7 +29,7 @@ export function BarraAvanceTriple({
           </span>
         )}
       </div>
-      <div className="relative h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+      <div className="relative h-2.5 w-full rounded-full bg-muted/50 overflow-hidden">
         <div
           className="absolute inset-y-0 left-0 bg-green-300 transition-all duration-500"
           style={{ width: `${Math.min(pctPedido, 100)}%` }}

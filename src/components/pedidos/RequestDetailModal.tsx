@@ -38,13 +38,6 @@ const ROUTING_BADGE_CLASSES: Record<ItemRouting, string> = {
   pendiente: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
-const STATUS_STRIP_COLORS: Record<string, string> = {
-  pendiente: "#C96A00",
-  en_curso: "#F59E0B",
-  recibido: "#059669",
-  rechazado: "#E04444",
-};
-
 function capitalize(s: string): string {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -165,53 +158,31 @@ export function RequestDetailModal({
     request.status !== "rechazado" &&
     request.status !== "recibido";
 
-  const stripColor =
-    STATUS_STRIP_COLORS[request?.status ?? "pendiente"] ?? "#C96A00";
-
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{
-        backgroundColor: "rgba(0,0,0,0.45)",
-        backdropFilter: "blur(2px)",
-      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="relative flex flex-col bg-white shadow-xl"
+        className="relative flex flex-col overflow-hidden rounded-3xl border bg-card shadow-card"
         style={{
-          width: 400,
-          maxWidth: "88vw",
-          maxHeight: "78vh",
-          borderRadius: 18,
-          overflow: "hidden",
+          width: 460,
+          maxWidth: "90vw",
+          maxHeight: "82vh",
         }}
       >
-        {/* Color strip */}
-        <div
-          className="shrink-0"
-          style={{ height: 5, backgroundColor: stripColor }}
-        />
-
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute z-10 flex items-center justify-center rounded-md"
-          style={{
-            top: 14,
-            right: 14,
-            width: 28,
-            height: 28,
-            backgroundColor: "#F5F4F1",
-          }}
+          className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-muted"
         >
           <X className="h-4 w-4" />
         </button>
 
         {isLoading ? (
-          <div style={{ padding: "14px 18px" }} className="space-y-4">
+          <div className="space-y-4 px-6 py-6">
             <Skeleton className="h-8 w-48" />
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-3 w-full" />
@@ -221,27 +192,18 @@ export function RequestDetailModal({
         ) : request ? (
           <>
             {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto" style={{ padding: "14px 18px" }}>
+            <div className="flex-1 overflow-y-auto px-6 py-6">
               <RequestDetailModalHeader request={request} thresholdDays={thresholdDays} role={role} />
 
               {/* Items */}
-              <div className="mt-4 pt-4 border-t">
-                <h3
-                  className="font-semibold uppercase tracking-wider text-muted-foreground mb-2"
-                  style={{ fontSize: 11 }}
-                >
+              <div className="mt-6 pt-6 border-t">
+                <h3 className="eyebrow mb-3">
                   Ítems ({request.request_items.length})
                 </h3>
 
                 {/* Consolidation hint — compras/admin only, when matches exist and not dismissed */}
                 {canProcess && !hintDismissed && matches.length > 0 && (
-                  <div
-                    className="mb-3 flex items-start gap-2 rounded-lg px-3 py-2.5"
-                    style={{
-                      backgroundColor: "#FFFBEB",
-                      border: "1px solid #FDE68A",
-                    }}
-                  >
+                  <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
                     <GitMerge className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-amber-800 leading-snug">
@@ -285,12 +247,7 @@ export function RequestDetailModal({
                     return (
                       <div
                         key={item.id}
-                        className="p-3"
-                        style={{
-                          backgroundColor: "#FAFAF8",
-                          border: "1px solid #F0EDE8",
-                          borderRadius: 10,
-                        }}
+                        className="rounded-xl border border-border bg-background p-3"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
@@ -336,11 +293,8 @@ export function RequestDetailModal({
               </div>
 
               {/* Activity */}
-              <div className="mt-4 pt-4 border-t">
-                <h3
-                  className="font-semibold uppercase tracking-wider text-muted-foreground mb-2"
-                  style={{ fontSize: 11 }}
-                >
+              <div className="mt-6 pt-6 border-t">
+                <h3 className="eyebrow mb-3">
                   Actividad
                 </h3>
                 <ActivityTimeline events={events} />
@@ -349,10 +303,7 @@ export function RequestDetailModal({
 
             {/* Fixed footer actions */}
             {showActions && (
-              <div
-                className="shrink-0 border-t"
-                style={{ padding: "12px 18px" }}
-              >
+              <div className="shrink-0 border-t px-6 py-4">
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <button
                     onClick={() =>
@@ -363,11 +314,7 @@ export function RequestDetailModal({
                         request.created_by
                       )
                     }
-                    className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-80"
-                    style={{
-                      backgroundColor: "#F5F4F1",
-                      border: "1px solid #E0DDD8",
-                    }}
+                    className="flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium transition-colors hover:bg-muted"
                   >
                     <Warehouse className="h-4 w-4 shrink-0" />
                     Surtir de Inventario
@@ -381,11 +328,7 @@ export function RequestDetailModal({
                         request.desired_date
                       )
                     }
-                    className="py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-80 text-center"
-                    style={{
-                      backgroundColor: "#F5F4F1",
-                      border: "1px solid #E0DDD8",
-                    }}
+                    className="rounded-lg border border-border bg-secondary py-2.5 text-center text-sm font-medium transition-colors hover:bg-muted"
                   >
                     <FileText className="h-4 w-4 inline align-text-bottom mr-1.5" />
                     Solicitud de Cotización
@@ -424,12 +367,7 @@ export function RequestDetailModal({
                     });
                     onClose();
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-80 mb-2"
-                  style={{
-                    backgroundColor: "#EFF6FF",
-                    color: "#1D4ED8",
-                    border: "1px solid #BFDBFE",
-                  }}
+                  className="mb-2 flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 py-2.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
                 >
                   <ShoppingCart className="h-4 w-4 shrink-0" />
                   Agregar a cesta de cotización
@@ -438,12 +376,7 @@ export function RequestDetailModal({
                   onClick={() =>
                     onReject(request.id, request.request_number)
                   }
-                  className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors hover:opacity-80"
-                  style={{
-                    backgroundColor: "#FEF2F2",
-                    color: "#E04444",
-                    border: "1px solid #FECACA",
-                  }}
+                  className="w-full rounded-lg border border-destructive/20 bg-destructive/10 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/15"
                 >
                   Rechazar requerimiento
                 </button>

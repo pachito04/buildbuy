@@ -57,6 +57,7 @@ export function CreatePoolDialog({ linkedCompanies, userCompanyId, isPending, on
   return (
     <DialogContent>
       <DialogHeader>
+        <span className="eyebrow">Pool de compra</span>
         <DialogTitle>Nuevo Pool de Compra</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit} className="space-y-4">

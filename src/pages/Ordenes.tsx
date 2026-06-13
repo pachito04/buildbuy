@@ -3,19 +3,30 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewRole } from "@/hooks/useViewRole";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { lineSubtotal } from "@/lib/quote-pricing";
-import { ShoppingCart, CheckCircle, XCircle, Clock, FileText, Package } from "lucide-react";
+import { ShoppingCart, CheckCircle, XCircle, Clock, FileText, Package, Building2, MapPin } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const poStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   sent: { label: "Pendiente", variant: "outline" },
   accepted: { label: "Aceptada", variant: "default" },
   rejected: { label: "Rechazada", variant: "destructive" },
 };
+
+/** Human-readable OC code. Prefers real references; falls back to a clean uppercase code (no raw hash). */
+function ocCode(po: any): string {
+  if (po?.po_number) return `OC-${po.po_number}`;
+  const reqN = po?.requests?.request_number ?? po?.rfqs?.requests?.request_number;
+  if (reqN) return `OC · Pedido #${reqN}`;
+  if (po?.rfqs?.rfq_number) return `OC · SC-${String(po.rfqs.rfq_number).padStart(4, "0")}`;
+  if (po?.rfqs?.purchase_pools?.name) return `OC · Pool: ${po.rfqs.purchase_pools.name}`;
+  return `OC-${String(po?.id ?? "").slice(0, 8).toUpperCase()}`;
+}
 
 type TabKey = "sent" | "accepted" | "rejected";
 
@@ -52,7 +63,7 @@ export default function Ordenes() {
     queryFn: async () => {
       let query = supabase
         .from("purchase_orders")
-        .select("*, providers:provider_id(name, email), rfqs:rfq_id(id, delivery_location, requests:request_id(request_number), purchase_pools:pool_id(name)), requests:request_id(request_number)")
+        .select("*, providers:provider_id(name, email), rfqs:rfq_id(id, rfq_number, delivery_location, requests:request_id(request_number), purchase_pools:pool_id(name)), requests:request_id(request_number)")
         .order("created_at", { ascending: false });
 
       if (role === "proveedor" && myProvider) {
@@ -128,13 +139,12 @@ export default function Ordenes() {
   const detailPO = orders?.find((o: any) => o.id === detailId);
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold">Órdenes de Compra</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {role === "proveedor" ? "OCs recibidas de constructoras" : "OCs emitidas y su seguimiento"}
-        </p>
-      </div>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Compras"
+        title="Órdenes de Compra"
+        subtitle={role === "proveedor" ? "OCs recibidas de constructoras" : "OCs emitidas y su seguimiento"}
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b">
@@ -174,42 +184,42 @@ export default function Ordenes() {
           {filtered.map((po: any) => (
             <Card
               key={po.id}
-              className="cursor-pointer hover:border-primary/50 transition-colors"
+              className="cursor-pointer rounded-2xl border-border/70 shadow-soft transition-shadow hover:shadow-card"
               onClick={() => setDetailId(po.id)}
             >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm font-display">
-                    {po.po_number
-                      ? `OC #${po.po_number}`
-                      : (po.requests?.request_number ?? po.rfqs?.requests?.request_number)
-                        ? `OC — Pedido #${po.requests?.request_number ?? po.rfqs?.requests?.request_number}`
-                        : po.rfqs?.purchase_pools?.name
-                          ? `OC — Pool: ${po.rfqs.purchase_pools.name}`
-                          : `OC #${po.id.slice(0, 8)}`}
-                  </CardTitle>
-                  <Badge variant={poStatusLabels[po.status]?.variant || "secondary"}>
-                    {poStatusLabels[po.status]?.label || po.status}
-                  </Badge>
-                  {po.destination && (
-                    <Badge variant="outline" className={po.destination === "deposito" ? "text-violet-700 border-violet-300 bg-violet-50" : "text-emerald-700 border-emerald-300 bg-emerald-50"}>
-                      {po.destination === "deposito" ? "Depósito" : "Obra"}
+              <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+                <div className="min-w-0">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-sm font-medium">{ocCode(po)}</span>
+                    <Badge variant={poStatusLabels[po.status]?.variant || "secondary"}>
+                      {poStatusLabels[po.status]?.label || po.status}
                     </Badge>
-                  )}
+                    {po.destination && (
+                      <Badge variant="outline" className={po.destination === "deposito" ? "text-primary border-primary/40 bg-primary/5" : "text-success border-success/40 bg-success/5"}>
+                        {po.destination === "deposito" ? "Depósito" : "Obra"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 shrink-0" /> {po.providers?.name || "—"}
+                    </span>
+                    {po.total_amount != null && (
+                      <span className="font-mono">
+                        ${Number(po.total_amount).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                      </span>
+                    )}
+                    {po.rfqs?.delivery_location && (
+                      <span className="flex max-w-[220px] items-center gap-1.5 truncate">
+                        <MapPin className="h-3.5 w-3.5 shrink-0" /> {po.rfqs.delivery_location}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs text-muted-foreground">{new Date(po.created_at).toLocaleDateString("es-AR")}</span>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <div className="flex gap-4 text-xs text-muted-foreground">
-                  <span>🏢 {po.providers?.name || "—"}</span>
-                  {po.total_amount != null && (
-                    <span>💰 ${Number(po.total_amount).toLocaleString("es-AR", { minimumFractionDigits: 2 })}</span>
-                  )}
-                  {po.rfqs?.delivery_location && (
-                    <span className="truncate max-w-[200px]">📍 {po.rfqs.delivery_location}</span>
-                  )}
-                </div>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {new Date(po.created_at).toLocaleDateString("es-AR")}
+                </span>
               </CardContent>
             </Card>
           ))}
@@ -220,15 +230,10 @@ export default function Ordenes() {
       <Dialog open={!!detailId} onOpenChange={(o) => { if (!o) setDetailId(null); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2">
+            <span className="eyebrow">Orden de compra</span>
+            <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              {(detailPO as any)?.po_number
-                ? `OC #${(detailPO as any).po_number}`
-                : ((detailPO as any)?.requests?.request_number ?? (detailPO as any)?.rfqs?.requests?.request_number)
-                  ? `OC — Pedido #${(detailPO as any)?.requests?.request_number ?? (detailPO as any)?.rfqs?.requests?.request_number}`
-                  : (detailPO as any)?.rfqs?.purchase_pools?.name
-                    ? `OC — Pool: ${(detailPO as any).rfqs.purchase_pools.name}`
-                    : `OC #${detailPO?.id?.slice(0, 8) || ""}`}
+              {detailPO ? ocCode(detailPO) : ""}
             </DialogTitle>
           </DialogHeader>
 
@@ -239,7 +244,7 @@ export default function Ordenes() {
                   {poStatusLabels[(detailPO as any).status]?.label || (detailPO as any).status}
                 </Badge>
                 {(detailPO as any).destination && (
-                  <Badge variant="outline" className={(detailPO as any).destination === "deposito" ? "text-violet-700 border-violet-300 bg-violet-50" : "text-emerald-700 border-emerald-300 bg-emerald-50"}>
+                  <Badge variant="outline" className={(detailPO as any).destination === "deposito" ? "text-primary border-primary/40 bg-primary/5" : "text-success border-success/40 bg-success/5"}>
                     Destino: {(detailPO as any).destination === "deposito" ? "Depósito" : "Obra"}
                   </Badge>
                 )}

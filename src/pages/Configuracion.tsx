@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, Settings, Save, ShoppingBasket, DollarSign } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { PoolEmpresasPanel } from "@/components/configuracion/PoolEmpresasPanel";
 import { PoolMateriasPanel } from "@/components/configuracion/PoolMateriasPanel";
 
@@ -89,18 +90,12 @@ export default function Configuracion() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1
-          className="font-bold text-2xl tracking-tight"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-        >
-          Configuración
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Parámetros generales de la empresa
-        </p>
-      </div>
+    <div className="p-6 md:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Sistema"
+        title="Configuración"
+        subtitle="Parámetros generales de la empresa"
+      />
 
       <Card className="shadow-sm max-w-lg">
         <CardHeader className="px-6 py-4 border-b bg-muted/20">
@@ -205,10 +200,7 @@ export default function Configuracion() {
       {/* Pool de Compras — admin-only                                        */}
       {/* ------------------------------------------------------------------ */}
       <div>
-        <h2
-          className="font-semibold text-lg tracking-tight flex items-center gap-2 mb-4"
-          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-        >
+        <h2 className="font-display font-semibold text-lg tracking-tight flex items-center gap-2 mb-4">
           <ShoppingBasket className="h-5 w-5 text-primary" />
           Pool de Compras
         </h2>

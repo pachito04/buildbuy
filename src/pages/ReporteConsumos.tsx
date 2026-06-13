@@ -40,6 +40,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Download, TrendingUp } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -303,47 +304,40 @@ export default function ReporteConsumos() {
   // ---- Render -----------------------------------------------------------------
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Reporte de Consumos</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Consumos imputados por obra, material y arquitecto.
-          </p>
-        </div>
+    <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        eyebrow="Compras"
+        title="Reporte de Consumos"
+        subtitle="Consumos imputados por obra, material y arquitecto."
+        actions={
+          <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex gap-1">
+              {(['lista', 'comparativa'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  className={`rounded-full border px-4 py-1.5 text-xs font-medium capitalize transition-colors ${
+                    view === v
+                      ? 'bg-foreground text-background border-foreground'
+                      : 'border-border bg-card text-muted-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {v === 'lista' ? 'Lista' : 'Comparativa'}
+                </button>
+              ))}
+            </div>
 
-        <div className="flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex rounded-md border overflow-hidden">
-            <button
-              type="button"
-              className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                view === 'lista' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-              }`}
-              onClick={() => setView('lista')}
-            >
-              Lista
-            </button>
-            <button
-              type="button"
-              className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                view === 'comparativa' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-              }`}
-              onClick={() => setView('comparativa')}
-            >
-              Comparativa
-            </button>
+            {view === 'lista' && aggregated.length > 0 && (
+              <Button variant="outline" size="sm" onClick={exportToExcel}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </Button>
+            )}
           </div>
-
-          {view === 'lista' && aggregated.length > 0 && (
-            <Button variant="outline" size="sm" onClick={exportToExcel}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar Excel
-            </Button>
-          )}
-        </div>
-      </div>
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-4">
@@ -606,25 +600,21 @@ export default function ReporteConsumos() {
           {/* Metric toggle */}
           <div className="flex items-center gap-3">
             <Label className="text-sm shrink-0">Métrica</Label>
-            <div className="flex rounded-md border overflow-hidden">
-              <button
-                type="button"
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  metric === 'cantidad' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                }`}
-                onClick={() => setMetric('cantidad')}
-              >
-                Cantidad
-              </button>
-              <button
-                type="button"
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  metric === 'monto' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                }`}
-                onClick={() => setMetric('monto')}
-              >
-                Monto
-              </button>
+            <div className="flex gap-1">
+              {(['cantidad', 'monto'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMetric(m)}
+                  className={`rounded-full border px-4 py-1.5 text-xs font-medium capitalize transition-colors ${
+                    metric === m
+                      ? 'bg-foreground text-background border-foreground'
+                      : 'border-border bg-card text-muted-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {m === 'cantidad' ? 'Cantidad' : 'Monto'}
+                </button>
+              ))}
             </div>
           </div>
 
